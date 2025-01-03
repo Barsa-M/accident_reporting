@@ -2,7 +2,7 @@ const Sidebar = () => {
   return (
     <div className="flex h-screen">
 
-      <div className="w-64  flex flex-col border-r-4 border-[#F1F7F4] bg-white">
+      <div className="shadow-lg w-64  flex flex-col border-r-4 border-[#F1F7F4] bg-white">
        
         <div className="p-6 flex items-center justify-center">
           <img

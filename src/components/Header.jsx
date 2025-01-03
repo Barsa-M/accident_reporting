@@ -25,12 +25,12 @@
     </svg>
   </button>
 
-  <div className="flex items-center mx-4 space-x-2">
+  <div className="flex items-center mx-6 space-x-2">
     
     <img
       src="src\assets\icons\images.jpg" 
       alt="Profile"
-      className="w-9 h-9 rounded-full border border-gray-300 hover:border-green-400"
+      className="w-9 h-9 rounded-full border-2 border-gray-300 hover:border-green-500"
     />
  </div>
 
