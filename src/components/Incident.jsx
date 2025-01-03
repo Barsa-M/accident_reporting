@@ -2,7 +2,7 @@ export default function Incident() {
   return (
     <header className="flex flex-col justify-center items-center mt-16">
       <div className="flex">
-        <div className="mr-7 mb-7 flex w-[500px] h-64 border border-[#0D522C] rounded-lg">
+        <div className="mr-7 mb-7 flex w-[500px] h-64 border border-[#0D522C] rounded-lg hover:bg-[#e7fff2] hover:border-none">
           <div className="flex flex-col items-center justify-center ml-11 mt-7">
             <h1 className="text-3xl pb-9 text-[#0d522c] font-bold">Traffic Incident</h1>
             <div className="flex flex-col ml-7">
@@ -69,7 +69,7 @@ export default function Incident() {
               </g>
             </svg>
         </div>
-        <div className="mr-7 mb-7 flex w-[500px] h-64 border border-[#0D522C] rounded-lg">
+        <div className="mr-7 mb-7 flex w-[500px] h-64 border border-[#0D522C] rounded-lg hover:bg-[#e7fff2] hover:border-none">
           <div className="flex flex-col items-center justify-center ml-14 mt-7">
             <h1 className="text-3xl pb-9 text-[#0d522c] font-bold">Fire Incident</h1>
             <div className="flex flex-col ml-7">
@@ -124,7 +124,7 @@ export default function Incident() {
         </div>
       </div>
       <div className="flex">
-        <div className="mr-7 mb-7 flex w-[500px] h-64 border border-[#0D522C] rounded-lg">
+        <div className="mr-7 mb-7 flex w-[500px] h-64 border border-[#0D522C] rounded-lg hover:bg-[#e7fff2] hover:border-none">
           <div className="flex flex-col items-center justify-center ml-12 mt-7">
             <h1 className="text-3xl pb-9 text-[#0d522c] font-bold">Police Incident</h1>
             <div className="flex flex-col ml-7">
@@ -148,7 +148,7 @@ export default function Incident() {
               className="h-32 w-32 mt-7 ml-16"
             />
         </div>
-        <div className="mr-7 mb-7 flex w-[500px] h-64 border border-[#0D522C] rounded-lg">
+        <div className="mr-7 mb-7 flex w-[500px] h-64 border border-[#0D522C] rounded-lg hover:bg-[#e7fff2] hover:border-none">
           <div className="flex flex-col items-center justify-center ml-11 mt-7">
             <h1 className="text-3xl pb-9 text-[#0d522c] font-bold">Traffic Incident</h1>
             <div className="flex flex-col ml-7">

@@ -9,6 +9,7 @@ const Sidebar = () => {
             src="/public/safereport.svg" 
             alt="Logo"
             className="h-12 w-12"
+            style={{ filter: 'invert(80%) sepia(50%) saturate(500%) hue-rotate(90deg)' }}
           />
           <span className="text-xl font-bold ml-3 text-[#0D522C]">Safe Report</span>
         </div>
