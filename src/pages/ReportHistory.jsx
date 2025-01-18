@@ -26,7 +26,6 @@ export default function ReportHistory() {
       location: "Los Angeles",
       status: "In Progress",
     },
-    // Add more data here
   ];
 
   const filteredReports = reports
