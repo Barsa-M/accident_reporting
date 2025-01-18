@@ -4,6 +4,7 @@ import Sidebar from "./components/Sidebar";
 import Header from './components/Header';
 import ReportAccident from "./pages/ReportAccident";
 import ReportHistory from './pages/ReportHistory';
+import SafetyTips from './pages/SafetyTips';
 
 import Login from './pages/login';
 import SignIn from './pages/SignIn';
@@ -39,6 +40,7 @@ function App() {
           <Route path="/PostDetails" element={<PostDetail />} />
           <Route path="/" element={<ForumDiscussion />} />
           <Route path="/post/:id" element={<PostDetail />} /> 
+          <Route path="/SafetyTips" element={<SafetyTips />} />
         
 
         </Routes>

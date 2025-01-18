@@ -24,12 +24,12 @@ const PostDetail = () => {
   const samplePost = {
     title: "The streets were busy as usual",
     content:
-      "This is the detailed content of the post. It talks about how busy the streets have been lately. People are everywhere, traffic is heavy, and the atmosphere is buzzing with life. Everyone seems to be in a hurry, and there's an energy that's palpable in the air. It's nothing new, but it's something that people have come to expect in this part of the city.",
+      "Workplace safety measures are essential to ensure the well-being of employees and maintain a productive environment. Key measures include providing proper training on equipment use, enforcing the use of personal protective equipment (PPE), conducting regular safety inspections, and clearly marking hazardous areas. Open communication and a culture of reporting near-misses or unsafe practices without fear of retaliation are crucial for identifying and addressing potential risks. Prioritizing safety not only protects employees but also enhances efficiency and morale within the workplace.",
     multimedia: "https://via.placeholder.com/600x400",
     date: "January 15, 2025",
-    username: "John Doe",
+    username: "Samuel Kebede",
     profilePic: "https://via.placeholder.com/150",
-    email: "johndoe@example.com",
+    email: "samuel@gmail.com",
     phone: "123-456-7890",
   };
 
