@@ -1,5 +1,9 @@
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+
+// Header.js
+
 
 const Header = ({ isSearchVisible }) => {
   const navigate = useNavigate(); // Initialize the navigation hook
