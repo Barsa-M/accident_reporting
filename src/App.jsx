@@ -4,8 +4,15 @@ import Sidebar from "./components/Sidebar";
 import Header from './components/Header';
 import ReportAccident from "./pages/ReportAccident";
 import ReportHistory from './pages/ReportHistory';
+import SafetyTips from './pages/SafetyTips';
+
 import Login from './pages/login';
 import SignIn from './pages/SignIn';
+
+import ForumDiscussion from './pages/ForumDiscussion';
+import PostDetail from './pages/PostDetail';
+
+
 import AdminDashboard from './pages/AdminDashboard';
 import SidebarAdmin from './components/SidebarAdmin';
 import ResponderDashboard from './pages/ResponderDashboard';
@@ -43,6 +50,13 @@ function App() {
           <Route path="/SignIn" element={<SignIn />} />
           <Route path="/" element={<ReportAccident />} />
           <Route path="/ReportHistory" element={<ReportHistory />} />
+          <Route path="/ForumDiscussion" element={<ForumDiscussion />} />
+          <Route path="/PostDetails" element={<PostDetail />} />
+          <Route path="/" element={<ForumDiscussion />} />
+          <Route path="/post/:id" element={<PostDetail />} /> 
+          <Route path="/SafetyTips" element={<SafetyTips />} />
+        
+
           <Route path="/AdminDashboard" element={<AdminDashboard />} />
           <Route path="/ResponderDashboard" element={<ResponderDashboard />} />
         </Routes>
