@@ -1,7 +1,9 @@
+import { Link } from "react-router-dom"
 export default function Incident() {
     return (
       <header className="flex flex-col justify-center items-center mt-16">
         <div className="flex">
+        <Link to="/TrafficForm">
           <div className="mr-7 mb-7 flex w-[500px] h-64 border border-[#0D522C] rounded-lg hover:bg-[#e7fff2] hover:border-none">
             <div className="flex flex-col items-center justify-center ml-11 mt-7">
               <h1 className="text-3xl pb-9 text-[#0d522c] font-bold">Traffic Incident</h1>
@@ -69,6 +71,7 @@ export default function Incident() {
                 </g>
               </svg>
           </div>
+          </Link>
           <div className="mr-7 mb-7 flex w-[500px] h-64 border border-[#0D522C] rounded-lg hover:bg-[#e7fff2] hover:border-none">
             <div className="flex flex-col items-center justify-center ml-14 mt-7">
               <h1 className="text-3xl pb-9 text-[#0d522c] font-bold">Fire Incident</h1>

@@ -4,19 +4,16 @@ import Sidebar from "./components/Sidebar";
 import SidebarAdmin from "./components/SidebarAdmin";
 import SidebarResponder from "./components/SidebarResponder";
 import Header from "./components/Header";
-
 import ReportAccident from "./pages/ReportAccident";
 import ReportHistory from "./pages/ReportHistory";
 import SafetyTips from "./pages/SafetyTips";
-
 import Login from "./pages/Login";
 import SignIn from "./pages/SignIn";
-
 import ForumDiscussion from "./pages/ForumDiscussion";
 import PostDetail from "./pages/PostDetail";
-
 import AdminDashboard from "./pages/AdminDashboard";
 import ResponderDashboard from "./pages/ResponderDashboard";
+import TrafficForm from "./pages/TrafficForm";
 
 function App() {
   const location = useLocation();
@@ -57,9 +54,9 @@ function App() {
           <Route path="/PostDetails" element={<PostDetail />} />
           <Route path="/post/:id" element={<PostDetail />} />
           <Route path="/SafetyTips" element={<SafetyTips />} />
-
           <Route path="/AdminDashboard" element={<AdminDashboard />} />
           <Route path="/ResponderDashboard" element={<ResponderDashboard />} />
+          <Route path="/TrafficForm" element={<TrafficForm  />} />
         </Routes>
       </div>
     </div>
