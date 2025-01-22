@@ -34,7 +34,7 @@ function App() {
     setSidebarComponent(!hiddenPaths.includes(location.pathname) ? (sidebarMappings[location.pathname] || <Sidebar />) : null);
 
     // Define where the search bar should be hidden
-    const searchHiddenPaths = ["/", "/AdminDashboard", "/ResponderDashboard", "/login", "/SignIn"];
+    const searchHiddenPaths = ["/", "/AdminDashboard", "/ResponderDashboard", "/login", "/SignIn","/TrafficForm"];
     setSearchVisible(!searchHiddenPaths.includes(location.pathname));
   }, [location.pathname]);
 
