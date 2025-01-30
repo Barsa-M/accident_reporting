@@ -1,22 +1,21 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-
-// Header.js
-
+import * as Dialog from '@radix-ui/react-dialog';
 
 const Header = ({ isSearchVisible }) => {
-  const navigate = useNavigate(); // Initialize the navigation hook
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false); // State to control modal visibility
 
   const handleLogout = () => {
-    // Add any additional logout logic here, like clearing local storage or state
-    navigate('/login'); // Redirect to the login page
+    setOpen(false); // Close modal
+    // Perform logout actions (e.g., clear session storage)
+    navigate('/'); // Redirect after logout
   };
 
   return (
     <div className="flex items-center justify-between">
       <div className="p-4 flex-1">
-        {isSearchVisible && ( 
+        {isSearchVisible && (
           <input
             id="searchbar"
             type="text"
@@ -32,7 +31,7 @@ const Header = ({ isSearchVisible }) => {
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth="1.5"
-            stroke="#0d522c" 
+            stroke="#0d522c"
             className="w-8 h-8 hover:stroke-[#90bea6]"
           >
             <g>
@@ -50,21 +49,46 @@ const Header = ({ isSearchVisible }) => {
         </button>
 
         <div className="flex items-center mx-6 space-x-2">
-        <Link to="/ReporterProfile">
-          <img
-          src="src/assets/icons/images.jpg"
-          alt="Profile"
-          className="w-9 h-9 rounded-full border-2 border-gray-300 hover:border-green-500"
-         />
-        </Link>
+          <Link to="/ReporterProfile">
+            <img
+              src="src/assets/icons/images.jpg"
+              alt="Profile"
+              className="w-9 h-9 rounded-full border-2 border-gray-300 hover:border-green-500"
+            />
+          </Link>
         </div>
 
         <button
-          onClick={handleLogout} // Add the logout handler here
+          onClick={() => setOpen(true)}
           className="px-4 py-1 text-base text-[#0D522C] border border-red-500 rounded-md hover:text-white hover:bg-red-600 focus:outline-none"
         >
           Logout
         </button>
+
+        {/* Logout Confirmation Modal */}
+        <Dialog.Root open={open} onOpenChange={setOpen}>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded-lg shadow-lg">
+            <Dialog.Title className="text-lg font-semibold">Confirm Logout</Dialog.Title>
+            <Dialog.Description className="mt-2 text-gray-600">
+              Are you sure you want to log out?
+            </Dialog.Description>
+            <div className="flex justify-end gap-4 mt-4">
+              <button
+                className="px-4 py-1 border border-gray-400 rounded-md"
+                onClick={() => setOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-1 bg-red-600 text-white rounded-md"
+                onClick={handleLogout}
+              >
+                Logout
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Root>
       </div>
     </div>
   );

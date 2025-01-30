@@ -113,28 +113,13 @@ const Sidebar = () => {
               )}
             </li>
             <li>
-              <Link to="/EmergencyServices">
                 <a
                   href="#"
                   className="flex items-center p-3 rounded-md hover:bg-[#D2FFE8] mt-3"
                 >
-                  <svg
-                    className="h-6 w-6 mr-5"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <g>
-                      <path
-                        d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20ZM11 9H13V11H11V9ZM11 13H13V15H11V13Z"
-                        fill="#0d522c"
-                      ></path>
-                    </g>
-                  </svg>
-                  View Nearby Emergency Services
+                  <svg className="h-6 w-6 mr-5" fill="#0d522c" viewBox="0 0 15 15" id="emergency-phone" xmlns="http://www.w3.org/2000/svg"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <path d="M7.875,11.49a.51.51,0,0,0,.72,0l.72-.72,2.18,2.16-.37.37a2.24,2.24,0,0,1-1.44.7H8.24a2.24,2.24,0,0,1-1.45-.7L1.72,8.23A2.24,2.24,0,0,1,1,6.78V5.33a2.24,2.24,0,0,1,.72-1.45l.36-.36L4.26,5.69l-.73.73a.51.51,0,0,0,0,.72Zm4.72.38a1,1,0,0,0,.036-1.414h0l-.036-.036-.72-.72a1,1,0,0,0-1.414-.036h0l-.036.036ZM5.315,4.62a1,1,0,0,0,.036-1.414h0L4.595,2.45a1,1,0,0,0-1.414-.036h0L3.14,2.45ZM10,2V4H8V5h2V7h1V5h2V4H11V2Z"></path> </g></svg>
+                  Emergency Locator
                 </a>
-              </Link>
             </li>
           </ul>
         </nav>

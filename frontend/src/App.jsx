@@ -40,7 +40,7 @@ function App() {
     };
 
     // Define paths where no sidebar is shown
-    const hiddenPaths = ["/login", "/SignIn", "/", "/Services", "/AboutUs", "/Contact"];
+    const hiddenPaths = ["/login", "/SignIn", "/", "/Services", "/AboutUs", "/Contact","/ReporterProfile"];
 
     // Define paths where no header is shown
     const headerHiddenPaths = ["/login", "/SignIn", "/", "/Services", "/AboutUs", "/Contact"];
@@ -62,7 +62,7 @@ function App() {
       {sidebarComponent}
       <div className={`flex-1 flex flex-col ${sidebarComponent ? "mr-6" : ""}`}>
         {/* Render the header only when it's visible */}
-        {isHeaderVisible && !["/login", "/SignIn", "/AboutUs", "/Services", "/"].includes(location.pathname) && <Header isSearchVisible={isSearchVisible} />}
+        {isHeaderVisible && !["/login", "/SignIn", "/AboutUs", "/Services", "/","/ReporterProfile"].includes(location.pathname) && <Header isSearchVisible={isSearchVisible} />}
         
         <Routes>
           <Route path="/login" element={<Login />} />

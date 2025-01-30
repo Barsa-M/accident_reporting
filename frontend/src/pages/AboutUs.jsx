@@ -5,43 +5,17 @@ const AboutUs = () => {
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="bg-[#0D522C] text-white py-4">
-        <div className="container mx-auto flex justify-center space-x-6">
-          <NavLink
-            to="/"
-            className="text-xl text-white border-b-2 border-transparent hover:border-white"
-            activeClassName="border-white"
-          >
-            Home
-          </NavLink>
-          <NavLink
-            to="/AboutUs"
-            className="text-xl text-white border-b-2 border-transparent hover:border-white"
-            activeClassName="border-white"
-          >
-            About Us
-          </NavLink>
-          <NavLink
-            to="/Services"
-            className="text-xl text-white border-b-2 border-transparent hover:border-white"
-            activeClassName="border-white"
-          >
-            Services
-          </NavLink>
-          <NavLink
-            to="/Contact"
-            className="text-xl text-white border-b-2 border-transparent hover:border-white"
-            activeClassName="border-white"
-          >
-            Contact
-          </NavLink>
-          <NavLink
-            to="/login"
-            className="text-xl text-white border-b-2 border-transparent hover:border-white"
-            activeClassName="border-white"
-          >
-            Login
-          </NavLink>
+      <header className="text-black py-4">
+        <div className="container mx-auto flex justify-center items-center space-x-6">
+          <Link to="/" className="text-base">Home</Link>
+          <Link to="/Services" className="text-base">Services</Link>
+          <Link to="/AboutUs" className="text-base" >About Us</Link>
+          <Link to="/Contact" className="text-base">Contact</Link>
+          <Link to="/SignIn">
+            <button className="absolute right-16 text-sm w-[100px] bg-[#0d522c] text-white py-2 rounded hover:bg-[#347752] transition">
+                Sign Up
+            </button>
+          </Link>
         </div>
       </header>
 
