@@ -15,7 +15,7 @@ export default function ReportHistory() {
       type: "Fire",
       urgency: "High",
       reportedTime: "2025-01-05 14:00",
-      location: "New York",
+      location: "Yeka",
       status: "Resolved",
     },
     {
@@ -23,7 +23,7 @@ export default function ReportHistory() {
       type: "Medical",
       urgency: "Medium",
       reportedTime: "2025-01-04 09:30",
-      location: "Los Angeles",
+      location: "Bole",
       status: "In Progress",
     },
   ];

@@ -16,15 +16,16 @@ import ForumDiscussion from "./pages/ForumDiscussion";
 import PostDetail from "./pages/PostDetail";
 import AdminDashboard from "./pages/AdminDashboard";
 import ResponderDashboard from "./pages/ResponderDashboard";
-import TrafficForm from "./pages/TrafficForm";
+import trafficform from "./pages/trafficform";
 import HomePage from "./pages/HomePage"; 
 import AboutUs from "./pages/AboutUs";
 import Services from "./pages/Services";
 import Contact from "./pages/Contact";  
 import ReporterProfile from "./pages/ReporterProfile";
 import EmergencyServices from "./pages/EmergencyServices";
-
-
+import Notifications from "./pages/Notifications";
+import PostSafetyTips from "./pages/PostSafetyTips";
+import Tips from "./pages/Tips";
 
 function App() {
   const location = useLocation();
@@ -74,7 +75,7 @@ function App() {
           <Route path="/SafetyTips" element={<SafetyTips />} />
           <Route path="/AdminDashboard" element={<AdminDashboard />} />
           <Route path="/ResponderDashboard" element={<ResponderDashboard />} />
-          <Route path="/TrafficForm" element={<TrafficForm />} />
+          <Route path="/TrafficForm" element={<trafficform />} />
           <Route path="/AboutUs" element={<AboutUs />} />
           <Route path="/Services" element={<Services />} />
           <Route path="/Contact" element={<Contact />} />
@@ -84,7 +85,9 @@ function App() {
           <Route path="/NotificationSettings" element={<NotificationSettings />} />
           <Route path="/PostHistory" element={<PostHistory />} />
           <Route path="/EmergencyServices" element={<EmergencyServices />} />
-          
+          <Route path="/Notifications" element={<Notifications />} />
+          <Route path="/PostSafetyTips" element={<PostSafetyTips />} />
+          <Route path="/Tips" element={<Tips />} />
         </Routes>
       </div>
     </div>
