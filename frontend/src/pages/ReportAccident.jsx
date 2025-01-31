@@ -72,6 +72,7 @@ export default function Incident() {
               </svg>
           </div>
           </Link>
+          <Link to="/FireForm">
           <div className="mr-7 mb-7 flex w-[500px] h-64 border border-[#0D522C] rounded-lg hover:bg-[#e7fff2] hover:border-none">
             <div className="flex flex-col items-center justify-center ml-14 mt-7">
               <h1 className="text-3xl pb-9 text-[#0d522c] font-bold">Fire Incident</h1>
@@ -125,8 +126,10 @@ export default function Incident() {
               </g>
             </svg>
           </div>
+          </Link>
         </div>
         <div className="flex">
+        <Link to="/PoliceForm">
           <div className="mr-7 mb-7 flex w-[500px] h-64 border border-[#0D522C] rounded-lg hover:bg-[#e7fff2] hover:border-none">
             <div className="flex flex-col items-center justify-center ml-12 mt-7">
               <h1 className="text-3xl pb-9 text-[#0d522c] font-bold">Police Incident</h1>
@@ -151,6 +154,8 @@ export default function Incident() {
                 className="h-32 w-32 mt-7 ml-16"
               />
           </div>
+          </Link>
+          <Link to="/MedicalForm">
           <div className="mr-7 mb-7 flex w-[500px] h-64 border border-[#0D522C] rounded-lg hover:bg-[#e7fff2] hover:border-none">
             <div className="flex flex-col items-center justify-center ml-11 mt-7">
               <h1 className="text-3xl pb-9 text-[#0d522c] font-bold">Medical Incident</h1>
@@ -169,55 +174,9 @@ export default function Incident() {
                 </div>
               </div>
             </div>
-              <svg
-                class="h-32 w-32 mt-7 ml-16"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                xmlns:xlink="http://www.w3.org/1999/xlink"
-                aria-hidden="true"
-                role="img"
-                preserveAspectRatio="xMidYMid meet"
-                viewBox="0 0 128 128"
-              >
-                <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
-                <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g>
-                <g id="SVGRepo_iconCarrier">
-                  <path
-                    d="M83.05 124h-38.1c-5.26 0-9.53-4.27-9.53-9.53V13.53c0-5.26 4.27-9.53 9.53-9.53h38.11c5.26 0 9.53 4.27 9.53 9.53v100.94c-.01 5.26-4.27 9.53-9.54 9.53z"
-                    fill="#424242"
-                  ></path>
-                  <circle cx="64" cy="102.92" r="13.41" fill="#4caf50"></circle>
-                  <path
-                    d="M54.64 104.09c-1.14-.36-1.45-4.36 1.22-7.57c3.98-4.79 9.71-4.67 10.32-2.12c.85 3.57-3.67 2.16-7.11 5.04c-2.15 1.8-2.62 5.22-4.43 4.65z"
-                    fill="#6fd86f"
-                  ></path>
-                  <circle cx="64" cy="66.21" r="13.41" fill="#ffca28"></circle>
-                  <path
-                    d="M54.64 67.39c-1.14-.36-1.45-4.36 1.22-7.57c3.98-4.79 9.71-4.67 10.32-2.12c.85 3.57-3.67 2.16-7.11 5.04c-2.15 1.8-2.62 5.22-4.43 4.65z"
-                    fill="#fff59d"
-                  ></path>
-                  <g>
-                    <circle cx="64" cy="29.5" r="13.41" fill="#f44336"></circle>
-                    <path
-                      d="M54.64 30.68c-1.14-.36-1.45-4.36 1.22-7.57c3.98-4.79 9.71-4.67 10.32-2.12c.85 3.57-3.67 2.16-7.11 5.04c-2.15 1.8-2.62 5.22-4.43 4.65z"
-                      fill="#ff8155"
-                    ></path>
-                  </g>
-                  <path
-                    d="M49.48 23.12c-.47.92-1.89.88-1.76-.52c.32-3.41 2.26-6.09 3.85-7.73c3.16-3.32 7.8-5.21 12.43-5.2c4.63-.02 9.27 1.88 12.44 5.19c1.59 1.64 3.85 5.3 3.86 7.85c0 1.11-1.26 1.41-1.72.51c-1.15-2.24-4.71-9.55-14.57-9.55c-9.88 0-13.39 7.23-14.53 9.45z"
-                    fill="#757575"
-                  ></path>
-                  <path
-                    d="M49.48 96.62c-.47.92-1.89.88-1.76-.52c.32-3.41 2.26-6.09 3.85-7.73c3.16-3.32 7.8-5.21 12.43-5.2c4.63-.02 9.27 1.88 12.44 5.19c1.59 1.64 3.85 5.3 3.86 7.85c0 1.11-1.26 1.41-1.72.51c-1.15-2.24-4.71-9.55-14.57-9.55c-9.88 0-13.39 7.24-14.53 9.45z"
-                    fill="#757575"
-                  ></path>
-                  <path
-                    d="M49.48 59.87c-.47.92-1.89.88-1.76-.52c.32-3.41 2.26-6.09 3.85-7.73c3.16-3.32 7.8-5.21 12.43-5.2c4.63-.02 9.27 1.88 12.44 5.19c1.59 1.64 3.85 5.3 3.86 7.85c0 1.11-1.26 1.41-1.72.51c-1.15-2.24-4.71-9.55-14.57-9.55s-13.39 7.23-14.53 9.45z"
-                    fill="#757575"
-                  ></path>
-                </g>
-              </svg>
+            <svg class="h-32 w-32 mt-7 ml-16" fill="#ff0000" viewBox="0 0 32 32" version="1.1" xmlns="http://www.w3.org/2000/svg" stroke="#ff0000"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"> <title>hospital-cross</title> <path d="M11.483 2.333v9.548h-9.508v8.823h9.508v9.508h8.823v-9.508h9.548v-8.823h-9.548v-9.548h-8.823z"></path> </g></svg>
           </div>
+          </Link>
         </div>
   
       </header>

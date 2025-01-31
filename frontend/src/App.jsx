@@ -16,6 +16,10 @@ import ForumDiscussion from "./pages/ForumDiscussion";
 import PostDetail from "./pages/PostDetail";
 import AdminDashboard from "./pages/AdminDashboard";
 import ResponderDashboard from "./pages/ResponderDashboard";
+import TrafficForm from "./pages/TrafficForm";
+import PoliceForm from "./pages/PoliceForm";
+import MedicalForm from "./pages/MedicalForm";
+import FireForm from "./pages/FireForm";
 import trafficform from "./pages/trafficform";
 import HomePage from "./pages/HomePage"; 
 import AboutUs from "./pages/AboutUs";
@@ -23,6 +27,9 @@ import Services from "./pages/Services";
 import Contact from "./pages/Contact";  
 import ReporterProfile from "./pages/ReporterProfile";
 import EmergencyServices from "./pages/EmergencyServices";
+import ManageUser from "./pages/ManageUser";
+import ActiveIncidents from "./pages/ActiveIncidents";
+import ViewReports from "./pages/ViewReports";
 import Notifications from "./pages/Notifications";
 import PostSafetyTips from "./pages/PostSafetyTips";
 import Tips from "./pages/Tips";
@@ -37,7 +44,10 @@ function App() {
     // Define which sidebar should be displayed for each route
     const sidebarMappings = {
       "/AdminDashboard": <SidebarAdmin />,
+      "/ManageUser": <SidebarAdmin />,  
       "/ResponderDashboard": <SidebarResponder />,
+      "/ActiveIncidents": <SidebarResponder />,
+      "/ViewReports": <SidebarResponder />,
     };
 
     // Define paths where no sidebar is shown
@@ -53,7 +63,7 @@ function App() {
     setHeaderVisible(!headerHiddenPaths.includes(location.pathname));
 
     // Define where the search bar should be hidden
-    const searchHiddenPaths = ["/", "/AdminDashboard", "/AboutUs", "/ResponderDashboard", "/login", "/SignIn", "/TrafficForm"];
+    const searchHiddenPaths = ["/", "/AdminDashboard", "/AboutUs", "/ResponderDashboard", "/login", "/SignIn", "/TrafficForm","/PoliceForm","/MedicalForm","/FireForm"];
     setSearchVisible(!searchHiddenPaths.includes(location.pathname));
   }, [location.pathname]);
 
@@ -75,6 +85,10 @@ function App() {
           <Route path="/SafetyTips" element={<SafetyTips />} />
           <Route path="/AdminDashboard" element={<AdminDashboard />} />
           <Route path="/ResponderDashboard" element={<ResponderDashboard />} />
+          <Route path="/TrafficForm" element={<TrafficForm />} />
+          <Route path="/PoliceForm" element={<PoliceForm />} />
+          <Route path="/MedicalForm" element={<MedicalForm />} />
+          <Route path="/FireForm" element={<FireForm />} />
           <Route path="/TrafficForm" element={<trafficform />} />
           <Route path="/AboutUs" element={<AboutUs />} />
           <Route path="/Services" element={<Services />} />
@@ -85,6 +99,9 @@ function App() {
           <Route path="/NotificationSettings" element={<NotificationSettings />} />
           <Route path="/PostHistory" element={<PostHistory />} />
           <Route path="/EmergencyServices" element={<EmergencyServices />} />
+          <Route path="/ManageUser" element={<ManageUser />} />
+          <Route path="/ActiveIncidents" element={<ActiveIncidents />} />
+          <Route path="/ViewReports" element={<ViewReports />} />
           <Route path="/Notifications" element={<Notifications />} />
           <Route path="/PostSafetyTips" element={<PostSafetyTips />} />
           <Route path="/Tips" element={<Tips />} />

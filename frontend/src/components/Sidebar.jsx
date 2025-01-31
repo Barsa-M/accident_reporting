@@ -102,14 +102,31 @@ const Sidebar = () => {
                 Forum
               </a>
               {forumOpen && (
-                <div className="ml-6 mt-2">
-                  <Link to="/ForumDiscussion">
-                    <a className="block text-green-700 hover:text-white hover:bg-green-700 p-2 rounded-md">Discussion</a>
-                  </Link>
-                  <Link to="/SafetyTips">
-                    <a className="block text-green-700 hover:text-white hover:bg-green-700 p-2 rounded-md mt-2">Safety Tips</a>
-                  </Link>
-                </div>
+                <div className="ml-12 mt-2">
+                <Link to="/ForumDiscussion">
+                  <div
+                    className={`block p-2 rounded-md ${
+                      location.pathname === "/ForumDiscussion"
+                        ? "bg-[#0d522c] text-white"
+                        : "hover:bg-[#D2FFE8]"
+                    }`}
+                  >
+                    Discussion
+                  </div>
+                </Link>
+          
+                <Link to="/SafetyTips">
+                  <div
+                    className={`block p-2 rounded-md mt-2 ${
+                      location.pathname === "/SafetyTips"
+                        ? "bg-[#0d522c] text-white"
+                        : "hover:bg-[#D2FFE8]"
+                    }`}
+                  >
+                    Safety Tips
+                  </div>
+                </Link>
+              </div>
               )}
             </li>
             <li>
