@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import Footer from '../components/Footer';
 
 const Services = () => {
   return (
@@ -6,10 +7,10 @@ const Services = () => {
       {/* Header */}
       <header className="text-black py-4">
         <div className="container mx-auto flex justify-center items-center space-x-6">
-          <Link to="/" className="text-base">Home</Link>
-          <Link to="/Services" className="text-base">Services</Link>
-          <Link to="/AboutUs" className="text-base" >About Us</Link>
-          <Link to="/Contact" className="text-base">Contact</Link>
+          <Link to="/" className="pt-5 text-base hover:text-green-600">Home</Link>
+          <Link to="/Services" className="pt-5 text-base text-[#0d522c] font-bold">Services</Link>
+          <Link to="/AboutUs" className="pt-5 text-base hover:text-green-600" >About Us</Link>
+          <Link to="/Contact" className="pt-5 text-base hover:text-green-600">Contact</Link>
           <Link to="/SignIn">
             <button className="absolute right-16 text-sm w-[100px] bg-[#0d522c] text-white py-2 rounded hover:bg-[#347752] transition">
                 Sign Up
@@ -91,6 +92,9 @@ const Services = () => {
           <img src="placeholder-image.jpg" alt="Key Benefits" className="w-full h-auto rounded-md"/>
         </div>
       </section>
+      <div>
+        <Footer />
+      </div>
     </div>
   );
 };

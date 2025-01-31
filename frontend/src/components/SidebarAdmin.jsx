@@ -47,7 +47,7 @@ const SidebarAdmin = () => {
             </Link>
             </li>
             <li>
-            <Link>
+            <Link to="/ManageUser">
               <a
                 href="#"
                 className="flex items-center p-3 rounded-md hover:bg-[#D2FFE8] mt-3"

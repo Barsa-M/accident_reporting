@@ -23,8 +23,9 @@ import Services from "./pages/Services";
 import Contact from "./pages/Contact";  
 import ReporterProfile from "./pages/ReporterProfile";
 import EmergencyServices from "./pages/EmergencyServices";
-
-
+import ManageUser from "./pages/ManageUser";
+import ActiveIncidents from "./pages/ActiveIncidents";
+import ViewReports from "./pages/ViewReports";
 
 function App() {
   const location = useLocation();
@@ -36,7 +37,10 @@ function App() {
     // Define which sidebar should be displayed for each route
     const sidebarMappings = {
       "/AdminDashboard": <SidebarAdmin />,
+      "/ManageUser": <SidebarAdmin />,  
       "/ResponderDashboard": <SidebarResponder />,
+      "/ActiveIncidents": <SidebarResponder />,
+      "/ViewReports": <SidebarResponder />,
     };
 
     // Define paths where no sidebar is shown
@@ -84,7 +88,9 @@ function App() {
           <Route path="/NotificationSettings" element={<NotificationSettings />} />
           <Route path="/PostHistory" element={<PostHistory />} />
           <Route path="/EmergencyServices" element={<EmergencyServices />} />
-          
+          <Route path="/ManageUser" element={<ManageUser />} />
+          <Route path="/ActiveIncidents" element={<ActiveIncidents />} />
+          <Route path="/ViewReports" element={<ViewReports />} />
         </Routes>
       </div>
     </div>
