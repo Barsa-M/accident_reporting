@@ -17,6 +17,9 @@ import PostDetail from "./pages/PostDetail";
 import AdminDashboard from "./pages/AdminDashboard";
 import ResponderDashboard from "./pages/ResponderDashboard";
 import TrafficForm from "./pages/TrafficForm";
+import PoliceForm from "./pages/PoliceForm";
+import MedicalForm from "./pages/MedicalForm";
+import FireForm from "./pages/FireForm";
 import HomePage from "./pages/HomePage"; 
 import AboutUs from "./pages/AboutUs";
 import Services from "./pages/Services";
@@ -56,7 +59,7 @@ function App() {
     setHeaderVisible(!headerHiddenPaths.includes(location.pathname));
 
     // Define where the search bar should be hidden
-    const searchHiddenPaths = ["/", "/AdminDashboard", "/AboutUs", "/ResponderDashboard", "/login", "/SignIn", "/TrafficForm"];
+    const searchHiddenPaths = ["/", "/AdminDashboard", "/AboutUs", "/ResponderDashboard", "/login", "/SignIn", "/TrafficForm","/PoliceForm","/MedicalForm","/FireForm"];
     setSearchVisible(!searchHiddenPaths.includes(location.pathname));
   }, [location.pathname]);
 
@@ -79,6 +82,9 @@ function App() {
           <Route path="/AdminDashboard" element={<AdminDashboard />} />
           <Route path="/ResponderDashboard" element={<ResponderDashboard />} />
           <Route path="/TrafficForm" element={<TrafficForm />} />
+          <Route path="/PoliceForm" element={<PoliceForm />} />
+          <Route path="/MedicalForm" element={<MedicalForm />} />
+          <Route path="/FireForm" element={<FireForm />} />
           <Route path="/AboutUs" element={<AboutUs />} />
           <Route path="/Services" element={<Services />} />
           <Route path="/Contact" element={<Contact />} />
