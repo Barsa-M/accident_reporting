@@ -2,6 +2,7 @@ import React from "react";
 import { Bar } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip, Legend } from "chart.js";
 
+// Registering Chart.js components
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
 function ResponderDashboard() {
@@ -24,24 +25,33 @@ function ResponderDashboard() {
     datasets: [
       {
         label: "Number of Incidents",
-        data: [resolvedIncidents, totalIncidents],
+        data: [resolvedIncidents, totalIncidents], // Ensure the data is numbers, not strings or undefined
         backgroundColor: ["#4CAF50", "#2196F3"],
       },
     ],
   };
 
+  // Chart Options
   const chartOptions = {
-    maintainAspectRatio: false, // Allow resizing
+    responsive: true,
+    maintainAspectRatio: false, 
     plugins: {
-      legend: { position: "bottom" }, // Adjust legend position
+      legend: { position: "bottom" }, // Legend at the bottom
+      tooltip: {
+        callbacks: {
+          label: (tooltipItem) => {
+            return `${tooltipItem.label}: ${tooltipItem.raw}`; // Tooltip formatting
+          },
+        },
+      },
     },
   };
 
   return (
     <div className="p-6">
-      <h1 className="text-5xl uppercase font-bold mb-12 w-7">Welcome Back,</h1>
+      <h1 className="text-5xl uppercase font-bold mb-12">Welcome Back,</h1>
 
-      {/* Charts */}
+      {/* Charts Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Bar Chart */}
         <div className="border border-[#0d522c] shadow rounded-lg p-4">

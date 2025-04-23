@@ -1,5 +1,8 @@
-import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { useAuthState } from "react-firebase-hooks/auth";
+import { auth } from "./firebase";
+import { getUserRole } from "./firebaseAuth";
 import Sidebar from "./components/Sidebar";
 import ChangePassword from "./components/ChangePassword";
 import PostHistory from "./components/PostHistory";
@@ -11,7 +14,7 @@ import ReportAccident from "./pages/ReportAccident";
 import ReportHistory from "./pages/ReportHistory";
 import SafetyTips from "./pages/SafetyTips";
 import Login from "./pages/Login";
-import SignIn from "./pages/SignIn";
+import CreateAccount from "./pages/CreateAccount";
 import ForumDiscussion from "./pages/ForumDiscussion";
 import PostDetail from "./pages/PostDetail";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -39,9 +42,16 @@ function App() {
   const [sidebarComponent, setSidebarComponent] = useState(null);
   const [isSearchVisible, setSearchVisible] = useState(true);
   const [isHeaderVisible, setHeaderVisible] = useState(true);
+  const [user] = useAuthState(auth);
+  const [role, setRole] = useState(null);
 
   useEffect(() => {
-    // Define which sidebar should be displayed for each route
+    if (user) {
+      getUserRole(user.uid).then(setRole);
+    }
+  }, [user]);
+
+  useEffect(() => {
     const sidebarMappings = {
       "/AdminDashboard": <SidebarAdmin />,
       "/ManageUser": <SidebarAdmin />,  
@@ -50,61 +60,59 @@ function App() {
       "/ViewReports": <SidebarResponder />,
     };
 
-    // Define paths where no sidebar is shown
-    const hiddenPaths = ["/login", "/SignIn", "/", "/Services", "/AboutUs", "/Contact","/ReporterProfile"];
+    const hiddenPaths = ["/login", "/CreateAccount", "/", "/Services", "/AboutUs", "/Contact","/ReporterProfile"];
+    const headerHiddenPaths = ["/login", "/CreateAccount", "/", "/Services", "/AboutUs", "/Contact"];
+    const searchHiddenPaths = ["/", "/AdminDashboard", "/AboutUs", "/ResponderDashboard", "/login", "/CreateAccount", "/TrafficForm","/PoliceForm","/MedicalForm","/FireForm"];
 
-    // Define paths where no header is shown
-    const headerHiddenPaths = ["/login", "/SignIn", "/", "/Services", "/AboutUs", "/Contact"];
-
-    // Determine the sidebar component or hide it
     setSidebarComponent(!hiddenPaths.includes(location.pathname) ? (sidebarMappings[location.pathname] || <Sidebar />) : null);
-
-    // Determine if header should be visible
     setHeaderVisible(!headerHiddenPaths.includes(location.pathname));
-
-    // Define where the search bar should be hidden
-    const searchHiddenPaths = ["/", "/AdminDashboard", "/AboutUs", "/ResponderDashboard", "/login", "/SignIn", "/TrafficForm","/PoliceForm","/MedicalForm","/FireForm"];
     setSearchVisible(!searchHiddenPaths.includes(location.pathname));
   }, [location.pathname]);
 
   return (
     <div className="flex">
-      {/* Render the appropriate sidebar or nothing */}
       {sidebarComponent}
       <div className={`flex-1 flex flex-col ${sidebarComponent ? "mr-6" : ""}`}>
-        {/* Render the header only when it's visible */}
-        {isHeaderVisible && !["/login", "/SignIn", "/AboutUs", "/Services", "/","/ReporterProfile"].includes(location.pathname) && <Header isSearchVisible={isSearchVisible} />}
+        {isHeaderVisible && !["/login", "/CreateAccount", "/AboutUs", "/Services", "/","/ReporterProfile"].includes(location.pathname) && <Header isSearchVisible={isSearchVisible} />}
         
         <Routes>
+          {/* Public Routes */}
           <Route path="/login" element={<Login />} />
-          <Route path="/SignIn" element={<SignIn />} />
+          <Route path="/CreateAccount" element={<CreateAccount />} />
           <Route path="/" element={<HomePage />} />
-          <Route path="/ReportHistory" element={<ReportHistory />} />
-          <Route path="/ForumDiscussion" element={<ForumDiscussion />} />
-          <Route path="/PostDetails" element={<PostDetail />} />
-          <Route path="/SafetyTips" element={<SafetyTips />} />
-          <Route path="/AdminDashboard" element={<AdminDashboard />} />
-          <Route path="/ResponderDashboard" element={<ResponderDashboard />} />
-          <Route path="/TrafficForm" element={<TrafficForm />} />
-          <Route path="/PoliceForm" element={<PoliceForm />} />
-          <Route path="/MedicalForm" element={<MedicalForm />} />
-          <Route path="/FireForm" element={<FireForm />} />
-          <Route path="/TrafficForm" element={<trafficform />} />
           <Route path="/AboutUs" element={<AboutUs />} />
           <Route path="/Services" element={<Services />} />
           <Route path="/Contact" element={<Contact />} />
-          <Route path="/ReportAccident" element={<ReportAccident />} />
-          <Route path="/ReporterProfile" element={<ReporterProfile />} />
-          <Route path="/ChangePassword" element={<ChangePassword />} />
-          <Route path="/NotificationSettings" element={<NotificationSettings />} />
-          <Route path="/PostHistory" element={<PostHistory />} />
-          <Route path="/EmergencyServices" element={<EmergencyServices />} />
-          <Route path="/ManageUser" element={<ManageUser />} />
-          <Route path="/ActiveIncidents" element={<ActiveIncidents />} />
-          <Route path="/ViewReports" element={<ViewReports />} />
-          <Route path="/Notifications" element={<Notifications />} />
-          <Route path="/PostSafetyTips" element={<PostSafetyTips />} />
-          <Route path="/Tips" element={<Tips />} />
+          
+          {/* Protected Routes */}
+          <Route path="/ReportHistory" element={user ? <ReportHistory /> : <Navigate to="/login" />} />
+          <Route path="/ForumDiscussion" element={user ? <ForumDiscussion /> : <Navigate to="/login" />} />
+          <Route path="/PostDetails" element={user ? <PostDetail /> : <Navigate to="/login" />} />
+          <Route path="/SafetyTips" element={user ? <SafetyTips /> : <Navigate to="/login" />} />
+          <Route path="/ReportAccident" element={user ? <ReportAccident /> : <Navigate to="/login" />} />
+          <Route path="/ReporterProfile" element={user ? <ReporterProfile /> : <Navigate to="/login" />} />
+          <Route path="/ChangePassword" element={user ? <ChangePassword /> : <Navigate to="/login" />} />
+          <Route path="/NotificationSettings" element={user ? <NotificationSettings /> : <Navigate to="/login" />} />
+          <Route path="/PostHistory" element={user ? <PostHistory /> : <Navigate to="/login" />} />
+          <Route path="/EmergencyServices" element={user ? <EmergencyServices /> : <Navigate to="/login" />} />
+          <Route path="/Notifications" element={user ? <Notifications /> : <Navigate to="/login" />} />
+          <Route path="/PostSafetyTips" element={user ? <PostSafetyTips /> : <Navigate to="/login" />} />
+          <Route path="/Tips" element={user ? <Tips /> : <Navigate to="/login" />} />
+
+          {/* Role-Based Routes */}
+          <Route path="/AdminDashboard" element={role === "Admin" ? <AdminDashboard /> : <Navigate to="/login" />} />
+          <Route path="/ManageUser" element={role === "Admin" ? <ManageUser /> : <Navigate to="/login" />} />
+          
+          <Route path="/ResponderDashboard" element={role === "Responder" || role === "Admin" ? <ResponderDashboard /> : <Navigate to="/login" />} />
+          <Route path="/ActiveIncidents" element={role === "Responder" || role === "Admin" ? <ActiveIncidents /> : <Navigate to="/login" />} />
+          <Route path="/ViewReports" element={role === "Responder" || role === "Admin" ? <ViewReports /> : <Navigate to="/login" />} />
+
+          {/* Incident Forms */}
+          <Route path="/TrafficForm" element={user ? <TrafficForm /> : <Navigate to="/login" />} />
+          <Route path="/PoliceForm" element={user ? <PoliceForm /> : <Navigate to="/login" />} />
+          <Route path="/MedicalForm" element={user ? <MedicalForm /> : <Navigate to="/login" />} />
+          <Route path="/FireForm" element={user ? <FireForm /> : <Navigate to="/login" />} />
+          <Route path="/TrafficForm" element={user ? <trafficform /> : <Navigate to="/login" />} />
         </Routes>
       </div>
     </div>

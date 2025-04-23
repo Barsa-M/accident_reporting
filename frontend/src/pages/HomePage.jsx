@@ -12,7 +12,7 @@ const Homepage = () => {
           <Link to="/Services" className="pt-5 text-base hover:text-green-600">Services</Link>
           <Link to="/AboutUs" className="pt-5 text-base hover:text-green-600" >About Us</Link>
           <Link to="/Contact" className="pt-5 text-base hover:text-green-600">Contact</Link>
-          <Link to="/SignIn">
+          <Link to="/CreateAccount">
             <button className="absolute right-16 text-sm w-[100px] bg-[#0d522c] text-white py-2 rounded hover:bg-[#347752] transition">
                 Sign Up
             </button>
