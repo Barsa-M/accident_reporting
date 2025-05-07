@@ -67,7 +67,7 @@ const ForumDiscussion = () => {
       </div>
       <div className="text-center mb-6">
         <Link
-          to="/create-post"
+          to="/CreatePost"
           className="bg-[#154527] text-white py-2 px-8 rounded-full hover:bg-[#133d22] transition-all"
         >
           Discuss

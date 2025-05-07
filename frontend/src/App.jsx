@@ -36,6 +36,7 @@ import ViewReports from "./pages/ViewReports";
 import Notifications from "./pages/Notifications";
 import PostSafetyTips from "./pages/PostSafetyTips";
 import Tips from "./pages/Tips";
+import CreatePost from "./pages/CreatePost";
 
 function App() {
   const location = useLocation();
@@ -98,6 +99,9 @@ function App() {
           <Route path="/Notifications" element={user ? <Notifications /> : <Navigate to="/login" />} />
           <Route path="/PostSafetyTips" element={user ? <PostSafetyTips /> : <Navigate to="/login" />} />
           <Route path="/Tips" element={user ? <Tips /> : <Navigate to="/login" />} />
+          <Route path="/CreatePost" element={user ? <CreatePost/> : <Navigate to="/login" />} />
+          <Route path="/forum-discussion" element={<ForumDiscussion />} />
+
 
           {/* Role-Based Routes */}
           <Route path="/AdminDashboard" element={role === "Admin" ? <AdminDashboard /> : <Navigate to="/login" />} />
