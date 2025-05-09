@@ -62,8 +62,8 @@ const CreateAccount = () => {
   return (
     <div className="flex items-center justify-center h-screen">
       {/* Left Side - Welcome Section */}
-      <div className="relative flex flex-col justify-center items-center bg-[#0d522c] p-6 rounded-l-2xl shadow w-[500px] h-[600px]">
-        <div className="absolute top-28 flex flex-col items-center">
+      <div className="pt-20 relative flex flex-col justify-center items-center bg-[#0d522c] p-6 rounded-l-2xl shadow w-[500px] h-[750px]">
+        <div className="absolute top-40 flex flex-col items-center">
           <img src="/public/safereport.svg" alt="Logo" className="w-24 mb-6" />
           <div className="w-72">
             <h1 className="text-5xl font-bold text-center text-white">Create an Account</h1>
@@ -81,7 +81,7 @@ const CreateAccount = () => {
       </div>
 
       {/* Right Side - Form Section */}
-      <div className="flex flex-col justify-between pt-20 pb-20 bg-[#B9E4C9] p-16 text-[#0d522c] rounded-r-2xl shadow-md w-[500px] h-[600px]">
+      <div className="flex flex-col justify-between pt-16 pb-20 bg-[#B9E4C9] p-16 text-[#0d522c] rounded-r-2xl shadow-md w-[500px] h-[750px]">
         <h2 className="text-2xl font-semibold text-center mb-6">Create an Account</h2>
         {error && <p className="text-red-500 text-center mb-4">{error}</p>}
 
@@ -171,7 +171,7 @@ const CreateAccount = () => {
               <option value="User">General User</option>
             </select>
           </div>
-          <div className="flex justify-center">
+          <div className="flex justify-center pt-4">
             <button
               type="submit"
               className="w-[250px] bg-[#0d522c] text-white py-2 rounded hover:bg-[#347752] transition"

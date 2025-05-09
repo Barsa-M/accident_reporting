@@ -34,7 +34,7 @@ export default function CreatePost() {
     setVideoFile(null);
 
     // Redirect to ForumDiscussion
-    navigate("/forum-discussion"); // <-- Make sure this matches your route
+    navigate("/ForumDiscussion"); // <-- Make sure this matches your route
   };
 
   return (
