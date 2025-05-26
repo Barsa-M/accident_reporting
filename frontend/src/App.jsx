@@ -60,6 +60,23 @@ import TrafficForm from "./pages/TrafficForm";
 import PoliceForm from "./pages/PoliceForm";
 import MedicalForm from "./pages/MedicalForm";
 import FireForm from "./pages/FireForm";
+<<<<<<< HEAD
+=======
+import trafficform from "./pages/trafficform";
+import HomePage from "./pages/HomePage"; 
+import AboutUs from "./pages/AboutUs";
+import Services from "./pages/Services";
+import Contact from "./pages/Contact";  
+import ReporterProfile from "./pages/ReporterProfile";
+import EmergencyServices from "./pages/EmergencyServices";
+import ManageUser from "./pages/ManageUser";
+import ActiveIncidents from "./pages/ActiveIncidents";
+import ViewReports from "./pages/ViewReports";
+import Notifications from "./pages/Notifications";
+import PostSafetyTips from "./pages/PostSafetyTips";
+import Tips from "./pages/Tips";
+import CreatePost from "./pages/CreatePost";
+>>>>>>> 1feca241281aae71b58f63bdd2409ca2001c56e0
 
 function App() {
   const location = useLocation();
@@ -151,6 +168,27 @@ function App() {
           <Route path="/AboutUs" element={<AboutUs />} />
           <Route path="/Services" element={<Services />} />
           <Route path="/Contact" element={<Contact />} />
+<<<<<<< HEAD
+=======
+          
+          {/* Protected Routes */}
+          <Route path="/ReportHistory" element={user ? <ReportHistory /> : <Navigate to="/login" />} />
+          <Route path="/ForumDiscussion" element={user ? <ForumDiscussion /> : <Navigate to="/login" />} />
+          <Route path="/PostDetails" element={user ? <PostDetail /> : <Navigate to="/login" />} />
+          <Route path="/SafetyTips" element={user ? <SafetyTips /> : <Navigate to="/login" />} />
+          <Route path="/ReportAccident" element={user ? <ReportAccident /> : <Navigate to="/login" />} />
+          <Route path="/ReporterProfile" element={user ? <ReporterProfile /> : <Navigate to="/login" />} />
+          <Route path="/ChangePassword" element={user ? <ChangePassword /> : <Navigate to="/login" />} />
+          <Route path="/NotificationSettings" element={user ? <NotificationSettings /> : <Navigate to="/login" />} />
+          <Route path="/PostHistory" element={user ? <PostHistory /> : <Navigate to="/login" />} />
+          <Route path="/EmergencyServices" element={user ? <EmergencyServices /> : <Navigate to="/login" />} />
+          <Route path="/Notifications" element={user ? <Notifications /> : <Navigate to="/login" />} />
+          <Route path="/PostSafetyTips" element={user ? <PostSafetyTips /> : <Navigate to="/login" />} />
+          <Route path="/Tips" element={user ? <Tips /> : <Navigate to="/login" />} />
+          <Route path="/CreatePost" element={user ? <CreatePost/> : <Navigate to="/login" />} />
+          <Route path="/forum-discussion" element={<ForumDiscussion />} />
+
+>>>>>>> 1feca241281aae71b58f63bdd2409ca2001c56e0
 
           {/* Authenticated Users */}
           <Route path="/ReportHistory" element={<ProtectedRoute><ReportHistory /></ProtectedRoute>} />
