@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 🔐 USERS Collection
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // 🛡️ RESPONDERS Collection (Only admins can access)
+    match /responders/{responderId} {
+      allow read, write: if request.auth != null && request.auth.token.admin == true;
+    }
+
+    // 📄 APPLICATIONS Collection
+    match /applications/{appId} {
+      // A user can create one application (responder request)
+      allow create: if request.auth != null;
+
+      // Only the owner can read their own application
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+
+      // Admins can manage all applications
+      allow read, update, delete: if request.auth != null && request.auth.token.admin == true;
+    }
+
+    // 🚨 INCIDENTS Collection
+    match /incidents/{incidentId} {
+      // Any signed-in user can create
+      allow create: if request.auth != null;
+
+      // Only the reporter, responders, or admins can read/update
+      allow read, update: if request.auth != null && (
+        resource.data.userId == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ["Responder", "Admin"]
+      );
+    }
+  }
+}

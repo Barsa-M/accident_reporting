@@ -1,46 +1,75 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { login } from "../firebaseAuth"; // Ensure that login is returning full user data
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "../firebase/firebase";
 
 function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setError(""); // Clear previous errors
+    setError("");
+    setLoading(true);
+
     try {
-      const { user, role, responderType } = await login(email, password);
-      console.log("Login successful:", { user, role, responderType });
+      // Trim inputs to avoid whitespace issues
+      const trimmedEmail = email.trim();
+      const trimmedPassword = password.trim();
+
+      const userCredential = await signInWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);
+      const user = userCredential.user;
+
+      const userDocRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userDocRef);
+
+      if (!userSnap.exists()) {
+        throw new Error("User data not found");
+      }
+
+      const userData = userSnap.data();
+      const { role, status } = userData;
 
       if (role === "Admin") {
         navigate("/AdminDashboard");
       } else if (role === "Responder") {
-        console.log("Redirecting to responder dashboard...");
-        navigate("/ResponderDashboard");
+        if (status === "pending") {
+          navigate("/pending-approval");
+        } else if (status === "approved") {
+          navigate("/ResponderDashboard");
+        } else {
+          throw new Error("Unknown responder status");
+        }
       } else {
-        navigate("/ReportAccident");
+        navigate("/");
       }
     } catch (err) {
-      console.error("Login error:", err);
-      setError("Invalid email or password"); // You can expand this to handle different error types
+      console.error("Login error:", err.message);
+      setError(err.message.includes("Firebase") ? "Invalid email or password" : err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSignIn = () => {
+  const handleCreateAccount = () => {
     navigate("/CreateAccount");
   };
 
   return (
     <div className="flex items-center justify-center h-screen">
-      <form onSubmit={handleLogin} className="flex flex-col justify-between pt-32 pb-32 bg-[#B9E4C9] p-16 text-[#0d522c] rounded-l-2xl shadow-md w-[500px] h-[600px]">
+      <form
+        onSubmit={handleLogin}
+        className="flex flex-col justify-between pt-32 pb-32 bg-[#B9E4C9] p-16 text-[#0d522c] rounded-l-2xl shadow-md w-[500px] h-[600px]"
+      >
         <div>
           <h2 className="text-2xl font-bold mb-3">Welcome Back</h2>
           <p className="text-xs mb-4 text-gray-500">Enter your details to login</p>
         </div>
-        {error && <p className="text-red-500 text-sm mb-4">{error}</p>} {/* Display error message if any */}
+        {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
         <div>
           <div className="mb-4">
             <label htmlFor="email" className="block text-gray-700 font-medium mb-2">
@@ -54,6 +83,8 @@ function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              disabled={loading}
+              autoComplete="username"
             />
           </div>
           <div className="mb-4">
@@ -68,12 +99,20 @@ function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              disabled={loading}
+              autoComplete="current-password"
             />
           </div>
         </div>
         <div className="flex justify-center">
-          <button type="submit" className="w-[250px] bg-[#0d522c] text-white py-2 rounded hover:bg-[#347752] transition">
-            Login
+          <button
+            type="submit"
+            className={`w-[250px] text-white py-2 rounded transition ${
+              loading ? "bg-gray-400 cursor-not-allowed" : "bg-[#0d522c] hover:bg-[#347752]"
+            }`}
+            disabled={loading}
+          >
+            {loading ? "Logging in..." : "Login"}
           </button>
         </div>
       </form>
@@ -85,13 +124,13 @@ function Login() {
         </div>
         <div className="flex flex-col items-center mt-72">
           <p className="text-lg text-white mb-4">Create new account?</p>
+          <button
+            className="w-[180px] border text-white py-2 rounded hover:border-none hover:bg-[#347752] transition"
+            onClick={handleCreateAccount}
+          >
+            Create Account
+          </button>
         </div>
-        <button
-          className="w-[180px] border text-white py-2 rounded hover:border-none hover:bg-[#347752] transition"
-          onClick={handleSignIn}
-        >
-          Sign In
-        </button>
       </div>
     </div>
   );
