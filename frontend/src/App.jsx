@@ -60,23 +60,7 @@ import TrafficForm from "./pages/TrafficForm";
 import PoliceForm from "./pages/PoliceForm";
 import MedicalForm from "./pages/MedicalForm";
 import FireForm from "./pages/FireForm";
-<<<<<<< HEAD
-=======
-import trafficform from "./pages/trafficform";
-import HomePage from "./pages/HomePage"; 
-import AboutUs from "./pages/AboutUs";
-import Services from "./pages/Services";
-import Contact from "./pages/Contact";  
-import ReporterProfile from "./pages/ReporterProfile";
-import EmergencyServices from "./pages/EmergencyServices";
-import ManageUser from "./pages/ManageUser";
-import ActiveIncidents from "./pages/ActiveIncidents";
-import ViewReports from "./pages/ViewReports";
-import Notifications from "./pages/Notifications";
-import PostSafetyTips from "./pages/PostSafetyTips";
-import Tips from "./pages/Tips";
 import CreatePost from "./pages/CreatePost";
->>>>>>> 1feca241281aae71b58f63bdd2409ca2001c56e0
 
 function App() {
   const location = useLocation();
@@ -86,14 +70,12 @@ function App() {
   const [isHeaderVisible, setHeaderVisible] = useState(true);
   const [isSearchVisible, setSearchVisible] = useState(true);
 
-  // Fetch role
   useEffect(() => {
     if (user) {
       getUserRole(user.uid).then(setRole);
     }
   }, [user]);
 
-  // Sidebar & header visibility logic
   useEffect(() => {
     const path = location.pathname;
 
@@ -113,7 +95,7 @@ function App() {
       "/AboutUs",
       "/Contact",
       "/ReporterProfile",
-       "/responder-register"
+      "/responder-register"
     ];
     const hiddenHeaderPaths = [
       "/login",
@@ -147,12 +129,20 @@ function App() {
     setSearchVisible(!hiddenSearchPaths.includes(path));
   }, [location.pathname]);
 
-  // Guard component
   const ProtectedRoute = ({ children }) =>
     user ? children : <Navigate to="/login" />;
 
   const RoleProtectedRoute = ({ children, allowedRoles }) =>
     user && allowedRoles.includes(role) ? children : <Navigate to="/login" />;
+
+  ProtectedRoute.propTypes = {
+    children: PropTypes.node.isRequired,
+  };
+
+  RoleProtectedRoute.propTypes = {
+    children: PropTypes.node.isRequired,
+    allowedRoles: PropTypes.arrayOf(PropTypes.string).isRequired,
+  };
 
   return (
     <div className="flex">
@@ -168,29 +158,8 @@ function App() {
           <Route path="/AboutUs" element={<AboutUs />} />
           <Route path="/Services" element={<Services />} />
           <Route path="/Contact" element={<Contact />} />
-<<<<<<< HEAD
-=======
-          
-          {/* Protected Routes */}
-          <Route path="/ReportHistory" element={user ? <ReportHistory /> : <Navigate to="/login" />} />
-          <Route path="/ForumDiscussion" element={user ? <ForumDiscussion /> : <Navigate to="/login" />} />
-          <Route path="/PostDetails" element={user ? <PostDetail /> : <Navigate to="/login" />} />
-          <Route path="/SafetyTips" element={user ? <SafetyTips /> : <Navigate to="/login" />} />
-          <Route path="/ReportAccident" element={user ? <ReportAccident /> : <Navigate to="/login" />} />
-          <Route path="/ReporterProfile" element={user ? <ReporterProfile /> : <Navigate to="/login" />} />
-          <Route path="/ChangePassword" element={user ? <ChangePassword /> : <Navigate to="/login" />} />
-          <Route path="/NotificationSettings" element={user ? <NotificationSettings /> : <Navigate to="/login" />} />
-          <Route path="/PostHistory" element={user ? <PostHistory /> : <Navigate to="/login" />} />
-          <Route path="/EmergencyServices" element={user ? <EmergencyServices /> : <Navigate to="/login" />} />
-          <Route path="/Notifications" element={user ? <Notifications /> : <Navigate to="/login" />} />
-          <Route path="/PostSafetyTips" element={user ? <PostSafetyTips /> : <Navigate to="/login" />} />
-          <Route path="/Tips" element={user ? <Tips /> : <Navigate to="/login" />} />
-          <Route path="/CreatePost" element={user ? <CreatePost/> : <Navigate to="/login" />} />
-          <Route path="/forum-discussion" element={<ForumDiscussion />} />
 
->>>>>>> 1feca241281aae71b58f63bdd2409ca2001c56e0
-
-          {/* Authenticated Users */}
+          {/* Protected (logged-in users) */}
           <Route path="/ReportHistory" element={<ProtectedRoute><ReportHistory /></ProtectedRoute>} />
           <Route path="/ForumDiscussion" element={<ProtectedRoute><ForumDiscussion /></ProtectedRoute>} />
           <Route path="/PostDetails" element={<ProtectedRoute><PostDetail /></ProtectedRoute>} />
@@ -204,8 +173,9 @@ function App() {
           <Route path="/Notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
           <Route path="/PostSafetyTips" element={<ProtectedRoute><PostSafetyTips /></ProtectedRoute>} />
           <Route path="/Tips" element={<ProtectedRoute><Tips /></ProtectedRoute>} />
+          <Route path="/CreatePost" element={<ProtectedRoute><CreatePost /></ProtectedRoute>} />
 
-          {/* Admin */}
+          {/* Admin Only */}
           <Route path="/AdminDashboard" element={<RoleProtectedRoute allowedRoles={["Admin"]}><AdminDashboard /></RoleProtectedRoute>} />
           <Route path="/ManageUser" element={<RoleProtectedRoute allowedRoles={["Admin"]}><ManageUser /></RoleProtectedRoute>} />
 
@@ -219,10 +189,12 @@ function App() {
           <Route path="/PoliceForm" element={<ProtectedRoute><PoliceForm /></ProtectedRoute>} />
           <Route path="/MedicalForm" element={<ProtectedRoute><MedicalForm /></ProtectedRoute>} />
           <Route path="/FireForm" element={<ProtectedRoute><FireForm /></ProtectedRoute>} />
+
+          {/* Other */}
           <Route path="/pending-approval" element={<PendingApproval />} />
           <Route path="/not-approved" element={<NotApproved />} />
-
           <Route path="/responder-register" element={<ResponderRegister />} />
+
           {/* Catch All */}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { signup } from "../firebase/firebaseauth"; // 
+import { signup } from "../firebase/firebaseauth";
 
 const CreateAccount = () => {
   const [formData, setFormData] = useState({
@@ -62,19 +62,11 @@ const CreateAccount = () => {
   };
 
   return (
-<<<<<<< HEAD
     <div className="flex items-center justify-center h-screen font-sans">
       {/* Left Green Panel */}
-      <div className="relative flex flex-col justify-center items-center bg-[#0d522c] p-6 rounded-l-2xl shadow w-[500px] h-[600px]">
-        <div className="absolute top-28 flex flex-col items-center">
-          <img src="/safereport.svg" alt="Logo" className="w-24 mb-6" />
-=======
-    <div className="flex items-center justify-center h-screen">
-      {/* Left Side - Welcome Section */}
       <div className="pt-20 relative flex flex-col justify-center items-center bg-[#0d522c] p-6 rounded-l-2xl shadow w-[500px] h-[750px]">
         <div className="absolute top-40 flex flex-col items-center">
-          <img src="/public/safereport.svg" alt="Logo" className="w-24 mb-6" />
->>>>>>> 1feca241281aae71b58f63bdd2409ca2001c56e0
+          <img src="/safereport.svg" alt="Logo" className="w-24 mb-6" />
           <div className="w-72">
             <h1 className="text-5xl font-bold text-center text-white">
               Create an Account
@@ -92,21 +84,14 @@ const CreateAccount = () => {
         </div>
       </div>
 
-<<<<<<< HEAD
       {/* Right Form Panel */}
-      <div className="flex flex-col justify-between pt-20 pb-20 bg-[#B9E4C9] p-16 text-[#0d522c] rounded-r-2xl shadow-md w-[500px] h-[600px]">
+      <div className="flex flex-col justify-between pt-16 pb-20 bg-[#B9E4C9] p-16 text-[#0d522c] rounded-r-2xl shadow-md w-[500px] h-[750px]">
         <h2 className="text-2xl font-semibold text-center mb-6">
           Create an Account
         </h2>
         {error && (
           <p className="text-red-500 text-center mb-4 font-medium">{error}</p>
         )}
-=======
-      {/* Right Side - Form Section */}
-      <div className="flex flex-col justify-between pt-16 pb-20 bg-[#B9E4C9] p-16 text-[#0d522c] rounded-r-2xl shadow-md w-[500px] h-[750px]">
-        <h2 className="text-2xl font-semibold text-center mb-6">Create an Account</h2>
-        {error && <p className="text-red-500 text-center mb-4">{error}</p>}
->>>>>>> 1feca241281aae71b58f63bdd2409ca2001c56e0
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -118,7 +103,6 @@ const CreateAccount = () => {
               id="name"
               name="name"
               autoComplete="name"
-              aria-label="Full Name"
               value={formData.name}
               onChange={handleChange}
               className="w-full px-4 py-2 mt-1 border border-gray-300 rounded-md"
@@ -135,7 +119,6 @@ const CreateAccount = () => {
               id="phone"
               name="phone"
               autoComplete="tel"
-              aria-label="Phone Number"
               value={formData.phone}
               onChange={handleChange}
               className="w-full px-4 py-2 mt-1 border border-gray-300 rounded-md"
@@ -152,7 +135,6 @@ const CreateAccount = () => {
               id="email"
               name="email"
               autoComplete="email"
-              aria-label="Email"
               value={formData.email}
               onChange={handleChange}
               className="w-full px-4 py-2 mt-1 border border-gray-300 rounded-md"
@@ -169,7 +151,6 @@ const CreateAccount = () => {
               id="password"
               name="password"
               autoComplete="new-password"
-              aria-label="Password"
               value={formData.password}
               onChange={handleChange}
               className="w-full px-4 py-2 mt-1 border border-gray-300 rounded-md"
@@ -185,7 +166,6 @@ const CreateAccount = () => {
               type="password"
               id="confirmPassword"
               autoComplete="new-password"
-              aria-label="Confirm Password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="w-full px-4 py-2 mt-1 border border-gray-300 rounded-md"
@@ -204,12 +184,8 @@ const CreateAccount = () => {
               </Link>
             </p>
           </div>
-<<<<<<< HEAD
 
-          <div className="flex justify-center mt-6">
-=======
           <div className="flex justify-center pt-4">
->>>>>>> 1feca241281aae71b58f63bdd2409ca2001c56e0
             <button
               type="submit"
               disabled={loading}
