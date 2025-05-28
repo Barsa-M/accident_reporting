@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebase/firebase";
@@ -11,6 +11,8 @@ function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from || "/";
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -34,6 +36,10 @@ function Login() {
 
       const userData = userSnap.data();
       console.log("User role:", userData.role);
+
+      // Always navigate to report page after successful login
+      navigate("/report");
+      return;
 
       // Handle routing based on role
       switch (userData.role) {
