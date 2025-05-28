@@ -1,79 +1,69 @@
+import React from 'react';
+import { motion } from 'framer-motion';
+import { FaHeartbeat, FaShieldAlt, FaClock, FaUsers } from 'react-icons/fa';
 import Footer from '../components/Footer';
-import { Link } from 'react-router-dom';
+import Navigation from '../components/Navigation';
 
 const AboutUs = () => {
+  const stats = [
+    { icon: <FaHeartbeat />, value: "98%", label: "Response Rate" },
+    { icon: <FaShieldAlt />, value: "24/7", label: "Emergency Support" },
+    { icon: <FaClock />, value: "< 5min", label: "Average Response Time" },
+    { icon: <FaUsers />, value: "1000+", label: "Active Responders" }
+  ];
+
   return (
     <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="text-black py-4">
-        <div className="container mx-auto flex justify-center items-center space-x-6">
-          <Link to="/" className="pt-5 text-base hover:text-green-600">Home</Link>
-          <Link to="/Services" className="pt-5 text-base hover:text-green-600">Services</Link>
-          <Link to="/AboutUs" className="pt-5 text-base text-[#0d522c] font-bold" >About Us</Link>
-          <Link to="/Contact" className="pt-5 text-base hover:text-green-600">Contact</Link>
-          <Link to="/SignIn">
-            <button className="absolute right-16 text-sm w-[100px] bg-[#0d522c] text-white py-2 rounded hover:bg-[#347752] transition">
-                Sign Up
-            </button>
-          </Link>
-        </div>
-      </header>
-
-      {/* About Us Section */}
-      <section className="container mx-auto px-4 py-16">
-        <div className="text-left mb-12">
-          <h1 className="text-4xl font-bold text-[#0D522C]">Safety</h1>
-          <p className="text-2xl mt-4 text-gray-800">Resource for Accident Reporting</p>
-          <p className="text-lg mt-4 text-gray-700">
-            Our platform simplifies accident reporting, ensuring you can document incidents quickly and efficiently. Additionally, we provide essential safety tips to help prevent future accidents.
+      <Navigation />
+      <div className="container mx-auto px-6 py-20">
+        <div className="text-center mb-16">
+          <h1 className="text-4xl font-bold text-[#0d522c] mb-4">About Us</h1>
+          <p className="text-gray-600 max-w-2xl mx-auto">
+            Learn about our mission to make emergency response faster and more efficient.
           </p>
         </div>
 
-        {/* Cards Section */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mt-12">
-          {/* Card 1 */}
-          <div className="bg-white p-6 rounded-lg shadow-lg text-center border border-[#0D522C]">
-            <div className="text-[#0D522C] text-4xl mb-4">
-              {/* Add your icon here, e.g., an SVG icon */}
-              <i className="fas fa-clipboard-list"></i>
-            </div>
-            <h2 className="text-2xl font-semibold text-[#0D522C]">Comprehensive Accident Reporting Made Easy</h2>
-            <p className="mt-4 text-gray-700">Quickly document accidents with minimal effort, streamlining the entire process for you.</p>
-          </div>
-
-          {/* Card 2 */}
-          <div className="bg-white p-6 rounded-lg shadow-lg text-center border border-[#0D522C]">
-            <div className="text-[#0D522C] text-4xl mb-4">
-              {/* Add your icon here */}
-              <i className="fas fa-shield-alt"></i>
-            </div>
-            <h2 className="text-2xl font-semibold text-[#0D522C]">Essential Safety Tips for Everyone</h2>
-            <p className="mt-4 text-gray-700">Learn essential tips to stay safe and avoid accidents, whether you're on the road or at home.</p>
-          </div>
-
-          {/* Card 3 */}
-          <div className="bg-white p-6 rounded-lg shadow-lg text-center border border-[#0D522C]">
-            <div className="text-[#0D522C] text-4xl mb-4">
-              {/* Add your icon here */}
-              <i className="fas fa-users"></i>
-            </div>
-            <h2 className="text-2xl font-semibold text-[#0D522C]">Community Awareness on Safety</h2>
-            <p className="mt-4 text-gray-700">Join a community committed to safety awareness, sharing knowledge and tips to prevent accidents.</p>
+        {/* Mission Section */}
+        <div className="py-20 bg-gray-50">
+          <div className="container mx-auto px-6">
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="max-w-3xl mx-auto text-center"
+            >
+              <h2 className="text-3xl font-bold text-[#0d522c] mb-6">Our Mission</h2>
+              <p className="text-lg text-gray-700 leading-relaxed">
+                To create a safer world by providing immediate access to emergency services through innovative technology. 
+                We aim to reduce response times, improve emergency coordination, and ultimately save more lives through our 
+                efficient reporting and response system.
+              </p>
+            </motion.div>
           </div>
         </div>
 
-        {/* Sign-Up Button */}
-        <div className="mt-12 text-center">
-          <Link to="/signup">
-            <button className="bg-white text-[#0D522C] border-2 border-[#0D522C] py-2 px-6 rounded-lg hover:bg-[#0D522C] hover:text-white">
-              Sign Up
-            </button>
-          </Link>
+        {/* Stats Section */}
+        <div className="py-16 bg-white">
+          <div className="container mx-auto px-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+              {stats.map((stat, index) => (
+                <motion.div
+                  key={stat.label}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="text-center"
+                >
+                  <div className="text-[#0d522c] text-3xl mb-2">{stat.icon}</div>
+                  <div className="text-4xl font-bold text-[#0d522c] mb-2">{stat.value}</div>
+                  <div className="text-gray-600">{stat.label}</div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
         </div>
-      </section>
-      <div>
-        <Footer />
       </div>
+
+      <Footer />
     </div>
   );
 };

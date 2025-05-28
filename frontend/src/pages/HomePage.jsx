@@ -1,135 +1,194 @@
 import Footer from '../components/Footer';
-import { Link } from 'react-router-dom';
+import Navigation from '../components/Navigation';
+import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { auth } from '../firebase/firebase';
 
-const Homepage = () => {
+const HomePage = () => {
+  const [user] = useAuthState(auth);
+  const navigate = useNavigate();
+
+  const handleReportIncident = () => {
+    if (user) {
+      navigate('/report');
+    } else {
+      navigate('/login', { state: { from: '/report' } });
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header / Navigation */}
-      <header className="text-black py-4">
-        <div className="container mx-auto flex justify-center items-center space-x-6">
-          <Link to="/" className="pt-5 text-base text-[#0d522c] font-bold">Home</Link>
-          <Link to="/Services" className="pt-5 text-base hover:text-green-600">Services</Link>
-          <Link to="/AboutUs" className="pt-5 text-base hover:text-green-600" >About Us</Link>
-          <Link to="/Contact" className="pt-5 text-base hover:text-green-600">Contact</Link>
-          <Link to="/CreateAccount">
-            <button className="absolute right-16 text-sm w-[100px] bg-[#0d522c] text-white py-2 rounded hover:bg-[#347752] transition">
-                Sign Up
-            </button>
-          </Link>
-        </div>
-      </header>
-
+      <Navigation />
       {/* Hero Section */}
-      <div className='mt-4 flex justify-center relative'>
-        <img 
-          src="/src/assets/images/home.png" alt="" 
-          className="w-[1400px] h-[680px]"
-        />
-      </div>
-      <section className="absolute top-56 left-64 flex flex-col justify-center flex-grow py-16">
-        <h1 className="text-4xl text-[#0d522c] font-bold mb-4">Welcome to SafeReport</h1>
-        <p className="w-[500px] text-lg mb-6 text-gray-700">
-          SafeReport helps you quickly and securely report accidents. We are here to make safety a priority.
-        </p>
-        <div className='space-x-3'>
-
-          <Link to="/login">
-          <button className="w-[100px] bg-[#0d522c] text-white py-2 rounded hover:bg-[#347752] transition">
-                  Report
-          </button>
-          </Link>
-          <button className="w-[130px] border-2 border-[#0d522c] text-[#0d522c] py-2 rounded hover:text-white hover:bg-[#0d522c] transition">
-                  Learn More
-          </button>
+      <section className="relative h-screen">
+        <div className="absolute inset-0">
+          <img 
+            src="/src/assets/images/home.png" 
+            alt="Emergency Response" 
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/40 to-transparent"></div>
+        </div>
+        <div className="relative container mx-auto px-6 h-full flex items-center">
+          <div className="max-w-2xl text-white">
+            <h1 className="text-5xl font-bold mb-6 drop-shadow-lg leading-tight">Fast Emergency Response When Every Second Counts</h1>
+            <p className="text-xl mb-8 drop-shadow text-white/90 leading-relaxed">Report accidents quickly and securely. Connect with emergency responders in real-time. Save lives with SAFE.</p>
+            <div className="flex flex-wrap gap-4">
+              <button
+                onClick={handleReportIncident}
+                className="px-8 py-3 bg-white text-[#0d522c] rounded-lg font-medium hover:bg-[#B9E4C9] transition-all duration-300 transform hover:scale-[1.02]"
+              >
+                Report Incident
+              </button>
+              <Link to="/responder-register">
+                <button className="px-8 py-3 border-2 border-white text-white rounded-lg font-medium hover:bg-white hover:text-[#0d522c] transition-all duration-300 transform hover:scale-[1.02]">
+                  Join as Responder
+                </button>
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
-      <div className='flex flex-col items-center p-16 py-32'>
-        <div className='flex flex-col items-center space-y-5 mb-16'>
-          <p>Report</p>
-          <h1 className='text-[#0d522c] font-black text-4xl'>Your Guide to Accident Reporting</h1>
-          <p className='w-[600px] text-center'>Reporting an accident is straightforward. Follow our step-by-step guide to ensure you cover all necessary details.</p>
-        </div>
-        <div className='flex'>
-          <div className='flex flex-col space-y-16'>
-            <div className='flex flex-col items-center w-[450px] space-y-3'>
-              <svg
-                      className="h-6 w-6 mr-5"
-                      xmlns="http://www.w3.org/2000/svg"
-                      xmlnsXlink="http://www.w3.org/1999/xlink"
-                      viewBox="0 0 512 512"
-                      fill="#0d522c"
-                      stroke="#0d522c"
-                    >
-                      <g>
-                        <path d="M505.095,407.125L300.77,53.208c-9.206-15.944-26.361-25.849-44.774-25.849c-18.412,0-35.552,9.905-44.751,25.849L6.905,407.109c-9.206,15.944-9.206,35.746,0,51.69c9.206,15.944,26.354,25.842,44.758,25.842h408.674c18.405,0,35.568-9.897,44.759-25.842C514.302,442.855,514.302,423.053,505.095,407.125z M256.004,426.437c-17.668,0-32.013-14.33-32.013-32.004c0-17.668,14.345-31.997,32.013-31.997c17.667,0,31.997,14.329,31.997,31.997C288.001,412.108,273.671,426.437,256.004,426.437z M275.72,324.011c0,10.89-8.834,19.709-19.716,19.709c-10.898,0-19.717-8.818-19.717-19.709l-12.296-144.724c0-17.676,14.345-32.005,32.013-32.005c17.667,0,31.997,14.33,31.997,32.005L275.72,324.011z"></path>
-                      </g>
-                </svg>
-                <h3 className='text-xl font-bold text-[#0d522c]'>Step 1: Gather Information</h3>
-                <p className='text-center'>Collect details such as location, time, and involved parties to start the process.</p>
-            </div>
-            <div className='flex flex-col items-center w-[450px] space-y-3'>
-              <svg
-                      className="h-6 w-6 mr-5"
-                      xmlns="http://www.w3.org/2000/svg"
-                      xmlnsXlink="http://www.w3.org/1999/xlink"
-                      viewBox="0 0 512 512"
-                      fill="#0d522c"
-                      stroke="#0d522c"
-                    >
-                      <g>
-                        <path d="M505.095,407.125L300.77,53.208c-9.206-15.944-26.361-25.849-44.774-25.849c-18.412,0-35.552,9.905-44.751,25.849L6.905,407.109c-9.206,15.944-9.206,35.746,0,51.69c9.206,15.944,26.354,25.842,44.758,25.842h408.674c18.405,0,35.568-9.897,44.759-25.842C514.302,442.855,514.302,423.053,505.095,407.125z M256.004,426.437c-17.668,0-32.013-14.33-32.013-32.004c0-17.668,14.345-31.997,32.013-31.997c17.667,0,31.997,14.329,31.997,31.997C288.001,412.108,273.671,426.437,256.004,426.437z M275.72,324.011c0,10.89-8.834,19.709-19.716,19.709c-10.898,0-19.717-8.818-19.717-19.709l-12.296-144.724c0-17.676,14.345-32.005,32.013-32.005c17.667,0,31.997,14.33,31.997,32.005L275.72,324.011z"></path>
-                      </g>
-                </svg>
-                <h3 className='text-xl font-bold text-[#0d522c]'>Step 2: File Report</h3>
-                <p className='text-center'>Submit your report through our platform for a streamlined experience.</p>
-            </div>
-          </div>
-          <div className='w-64 mx-7'>
-            <img src="/src/assets/images/logbook.jpg" alt="" />
-          </div>
-          <div className='flex flex-col space-y-16'>
-            <div className='flex flex-col items-center w-[450px] space-y-3'>
-              <svg
-                      className="h-6 w-6 mr-5"
-                      xmlns="http://www.w3.org/2000/svg"
-                      xmlnsXlink="http://www.w3.org/1999/xlink"
-                      viewBox="0 0 512 512"
-                      fill="#0d522c"
-                      stroke="#0d522c"
-                    >
-                      <g>
-                        <path d="M505.095,407.125L300.77,53.208c-9.206-15.944-26.361-25.849-44.774-25.849c-18.412,0-35.552,9.905-44.751,25.849L6.905,407.109c-9.206,15.944-9.206,35.746,0,51.69c9.206,15.944,26.354,25.842,44.758,25.842h408.674c18.405,0,35.568-9.897,44.759-25.842C514.302,442.855,514.302,423.053,505.095,407.125z M256.004,426.437c-17.668,0-32.013-14.33-32.013-32.004c0-17.668,14.345-31.997,32.013-31.997c17.667,0,31.997,14.329,31.997,31.997C288.001,412.108,273.671,426.437,256.004,426.437z M275.72,324.011c0,10.89-8.834,19.709-19.716,19.709c-10.898,0-19.717-8.818-19.717-19.709l-12.296-144.724c0-17.676,14.345-32.005,32.013-32.005c17.667,0,31.997,14.33,31.997,32.005L275.72,324.011z"></path>
-                      </g>
-                </svg>
-                <h3 className='text-xl font-bold text-[#0d522c]'>Step 3: Follow Up</h3>
-                <p className='text-center'>Check the status of your report and receive updates on any necessary actions.</p>
-            </div>
-            <div className='flex flex-col items-center w-[450px] space-y-3'>
-              <svg
-                      className="h-6 w-6 mr-5"
-                      xmlns="http://www.w3.org/2000/svg"
-                      xmlnsXlink="http://www.w3.org/1999/xlink"
-                      viewBox="0 0 512 512"
-                      fill="#0d522c"
-                      stroke="#0d522c"
-                    >
-                      <g>
-                        <path d="M505.095,407.125L300.77,53.208c-9.206-15.944-26.361-25.849-44.774-25.849c-18.412,0-35.552,9.905-44.751,25.849L6.905,407.109c-9.206,15.944-9.206,35.746,0,51.69c9.206,15.944,26.354,25.842,44.758,25.842h408.674c18.405,0,35.568-9.897,44.759-25.842C514.302,442.855,514.302,423.053,505.095,407.125z M256.004,426.437c-17.668,0-32.013-14.33-32.013-32.004c0-17.668,14.345-31.997,32.013-31.997c17.667,0,31.997,14.329,31.997,31.997C288.001,412.108,273.671,426.437,256.004,426.437z M275.72,324.011c0,10.89-8.834,19.709-19.716,19.709c-10.898,0-19.717-8.818-19.717-19.709l-12.296-144.724c0-17.676,14.345-32.005,32.013-32.005c17.667,0,31.997,14.33,31.997,32.005L275.72,324.011z"></path>
-                      </g>
-                </svg>
-                <h3 className='text-xl font-bold text-[#0d522c]'>Step 4: Get Support</h3>
-                <p className='text-center'>Access resources and tips to navigate the aftermath of an accident.</p>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <div>
-        <Footer />
-      </div>
+      {/* Services Section */}
+      <section className="py-20 bg-[#F1F7F4]">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-[#0d522c] mb-4">Our Emergency Services</h2>
+            <p className="text-gray-600 max-w-2xl mx-auto">Comprehensive emergency response services available 24/7</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {/* Medical Service */}
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-[#B9E4C9] hover:border-[#0d522c] transition-colors">
+              <div className="w-14 h-14 bg-[#B9E4C9] rounded-lg flex items-center justify-center mb-4">
+                <svg className="w-8 h-8 text-[#0d522c]" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 110-12 6 6 0 010 12zm1-7h2a1 1 0 110 2h-2v2a1 1 0 11-2 0v-2H7a1 1 0 110-2h2V7a1 1 0 112 0v2z"/>
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-[#0d522c] mb-2">Medical Emergency</h3>
+              <p className="text-gray-600">Immediate medical assistance for injuries and health-related emergencies.</p>
+            </div>
+
+            {/* Police Service */}
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-[#B9E4C9] hover:border-[#0d522c] transition-colors">
+              <div className="w-14 h-14 bg-[#B9E4C9] rounded-lg flex items-center justify-center mb-4">
+                <svg className="w-8 h-8 text-[#0d522c]" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 110-12 6 6 0 010 12zm3-8a1 1 0 00-1.707-.707L10 8.586 8.707 7.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l3-3z"/>
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-[#0d522c] mb-2">Police Assistance</h3>
+              <p className="text-gray-600">Law enforcement response for accidents, crimes, and security concerns.</p>
+            </div>
+
+            {/* Fire Service */}
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-[#B9E4C9] hover:border-[#0d522c] transition-colors">
+              <div className="w-14 h-14 bg-[#B9E4C9] rounded-lg flex items-center justify-center mb-4">
+                <svg className="w-8 h-8 text-[#0d522c]" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M10.938 2.016a8.5 8.5 0 00-7.922 11.469c1.125 3.125 4.172 4.547 7.172 4.547 4.688 0 8.5-3.813 8.5-8.5a8.5 8.5 0 00-7.75-7.516zm0 13.984c-2.172 0-4.156-1.688-4.156-3.75 0-1.563.922-2.328 1.375-2.922.375-.5.625-.828.625-1.328a1 1 0 011-1c.547 0 1 .453 1 1 0 .5.25.828.625 1.328.453.594 1.375 1.36 1.375 2.922 0 2.063-1.984 3.75-4.156 3.75z"/>
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-[#0d522c] mb-2">Fire Emergency</h3>
+              <p className="text-gray-600">Rapid response to fires, hazardous materials, and rescue operations.</p>
+            </div>
+
+            {/* Traffic Service */}
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-[#B9E4C9] hover:border-[#0d522c] transition-colors">
+              <div className="w-14 h-14 bg-[#B9E4C9] rounded-lg flex items-center justify-center mb-4">
+                <svg className="w-8 h-8 text-[#0d522c]" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 110-12 6 6 0 010 12zm1-5a1 1 0 11-2 0V7a1 1 0 112 0v4z"/>
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-[#0d522c] mb-2">Traffic Control</h3>
+              <p className="text-gray-600">Management of traffic accidents, congestion, and road safety.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Statistics Section */}
+      <section className="py-20 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="text-center">
+              <div className="text-4xl font-bold text-[#0d522c] mb-2">98%</div>
+              <p className="text-gray-600">Response Rate</p>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl font-bold text-[#0d522c] mb-2">&lt; 5 min</div>
+              <p className="text-gray-600">Average Response Time</p>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl font-bold text-[#0d522c] mb-2">24/7</div>
+              <p className="text-gray-600">Emergency Support</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works Section */}
+      <section className="py-20 bg-[#F1F7F4]">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-[#0d522c] mb-4">How It Works</h2>
+            <p className="text-gray-600 max-w-2xl mx-auto">Simple steps to report an incident and get help quickly</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-[#B9E4C9] rounded-lg flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl font-bold text-[#0d522c]">1</span>
+              </div>
+              <h3 className="text-xl font-semibold text-[#0d522c] mb-2">Report Incident</h3>
+              <p className="text-gray-600">Submit details about the emergency situation</p>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-[#B9E4C9] rounded-lg flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl font-bold text-[#0d522c]">2</span>
+              </div>
+              <h3 className="text-xl font-semibold text-[#0d522c] mb-2">Instant Alert</h3>
+              <p className="text-gray-600">Nearby responders are notified immediately</p>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-[#B9E4C9] rounded-lg flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl font-bold text-[#0d522c]">3</span>
+              </div>
+              <h3 className="text-xl font-semibold text-[#0d522c] mb-2">Quick Response</h3>
+              <p className="text-gray-600">Emergency teams are dispatched to location</p>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-[#B9E4C9] rounded-lg flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl font-bold text-[#0d522c]">4</span>
+              </div>
+              <h3 className="text-xl font-semibold text-[#0d522c] mb-2">Track Progress</h3>
+              <p className="text-gray-600">Monitor response status in real-time</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20 bg-[#0d522c] text-white">
+        <div className="container mx-auto px-4 text-center">
+          <h2 className="text-4xl font-bold mb-6">Ready to Make a Difference?</h2>
+          <p className="text-xl mb-8 max-w-2xl mx-auto">Join our network of emergency responders and help save lives in your community.</p>
+          <div className="flex justify-center space-x-4">
+            <Link to="/report">
+              <button className="px-8 py-3 bg-[#B9E4C9] text-[#0d522c] rounded-lg font-medium hover:bg-white transition-colors">
+                Report Incident
+              </button>
+            </Link>
+            <Link to="/responder-register">
+              <button className="px-8 py-3 border-2 border-[#B9E4C9] text-[#B9E4C9] rounded-lg font-medium hover:bg-[#B9E4C9] hover:text-[#0d522c] transition-colors">
+                Register as Responder
+              </button>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <Footer />
     </div>
   );
 };
 
-export default Homepage;
+export default HomePage;

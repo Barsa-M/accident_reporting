@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow anonymous users to create reports
+    match /anonymous_reports/{reportId} {
+      allow create: if true; // Anyone can create
+      allow read: if request.auth != null && 
+        (request.auth.token.role == 'admin' || request.auth.token.role == 'responder');
+      allow update, delete: if request.auth != null && request.auth.token.role == 'admin';
+    }
+
+    // Existing rules...
+  }
+} 

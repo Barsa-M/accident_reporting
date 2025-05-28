@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 function Footer() {
   return (
     <footer className="text-black py-10 px-6 md:px-12">
@@ -9,10 +11,10 @@ function Footer() {
                 style={{ filter: 'invert(80%) sepia(50%) saturate(500%) hue-rotate(90deg)' }}
             />
             <div className="space-x-7">
-              <a href="/" className="hover:text-green-600">Home</a>
-              <a href="/Services" className="hover:text-green-600">Services</a>
-              <a href="/AboutUs" className="hover:text-green-600">About Us</a>
-              <a href="/Contact" className="hover:text-green-600">Contact</a>
+              <Link to="/" className="hover:text-green-600">Home</Link>
+              <Link to="/services" className="hover:text-green-600">Services</Link>
+              <Link to="/about" className="hover:text-green-600">About Us</Link>
+              <Link to="/contact" className="hover:text-green-600">Contact</Link>
             </div>
       </div>
       {/* Copyright */}
@@ -21,8 +23,8 @@ function Footer() {
           &copy; {new Date().getFullYear()} SafeReport. All rights reserved.
         </div>
         <div className="space-x-5">
-          <a href="#" className="hover:text-green-600">Privacy Policy</a>
-          <a href="#" className="hover:text-green-600">Terms of Service</a>
+          <Link to="/privacy" className="hover:text-green-600">Privacy Policy</Link>
+          <Link to="/terms" className="hover:text-green-600">Terms of Service</Link>
         </div>
       </div>
     </footer>

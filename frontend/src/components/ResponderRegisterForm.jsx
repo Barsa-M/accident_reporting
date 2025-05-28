@@ -24,6 +24,7 @@ export default function ResponderSignUpForm() {
   const [showPopup, setShowPopup] = useState(false);
   const [popupMessage, setPopupMessage] = useState("");
   const [formError, setFormError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
 
@@ -78,17 +79,49 @@ export default function ResponderSignUpForm() {
   const validateForm = () => {
     const newErrors = {};
     if (!formData.instituteName.trim()) newErrors.instituteName = "Institute name is required.";
+    
     if (!formData.email.trim()) newErrors.email = "Email is required.";
     else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = "Email is invalid.";
-    if (!formData.phoneNumber.trim()) newErrors.phoneNumber = "Phone number is required.";
+    
+    if (!formData.phoneNumber.trim()) {
+      newErrors.phoneNumber = "Phone number is required.";
+    } else {
+      // Ethiopian phone number format: +251 9X XXX XXXX or 09X XXX XXXX
+      const phoneRegex = /^(\+251|0)(9[0-9]{8})$/;
+      if (!phoneRegex.test(formData.phoneNumber.replace(/\s/g, ''))) {
+        newErrors.phoneNumber = "Please enter a valid Ethiopian phone number (+251 9XXXXXXXX or 09XXXXXXXX)";
+      }
+    }
+
     if (!formData.responderType) newErrors.responderType = "Responder type is required.";
+    
     if (!formData.capacity || isNaN(formData.capacity) || Number(formData.capacity) <= 0)
       newErrors.capacity = "Capacity must be a positive number.";
+    
     if (!formData.password) newErrors.password = "Password is required.";
     else if (formData.password.length < 6)
       newErrors.password = "Password should be at least 6 characters.";
+    else if (!/(?=.*[A-Z])(?=.*[a-z])(?=.*\d)/.test(formData.password))
+      newErrors.password = "Password must contain at least one uppercase letter, one lowercase letter, and one number.";
+    
     if (formData.confirmPassword !== formData.password)
       newErrors.confirmPassword = "Passwords do not match.";
+
+    // Validate map location is within Ethiopia
+    const ethiopiaBounds = {
+      north: 14.8,
+      south: 3.4,
+      west: 33.0,
+      east: 48.0
+    };
+
+    if (formData.mapLocation[0] < ethiopiaBounds.south || 
+        formData.mapLocation[0] > ethiopiaBounds.north ||
+        formData.mapLocation[1] < ethiopiaBounds.west || 
+        formData.mapLocation[1] > ethiopiaBounds.east) {
+      newErrors.location = "Selected location must be within Ethiopia";
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -102,11 +135,22 @@ export default function ResponderSignUpForm() {
       return;
     }
 
+    setIsSubmitting(true);
+
     try {
+      // Create auth user
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       const uid = userCredential.user.uid;
 
+      // Create user document
       await setDoc(doc(db, "users", uid), {
+        email: formData.email,
+        role: "Responder",
+        createdAt: new Date()
+      });
+
+      // Create responder document
+      await setDoc(doc(db, "responders", uid), {
         instituteName: formData.instituteName,
         email: formData.email,
         phoneNumber: formData.phoneNumber,
@@ -116,10 +160,11 @@ export default function ResponderSignUpForm() {
         additionalDetails: formData.additionalDetails,
         location: {
           lat: formData.mapLocation[0],
-          lng: formData.mapLocation[1],
+          lng: formData.mapLocation[1]
         },
         status: "pending",
         createdAt: new Date(),
+        updatedAt: new Date()
       });
 
       setPopupMessage("Your application has been submitted successfully! It will be reviewed by an administrator. You will be notified via email once approved.");
@@ -136,13 +181,15 @@ export default function ResponderSignUpForm() {
         additionalDetails: "",
         password: "",
         confirmPassword: "",
-        mapLocation: [9.03, 38.74],
+        mapLocation: [9.03, 38.74]
       });
 
     } catch (error) {
-      console.error("Error creating user:", error);
+      console.error("Error creating responder:", error);
       setPopupMessage(`Error: ${error.message}`);
       setShowPopup(true);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -327,48 +374,68 @@ export default function ResponderSignUpForm() {
         <div>
           <label className="block mb-1 text-sm font-semibold text-[#0D522C]">Select Location on Map:</label>
           <div id="map" className="w-full h-64 rounded-md border border-gray-300"></div>
+          {errors.location && <p className="text-red-600 text-sm mt-1">{errors.location}</p>}
         </div>
 
         {/* Manual Location Input */}
         <div className="mt-3">
           <label className="block mb-1 text-sm font-semibold text-[#0D522C]">Or Enter Coordinates Manually:</label>
           <div className="flex gap-4">
-            <input
-              type="number"
-              step="0.0001"
-              name="lat"
-              value={formData.mapLocation[0]}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  mapLocation: [parseFloat(e.target.value), prev.mapLocation[1]],
-                }))
-              }
-              className="w-1/2 p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#0D522C] border-gray-300"
-              placeholder="Latitude"
-            />
-            <input
-              type="number"
-              step="0.0001"
-              name="lng"
-              value={formData.mapLocation[1]}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  mapLocation: [prev.mapLocation[0], parseFloat(e.target.value)],
-                }))
-              }
-              className="w-1/2 p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#0D522C] border-gray-300"
-              placeholder="Longitude"
-            />
+            <div className="w-1/2">
+              <input
+                type="number"
+                step="0.0001"
+                name="lat"
+                value={formData.mapLocation[0]}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    mapLocation: [parseFloat(e.target.value), prev.mapLocation[1]],
+                  }))
+                }
+                className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#0D522C] border-gray-300"
+                placeholder="Latitude"
+              />
+            </div>
+            <div className="w-1/2">
+              <input
+                type="number"
+                step="0.0001"
+                name="lng"
+                value={formData.mapLocation[1]}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    mapLocation: [prev.mapLocation[0], parseFloat(e.target.value)],
+                  }))
+                }
+                className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#0D522C] border-gray-300"
+                placeholder="Longitude"
+              />
+            </div>
           </div>
+          <p className="text-sm text-gray-500 mt-1">
+            Coordinates must be within Ethiopia's boundaries (Lat: 3.4°N to 14.8°N, Long: 33.0°E to 48.0°E)
+          </p>
         </div>
 
         <button
           type="submit"
-          className="w-full bg-[#0D522C] text-white py-3 rounded-md font-semibold hover:bg-[#0b421f] transition-colors"
+          disabled={isSubmitting}
+          className={`w-full py-3 rounded-md font-semibold transition-colors ${
+            isSubmitting 
+              ? "bg-gray-400 cursor-not-allowed"
+              : "bg-[#0D522C] hover:bg-[#0b421f] text-white"
+          }`}
         >
-          Register as Responder
+          {isSubmitting ? (
+            <div className="flex items-center justify-center">
+              <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin mr-2"></div>
+              Submitting...
+            </div>
+          ) : (
+            "Register as Responder"
+          )}
         </button>
       </form>
     </div>

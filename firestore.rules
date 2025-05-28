@@ -1,39 +1,110 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+    }
+
+    function isResponder() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Responder';
+    }
+
+    function isApprovedResponder() {
+      return isResponder() && 
+        get(/databases/$(database)/documents/responders/$(request.auth.uid)).data.status == 'approved';
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidResponderType(type) {
+      return type in ['Medical', 'Police', 'Fire', 'Traffic'];
+    }
 
     // 🔐 USERS Collection
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      allow create: if isAuthenticated();
+      allow update: if isAdmin() || isOwner(userId);
+      allow delete: if isAdmin();
     }
 
-    // 🛡️ RESPONDERS Collection (Only admins can access)
+    // 🛡️ RESPONDERS Collection
     match /responders/{responderId} {
-      allow read, write: if request.auth != null && request.auth.token.admin == true;
+      // Anyone can create a responder application with valid responder type
+      allow create: if isAuthenticated() && 
+                     isValidResponderType(request.resource.data.responderType);
+      
+      // Responders can read their own data, admins can read all
+      allow read: if isAuthenticated() && (isOwner(responderId) || isAdmin());
+      
+      // Only admins can update status, responders can update their own non-status fields
+      allow update: if isAdmin() || 
+        (isResponder() && isOwner(responderId) && 
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'createdAt']) &&
+         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['responderType']) || 
+          isValidResponderType(request.resource.data.responderType)));
+      
+      // Only admins can delete
+      allow delete: if isAdmin();
     }
 
-    // 📄 APPLICATIONS Collection
-    match /applications/{appId} {
-      // A user can create one application (responder request)
-      allow create: if request.auth != null;
-
-      // Only the owner can read their own application
-      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
-
-      // Admins can manage all applications
-      allow read, update, delete: if request.auth != null && request.auth.token.admin == true;
+    // 📢 NOTIFICATIONS Collection
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && (
+        (resource.data.forRole == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role) ||
+        (resource.data.userId == request.auth.uid) ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
     }
 
     // 🚨 INCIDENTS Collection
     match /incidents/{incidentId} {
       // Any signed-in user can create
-      allow create: if request.auth != null;
+      allow create: if isAuthenticated();
 
-      // Only the reporter, responders, or admins can read/update
-      allow read, update: if request.auth != null && (
+      // Approved responders of matching type can read/update assigned incidents
+      allow read, update: if isAuthenticated() && (
         resource.data.userId == request.auth.uid ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ["Responder", "Admin"]
+        isAdmin() ||
+        (isApprovedResponder() && resource.data.responderType == get(/databases/$(database)/documents/responders/$(request.auth.uid)).data.responderType)
       );
+
+      allow delete: if isAdmin();
+    }
+
+    // Forum posts collection
+    match /forum_posts/{postId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAdmin() || 
+        (isAuthenticated() && resource.data.authorId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // Post likes collection
+    match /post_likes/{likeId} {
+      allow read: if isAuthenticated();
+      allow create, delete: if isAuthenticated() && 
+        request.auth.uid == request.resource.data.userId;
+    }
+
+    // Comments subcollection
+    match /forum_posts/{postId}/comments/{commentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin() || 
+        (isAuthenticated() && resource.data.authorId == request.auth.uid);
     }
   }
 }
