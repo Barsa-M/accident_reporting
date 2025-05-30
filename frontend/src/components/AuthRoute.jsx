@@ -3,6 +3,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { useState, useEffect } from 'react';
 import { auth, db } from '../firebase/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { ROLES } from '../firebase/roles';
 
 export default function AuthRoute({ children, allowedRoles = [] }) {
   const [user, loading] = useAuthState(auth);
@@ -27,7 +28,8 @@ export default function AuthRoute({ children, allowedRoles = [] }) {
         const userData = userDoc.data();
         setUserRole(userData.role);
 
-        if (userData.role === 'Responder') {
+        // If user is a responder, check their status
+        if (userData.role === ROLES.RESPONDER) {
           const responderDoc = await getDoc(doc(db, 'responders', user.uid));
           if (responderDoc.exists()) {
             setResponderStatus(responderDoc.data().status);
@@ -51,17 +53,24 @@ export default function AuthRoute({ children, allowedRoles = [] }) {
     );
   }
 
+  // Not logged in
   if (!user) {
     return <Navigate to="/login" />;
   }
 
   // Handle responder status routing
-  if (userRole === 'Responder') {
-    if (responderStatus === 'pending') {
-      return <Navigate to="/pending-approval" />;
-    }
-    if (responderStatus === 'rejected') {
-      return <Navigate to="/not-approved" />;
+  if (userRole === ROLES.RESPONDER) {
+    switch (responderStatus?.toLowerCase()) {
+      case 'pending':
+        return <Navigate to="/responder/pending" />;
+      case 'rejected':
+        return <Navigate to="/responder/rejected" />;
+      case 'approved':
+        // Continue with normal flow for approved responders
+        break;
+      default:
+        // If status is undefined or invalid, redirect to pending
+        return <Navigate to="/responder/pending" />;
     }
   }
 
@@ -69,10 +78,10 @@ export default function AuthRoute({ children, allowedRoles = [] }) {
   if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
     // Redirect based on role
     switch (userRole) {
-      case 'Admin':
-        return <Navigate to="/AdminDashboard" />;
-      case 'Responder':
-        return <Navigate to="/ResponderDashboard" />;
+      case ROLES.ADMIN:
+        return <Navigate to="/admin/dashboard" />;
+      case ROLES.RESPONDER:
+        return <Navigate to="/responder/dashboard" />;
       default:
         return <Navigate to="/" />;
     }

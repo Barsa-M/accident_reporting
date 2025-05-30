@@ -1,5 +1,6 @@
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { firestore } from "./firebase";
+import { ROLES } from "./roles";
 
 export async function createUserDoc(user, role, responderType = null) {
   if (!user?.uid) throw new Error("Invalid user object");
@@ -7,9 +8,9 @@ export async function createUserDoc(user, role, responderType = null) {
   await setDoc(doc(firestore, "users", user.uid), {
     uid: user.uid,
     email: user.email,
-    role, // "User", "Responder", or "Admin"
+    role: role.toUpperCase(), // Ensure consistent casing with ROLES constant
     responderType, // null for User/Admin; subtype string for Responder
-    status: role === "Responder" ? "pending" : "active",
+    status: role.toUpperCase() === ROLES.RESPONDER ? "pending" : "active",
     createdAt: serverTimestamp(),
   });
 }

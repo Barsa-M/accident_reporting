@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebase/firebase";
 import { ROLES } from "../firebase/roles";
 
@@ -33,27 +33,34 @@ function Login() {
       }
 
       const userData = userSnap.data();
-      console.log("User role:", userData.role);
+      const userRole = userData.role?.toLowerCase();
 
       // Handle routing based on role
-      switch (userData.role) {
-        case 'Admin':
+      switch (userRole) {
+        case ROLES.ADMIN.toLowerCase():
           navigate("/admin/dashboard");
           break;
 
-        case 'Responder':
+        case ROLES.RESPONDER.toLowerCase():
           // Get responder data for status check
           const responderDocRef = doc(db, "responders", user.uid);
           const responderSnap = await getDoc(responderDocRef);
           
           if (!responderSnap.exists()) {
-            throw new Error("Responder data not found");
+            // If responder document doesn't exist, create it with pending status
+            await setDoc(doc(db, "responders", user.uid), {
+              status: 'pending',
+              createdAt: serverTimestamp(),
+              userId: user.uid
+            });
+            navigate("/responder/pending");
+            break;
           }
 
           const responderData = responderSnap.data();
           
           // Route based on responder status
-          switch (responderData.status) {
+          switch (responderData.status.toLowerCase()) {
             case 'pending':
               navigate("/responder/pending");
               break;
@@ -64,12 +71,12 @@ function Login() {
               navigate("/responder/rejected");
               break;
             default:
-              throw new Error("Invalid responder status");
+              navigate("/responder/pending");
           }
           break;
 
-        case 'User':
-          navigate("/report"); // Regular users go to report accident page
+        case ROLES.USER.toLowerCase():
+          navigate("/report");
           break;
 
         default:

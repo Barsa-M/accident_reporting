@@ -91,18 +91,20 @@ const Services = () => {
           <div className="container mx-auto px-6 text-center">
             <h2 className="text-3xl font-bold text-white mb-8">Need Emergency Assistance?</h2>
             <div className="flex flex-wrap justify-center gap-4">
-              <button 
-                onClick={() => window.location.href = '/report'} 
-                className="px-8 py-3 bg-white text-[#0d522c] rounded-lg font-medium hover:bg-[#B9E4C9] transition-all duration-300 transform hover:scale-[1.02]"
-              >
-                Report Emergency
-              </button>
-              <button 
-                onClick={() => window.location.href = '/responder-register'} 
-                className="px-8 py-3 border-2 border-white text-white rounded-lg font-medium hover:bg-white hover:text-[#0d522c] transition-all duration-300 transform hover:scale-[1.02]"
-              >
-                Become a Responder
-              </button>
+              <Link to="/login" state={{ from: '/report' }}>
+                <button 
+                  className="px-8 py-3 bg-white text-[#0d522c] rounded-lg font-medium hover:bg-[#B9E4C9] transition-all duration-300 transform hover:scale-[1.02]"
+                >
+                  Report Emergency
+                </button>
+              </Link>
+              <Link to="/responder-register">
+                <button 
+                  className="px-8 py-3 border-2 border-white text-white rounded-lg font-medium hover:bg-white hover:text-[#0d522c] transition-all duration-300 transform hover:scale-[1.02]"
+                >
+                  Become a Responder
+                </button>
+              </Link>
             </div>
           </div>
         </div>

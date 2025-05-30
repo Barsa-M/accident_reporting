@@ -72,7 +72,7 @@ const Navigation = () => {
         <div className="flex items-center justify-between">
           {/* Logo Section - Left */}
           <div className="w-1/4">
-            <Link to={user ? getDashboardLink() : "/"} className="flex items-center space-x-3">
+            <Link to="/" className="flex items-center space-x-3">
               <img
                 src="/safereport.svg"
                 alt="SAFE Logo"
@@ -119,34 +119,17 @@ const Navigation = () => {
 
           {/* Auth Buttons - Right */}
           <div className="hidden md:flex items-center justify-end space-x-6 w-1/4">
-            <Link 
-              to="/anonymous-report" 
-              className={`px-6 py-2.5 bg-red-600 text-white rounded-lg font-medium tracking-wide hover:bg-red-700 transition-all duration-300 transform hover:scale-[1.02] text-sm uppercase`}
-            >
-              Report Anonymously
-            </Link>
             {user ? (
-              <>
-                {userRole === 'user' && !isHomePage && (
-                  <Link 
-                    to="/report" 
-                    className={`px-6 py-2.5 ${buttonBg} rounded-lg font-medium tracking-wide hover:bg-[#B9E4C9] hover:text-[#0d522c] transition-all duration-300 transform hover:scale-[1.02] text-sm uppercase`}
-                  >
-                    Report Incident
-                  </Link>
-                )}
-                {!isHomePage && (
-                  <button
-                    onClick={handleSignOut}
-                    className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
-                  >
-                    Sign Out
-                  </button>
-                )}
-              </>
+              <button
+                onClick={handleSignOut}
+                className={`px-6 py-2.5 ${buttonBg} rounded-lg font-medium tracking-wide hover:bg-[#B9E4C9] hover:text-[#0d522c] transition-all duration-300 transform hover:scale-[1.02] text-sm uppercase`}
+              >
+                Sign Out
+              </button>
             ) : (
               <Link 
                 to="/login" 
+                state={{ from: location.pathname }}
                 className={`px-6 py-2.5 ${buttonBg} rounded-lg font-medium tracking-wide hover:bg-[#B9E4C9] hover:text-[#0d522c] transition-all duration-300 transform hover:scale-[1.02] text-sm uppercase`}
               >
                 Sign In

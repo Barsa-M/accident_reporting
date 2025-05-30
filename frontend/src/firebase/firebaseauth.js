@@ -10,17 +10,34 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { auth, db } from "./firebase";
+import { ROLES, RESPONDER_STATUS } from "./roles";
 
 // Create Firestore user doc with role, responderType, and additional profile info
 async function createUserDoc(user, role, responderType = null, profileData = {}) {
   if (!user?.uid) throw new Error("Invalid user object");
 
+  // Ensure role matches exactly with ROLES constant values
+  let validRole;
+  switch(role.toLowerCase()) {
+    case ROLES.USER.toLowerCase():
+      validRole = ROLES.USER;
+      break;
+    case ROLES.RESPONDER.toLowerCase():
+      validRole = ROLES.RESPONDER;
+      break;
+    case ROLES.ADMIN.toLowerCase():
+      validRole = ROLES.ADMIN;
+      break;
+    default:
+      throw new Error("Invalid role specified");
+  }
+
   const userDoc = {
     uid: user.uid,
     email: user.email,
-    role, // "User", "Responder", "Admin"
+    role: validRole,
     responderType: responderType || null,
-    status: role === "Responder" ? "pending" : "active",
+    status: validRole === ROLES.RESPONDER ? RESPONDER_STATUS.PENDING : 'active',
     createdAt: serverTimestamp(),
     ...profileData, // name, phone, etc.
   };
@@ -29,7 +46,7 @@ async function createUserDoc(user, role, responderType = null, profileData = {})
 }
 
 // Signup a new user with email, password, role, responderType, and extra profile data
-export async function signup(email, password, role = "User", responderType = null, profileData = {}) {
+export async function signup(email, password, role = ROLES.USER, responderType = null, profileData = {}) {
   if (typeof email !== "string" || typeof password !== "string") {
     throw new Error("Email and password must be strings.");
   }

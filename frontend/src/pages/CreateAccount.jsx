@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { signup } from "../firebase/firebaseauth";
+import { ROLES } from "../firebase/roles";
 
 const CreateAccount = () => {
   const [formData, setFormData] = useState({
@@ -8,7 +9,7 @@ const CreateAccount = () => {
     phone: "",
     email: "",
     password: "",
-    role: "User",
+    role: ROLES.USER,
   });
 
   const [confirmPassword, setConfirmPassword] = useState("");

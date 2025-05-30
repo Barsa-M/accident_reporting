@@ -10,11 +10,7 @@ const HomePage = () => {
   const navigate = useNavigate();
 
   const handleReportIncident = () => {
-    if (user) {
-      navigate('/report');
-    } else {
-      navigate('/login', { state: { from: '/report' } });
-    }
+    navigate('/login', { state: { from: '/report' } });
   };
 
   return (
@@ -41,6 +37,11 @@ const HomePage = () => {
               >
                 Report Incident
               </button>
+              <Link to="/anonymous-report">
+                <button className="px-8 py-3 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-all duration-300 transform hover:scale-[1.02]">
+                  Report Anonymously
+                </button>
+              </Link>
               <Link to="/responder-register">
                 <button className="px-8 py-3 border-2 border-white text-white rounded-lg font-medium hover:bg-white hover:text-[#0d522c] transition-all duration-300 transform hover:scale-[1.02]">
                   Join as Responder
@@ -172,9 +173,15 @@ const HomePage = () => {
           <h2 className="text-4xl font-bold mb-6">Ready to Make a Difference?</h2>
           <p className="text-xl mb-8 max-w-2xl mx-auto">Join our network of emergency responders and help save lives in your community.</p>
           <div className="flex justify-center space-x-4">
-            <Link to="/report">
-              <button className="px-8 py-3 bg-[#B9E4C9] text-[#0d522c] rounded-lg font-medium hover:bg-white transition-colors">
-                Report Incident
+            <button
+              onClick={handleReportIncident}
+              className="px-8 py-3 bg-[#B9E4C9] text-[#0d522c] rounded-lg font-medium hover:bg-white transition-colors"
+            >
+              Report Incident
+            </button>
+            <Link to="/anonymous-report">
+              <button className="px-8 py-3 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors">
+                Report Anonymously
               </button>
             </Link>
             <Link to="/responder-register">

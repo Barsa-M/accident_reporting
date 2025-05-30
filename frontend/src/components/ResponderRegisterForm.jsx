@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import L from "leaflet";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { getFirestore, doc, setDoc } from "firebase/firestore";
+import { ROLES, RESPONDER_STATUS } from "../firebase/roles";
 
 export default function ResponderSignUpForm() {
   const auth = getAuth();
@@ -145,7 +146,7 @@ export default function ResponderSignUpForm() {
       // Create user document
       await setDoc(doc(db, "users", uid), {
         email: formData.email,
-        role: "Responder",
+        role: ROLES.RESPONDER,
         createdAt: new Date()
       });
 
@@ -162,7 +163,7 @@ export default function ResponderSignUpForm() {
           lat: formData.mapLocation[0],
           lng: formData.mapLocation[1]
         },
-        status: "pending",
+        status: RESPONDER_STATUS.PENDING,
         createdAt: new Date(),
         updatedAt: new Date()
       });

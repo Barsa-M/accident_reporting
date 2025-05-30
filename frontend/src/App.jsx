@@ -11,9 +11,11 @@ import { useEffect, useState } from "react";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "./firebase/firebase";
 import { getUserRole } from "./firebase/firebaseauth";
+import { ROLES } from "./firebase/roles";
 import { ResponderAuthProvider } from "./contexts/ResponderAuthContext";
 import ResponderRoute from "./components/ResponderRoute";
 import AuthRoute from './components/AuthRoute';
+import { toast, Toaster } from "react-hot-toast";
 
 // Reusable Pages
 import ChangePassword from "./components/ChangePassword";
@@ -71,7 +73,7 @@ function App() {
     const fetchUserRole = async () => {
       if (user) {
         const userRole = await getUserRole(user.uid);
-        setRole(userRole);
+        setRole(userRole?.toUpperCase());
       } else {
         setRole(null);
       }
@@ -81,14 +83,20 @@ function App() {
 
   const ProtectedRoute = ({ children }) => {
     if (!user) return <Navigate to="/login" />;
-    if (role === 'admin') return <Navigate to="/admin/dashboard" />;
-    if (role === 'responder') return <Navigate to="/responder/dashboard" />;
+    if (role === ROLES.ADMIN) return <Navigate to="/admin/dashboard" />;
+    if (role === ROLES.RESPONDER) return <Navigate to="/responder/dashboard" />;
     return children;
   };
 
   const AdminRoute = ({ children }) => {
     if (!user) return <Navigate to="/login" />;
-    if (role !== 'Admin') return <Navigate to="/" />;
+    if (role !== ROLES.ADMIN) return <Navigate to="/" />;
+    return children;
+  };
+
+  const ResponderRoute = ({ children }) => {
+    if (!user) return <Navigate to="/login" />;
+    if (role !== ROLES.RESPONDER) return <Navigate to="/" />;
     return children;
   };
 
@@ -97,6 +105,10 @@ function App() {
   };
 
   AdminRoute.propTypes = {
+    children: PropTypes.node.isRequired,
+  };
+
+  ResponderRoute.propTypes = {
     children: PropTypes.node.isRequired,
   };
 
@@ -206,16 +218,49 @@ function App() {
             />
 
             {/* Admin Routes */}
-            <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-            <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-            <Route path="/admin/manage-users" element={<AdminRoute><ManageUser /></AdminRoute>} />
+            <Route
+              path="/admin/dashboard"
+              element={
+                <AuthRoute allowedRoles={[ROLES.ADMIN]}>
+                  <AdminDashboard />
+                </AuthRoute>
+              }
+            />
+            <Route
+              path="/admin/manage-users"
+              element={
+                <AuthRoute allowedRoles={[ROLES.ADMIN]}>
+                  <ManageUser />
+                </AuthRoute>
+              }
+            />
             <Route path="/admin/notifications" element={<AdminRoute><NotificationTest /></AdminRoute>} />
 
             {/* Responder Routes */}
-            <Route path="/responder" element={<ResponderRoute><ResponderDashboard /></ResponderRoute>} />
-            <Route path="/responder/dashboard" element={<ResponderRoute><ResponderDashboard /></ResponderRoute>} />
-            <Route path="/responder/active-incidents" element={<ResponderRoute><ActiveIncidents /></ResponderRoute>} />
-            <Route path="/responder/reports" element={<ResponderRoute><ViewReports /></ResponderRoute>} />
+            <Route
+              path="/responder/dashboard"
+              element={
+                <AuthRoute allowedRoles={[ROLES.RESPONDER]}>
+                  <ResponderDashboard />
+                </AuthRoute>
+              }
+            />
+            <Route
+              path="/responder/active-incidents"
+              element={
+                <AuthRoute allowedRoles={[ROLES.RESPONDER]}>
+                  <ActiveIncidents />
+                </AuthRoute>
+              }
+            />
+            <Route
+              path="/responder/reports"
+              element={
+                <AuthRoute allowedRoles={[ROLES.RESPONDER]}>
+                  <ViewReports />
+                </AuthRoute>
+              }
+            />
             <Route path="/responder/pending" element={<PendingApproval />} />
             <Route path="/responder/rejected" element={<NotApproved />} />
 
@@ -263,6 +308,7 @@ function App() {
           </Routes>
         </div>
       </div>
+      <Toaster />
     </ResponderAuthProvider>
   );
 }
