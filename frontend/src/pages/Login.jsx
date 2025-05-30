@@ -96,8 +96,8 @@ function Login() {
           }
 
         case ROLES.USER:
-          console.log("User login successful, navigating to report page");
-          navigate("/report", { replace: true });
+          console.log("User login successful, navigating to dashboard");
+          navigate("/dashboard", { replace: true });
           return;
 
         default:

@@ -1,8 +1,8 @@
 // Role definitions and permissions
 export const ROLES = {
-  USER: 'User',
-  RESPONDER: 'Responder',
-  ADMIN: 'Admin'
+  ADMIN: 'admin',
+  RESPONDER: 'responder',
+  USER: 'user'
 };
 
 export const RESPONDER_TYPES = {

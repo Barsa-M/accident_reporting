@@ -47,7 +47,7 @@ export const getRedirectPath = (userData, responderData) => {
         ? '/responder/pending'
         : '/responder/dashboard';
     case ROLES.USER:
-      return '/user/dashboard';
+      return '/dashboard';
     default:
       return '/login';
   }

@@ -1,171 +1,321 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db, storage } from "../firebase/firebase";
+import IncidentFormFields from "../components/Common/IncidentFormFields";
+import { toast } from "react-toastify";
 
 export default function FireIncidentForm() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
+    // Common fields
+    fullName: "",
+    phoneNumber: "",
+    severityLevel: "",
+    location: null,
+    locationDescription: "",
+    description: "",
+    files: [],
+    incidentDateTime: "",
+    // Fire-specific fields
     fireType: "",
-    location: "",
-    subcity: "",
-    urgency: "",
-    details: "",
-    images: null,
+    cause: "",
+    areaAffected: "",
+    numberOfCasualties: "",
+    isContained: "",
+    buildingType: "",
+    floorNumber: "",
+    evacuationStatus: "",
+    hazardousMaterials: "",
+    accessPoints: "",
   });
 
   const [errors, setErrors] = useState({});
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
-  };
-
-  const handleFileChange = (e) => {
-    setFormData({
-      ...formData,
-      images: e.target.files,
-    });
-  };
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const validateForm = () => {
     const newErrors = {};
-    if (!formData.fireType) newErrors.fireType = "Type of fire is required.";
-    if (!formData.location) newErrors.location = "Location is required.";
-    if (!formData.subcity) newErrors.subcity = "Subcity is required.";
-    if (!formData.urgency) newErrors.urgency = "Urgency level is required.";
-    if (!formData.details) newErrors.details = "Additional details are required.";
+    // Common field validations
+    if (!formData.fullName) newErrors.fullName = "Full name is required";
+    if (!formData.phoneNumber) newErrors.phoneNumber = "Phone number is required";
+    if (!formData.severityLevel) newErrors.severityLevel = "Severity level is required";
+    if (!formData.location) newErrors.location = "Location is required";
+    if (!formData.locationDescription) newErrors.locationDescription = "Location description is required";
+    if (!formData.description) newErrors.description = "Description is required";
+    if (!formData.incidentDateTime) newErrors.incidentDateTime = "Date and time is required";
+
+    // Fire-specific validations
+    if (!formData.fireType) newErrors.fireType = "Fire type is required";
+    if (!formData.cause) newErrors.cause = "Fire cause is required";
+    if (!formData.areaAffected) newErrors.areaAffected = "Area affected is required";
+    if (!formData.isContained) newErrors.isContained = "Please specify if the fire is contained";
+    if (!formData.evacuationStatus) newErrors.evacuationStatus = "Evacuation status is required";
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleLocationSelect = (location) => {
+    setFormData(prev => ({
+      ...prev,
+      location
+    }));
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (validateForm()) {
-      console.log("Form Data Submitted:", formData);
-      alert("Fire Incident reported successfully!");
-    } else {
-      alert("Please complete all required fields.");
+    if (!validateForm()) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      // Upload files if any
+      const mediaUrls = [];
+      if (formData.files.length > 0) {
+        for (const file of formData.files) {
+          const storageRef = ref(storage, `incidents/fire/${Date.now()}_${file.name}`);
+          const snapshot = await uploadBytes(storageRef, file);
+          const url = await getDownloadURL(snapshot.ref);
+          mediaUrls.push(url);
+        }
+      }
+
+      // Create incident document
+      const incidentData = {
+        ...formData,
+        type: "fire",
+        mediaUrls,
+        status: "pending",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      // Remove files from the data before saving to Firestore
+      delete incidentData.files;
+
+      await addDoc(collection(db, "incidents"), incidentData);
+      toast.success("Fire incident reported successfully!");
+      navigate("/dashboard");
+    } catch (error) {
+      console.error("Error submitting report:", error);
+      toast.error("Failed to submit report. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="container mx-auto p-6 bg-white rounded-lg shadow-lg">
-      <h1 className="text-3xl font-bold text-green-700 mb-6">Fire Incident Report Form</h1>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-green-800">Type of Fire:</label>
-          <select
-            name="fireType"
-            value={formData.fireType}
-            onChange={handleChange}
-            className="w-full p-2 border rounded-lg border-green-300 hover:border-green-500 focus:ring-green-500"
-          >
-            <option value="">Select a fire type</option>
-            <option value="Residential Fire">Residential Fire</option>
-            <option value="Commercial Fire">Commercial Fire</option>
-            <option value="Wildfire">Wildfire</option>
-            <option value="Vehicle Fire">Vehicle Fire</option>
-            <option value="Electrical Fire">Electrical Fire</option>
-          </select>
-          {errors.fireType && <p className="text-red-500 text-sm">{errors.fireType}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-green-800">Location:</label>
-          <input
-            type="text"
-            name="location"
-            value={formData.location}
-            onChange={handleChange}
-            className="w-full p-2 border rounded-lg border-green-300 hover:border-green-500 focus:ring-green-500"
-            placeholder="Enter the location of the fire"
-          />
-          {errors.location && <p className="text-red-500 text-sm">{errors.location}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-green-800">Subcity:</label>
-          <input
-            type="text"
-            name="subcity"
-            value={formData.subcity}
-            onChange={handleChange}
-            className="w-full p-2 border rounded-lg border-green-300 hover:border-green-500 focus:ring-green-500"
-            placeholder="Enter the subcity of the fire"
-          />
-          {errors.subcity && <p className="text-red-500 text-sm">{errors.subcity}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-green-800">Urgency Level:</label>
-          <div className="space-y-2">
-            <label className="flex items-center space-x-2">
+    <div className="w-[98%] mx-auto px-2 sm:px-4 py-8">
+      <div className="bg-gradient-to-br from-[#0d522c]/5 to-[#347752]/5 rounded-2xl shadow-xl border border-[#0d522c]/10">
+        <form onSubmit={handleSubmit} className="max-w-5xl mx-auto p-4 sm:p-8 space-y-8">
+          <h1 className="text-3xl sm:text-4xl font-bold text-[#0d522c] mb-8 text-center">Fire Incident Report</h1>
+          <div className="space-y-6">
+            {/* Incident Date & Time */}
+            <div>
+              <label className="block text-sm font-medium text-[#0d522c] mb-1">Date and Time *</label>
               <input
-                type="radio"
-                id="urgency-low"
-                name="urgency"
-                value="Low"
-                checked={formData.urgency === "Low"}
-                onChange={handleChange}
-                className="text-green-600 focus:ring-green-500 hover:text-green-700"
+                type="datetime-local"
+                name="incidentDateTime"
+                value={formData.incidentDateTime}
+                onChange={e => setFormData(prev => ({ ...prev, incidentDateTime: e.target.value }))}
+                className={`w-full px-4 py-2 rounded-lg border ${errors.incidentDateTime ? 'border-red-500' : 'border-[#0d522c]/20'} focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
+                required
               />
-              <span className="text-green-800">Low - Minor issue, no immediate attention required</span>
-            </label>
-            <label className="flex items-center space-x-2">
-              <input
-                type="radio"
-                id="urgency-medium"
-                name="urgency"
-                value="Medium"
-                checked={formData.urgency === "Medium"}
-                onChange={handleChange}
-                className="text-yellow-600 focus:ring-yellow-500 hover:text-yellow-700"
-              />
-              <span className="text-yellow-800">Medium - Needs attention within a reasonable time</span>
-            </label>
-            <label className="flex items-center space-x-2">
-              <input
-                type="radio"
-                id="urgency-high"
-                name="urgency"
-                value="High"
-                checked={formData.urgency === "High"}
-                onChange={handleChange}
-                className="text-red-600 focus:ring-red-500 hover:text-red-700"
-              />
-              <span className="text-red-800">High - Requires immediate attention</span>
-            </label>
+              {errors.incidentDateTime && <p className="mt-1 text-sm text-red-600">{errors.incidentDateTime}</p>}
+            </div>
+
+            {/* Location Picker */}
+            <IncidentFormFields
+              formData={formData}
+              setFormData={setFormData}
+              errors={errors}
+              incidentType="Fire"
+              onLocationSelect={handleLocationSelect}
+              hideNamePhone={true}
+            />
+
+            {/* Fire-specific Fields */}
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-[#0d522c] mb-1">Type of Fire *</label>
+                <select
+                  name="fireType"
+                  value={formData.fireType}
+                  onChange={e => setFormData(prev => ({ ...prev, fireType: e.target.value }))}
+                  className={`w-full px-4 py-2 rounded-lg border ${errors.fireType ? 'border-red-500' : 'border-[#0d522c]/20'} focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
+                  required
+                >
+                  <option value="">Select fire type</option>
+                  <option value="residential">Residential Fire</option>
+                  <option value="commercial">Commercial Fire</option>
+                  <option value="industrial">Industrial Fire</option>
+                  <option value="vehicle">Vehicle Fire</option>
+                  <option value="wildfire">Wildfire</option>
+                  <option value="electrical">Electrical Fire</option>
+                  <option value="other">Other</option>
+                </select>
+                {errors.fireType && <p className="mt-1 text-sm text-red-600">{errors.fireType}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#0d522c] mb-1">Cause of Fire *</label>
+                <select
+                  name="cause"
+                  value={formData.cause}
+                  onChange={e => setFormData(prev => ({ ...prev, cause: e.target.value }))}
+                  className={`w-full px-4 py-2 rounded-lg border ${errors.cause ? 'border-red-500' : 'border-[#0d522c]/20'} focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
+                  required
+                >
+                  <option value="">Select cause</option>
+                  <option value="known">Known Cause</option>
+                  <option value="unknown">Unknown Cause</option>
+                  <option value="electrical">Electrical Fault</option>
+                  <option value="cooking">Cooking Accident</option>
+                  <option value="arson">Suspected Arson</option>
+                  <option value="natural">Natural Causes</option>
+                  <option value="other">Other</option>
+                </select>
+                {errors.cause && <p className="mt-1 text-sm text-red-600">{errors.cause}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#0d522c] mb-1">Area Affected *</label>
+                <input
+                  type="text"
+                  name="areaAffected"
+                  value={formData.areaAffected}
+                  onChange={e => setFormData(prev => ({ ...prev, areaAffected: e.target.value }))}
+                  className={`w-full px-4 py-2 rounded-lg border ${errors.areaAffected ? 'border-red-500' : 'border-[#0d522c]/20'} focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
+                  placeholder="Describe the area affected by the fire"
+                  required
+                />
+                {errors.areaAffected && <p className="mt-1 text-sm text-red-600">{errors.areaAffected}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#0d522c] mb-1">Number of Casualties</label>
+                <input
+                  type="number"
+                  name="numberOfCasualties"
+                  min="0"
+                  value={formData.numberOfCasualties}
+                  onChange={e => setFormData(prev => ({ ...prev, numberOfCasualties: e.target.value }))}
+                  className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#0d522c] mb-2">Is the Fire Contained? *</label>
+                <div className="flex space-x-6">
+                  {["Yes", "No", "Partially"].map(option => (
+                    <label key={option} className="inline-flex items-center">
+                      <input
+                        type="radio"
+                        name="isContained"
+                        value={option}
+                        checked={formData.isContained === option}
+                        onChange={e => setFormData(prev => ({ ...prev, isContained: e.target.value }))}
+                        className="w-4 h-4 text-[#0d522c] border-[#0d522c]/20 focus:ring-[#0d522c]"
+                        required
+                      />
+                      <span className="ml-2 text-[#0d522c]">{option}</span>
+                    </label>
+                  ))}
+                </div>
+                {errors.isContained && <p className="mt-1 text-sm text-red-600">{errors.isContained}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#0d522c] mb-1">Building Type</label>
+                <select
+                  name="buildingType"
+                  value={formData.buildingType}
+                  onChange={e => setFormData(prev => ({ ...prev, buildingType: e.target.value }))}
+                  className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50"
+                >
+                  <option value="">Select building type</option>
+                  <option value="residential">Residential</option>
+                  <option value="commercial">Commercial</option>
+                  <option value="industrial">Industrial</option>
+                  <option value="government">Government</option>
+                  <option value="educational">Educational</option>
+                  <option value="healthcare">Healthcare</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#0d522c] mb-1">Floor Number (if applicable)</label>
+                <input
+                  type="number"
+                  name="floorNumber"
+                  min="0"
+                  value={formData.floorNumber}
+                  onChange={e => setFormData(prev => ({ ...prev, floorNumber: e.target.value }))}
+                  className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50"
+                  placeholder="Enter floor number"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#0d522c] mb-1">Evacuation Status *</label>
+                <select
+                  name="evacuationStatus"
+                  value={formData.evacuationStatus}
+                  onChange={e => setFormData(prev => ({ ...prev, evacuationStatus: e.target.value }))}
+                  className={`w-full px-4 py-2 rounded-lg border ${errors.evacuationStatus ? 'border-red-500' : 'border-[#0d522c]/20'} focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
+                  required
+                >
+                  <option value="">Select status</option>
+                  <option value="not-started">Evacuation Not Started</option>
+                  <option value="in-progress">Evacuation In Progress</option>
+                  <option value="completed">Evacuation Completed</option>
+                  <option value="not-required">Evacuation Not Required</option>
+                </select>
+                {errors.evacuationStatus && <p className="mt-1 text-sm text-red-600">{errors.evacuationStatus}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#0d522c] mb-1">Hazardous Materials Present</label>
+                <textarea
+                  name="hazardousMaterials"
+                  value={formData.hazardousMaterials}
+                  onChange={e => setFormData(prev => ({ ...prev, hazardousMaterials: e.target.value }))}
+                  rows="3"
+                  className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50"
+                  placeholder="List any hazardous materials present at the scene"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#0d522c] mb-1">Access Points</label>
+                <textarea
+                  name="accessPoints"
+                  value={formData.accessPoints}
+                  onChange={e => setFormData(prev => ({ ...prev, accessPoints: e.target.value }))}
+                  rows="3"
+                  className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50"
+                  placeholder="Describe available access points for emergency responders"
+                />
+              </div>
+            </div>
+
+            {/* File Upload (if present in IncidentFormFields, skip here) */}
+            {/* ... */}
+
+            <div className="flex justify-end space-x-4 pt-4">
+              <button
+                type="button"
+                onClick={() => navigate("/dashboard")}
+                className="px-6 py-2 border border-[#0d522c]/20 text-[#0d522c] font-medium rounded-lg hover:bg-[#0d522c]/5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0d522c]"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-6 py-2 bg-[#0d522c] text-white font-medium rounded-lg hover:bg-[#347752] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0d522c] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? "Submitting..." : "Submit Report"}
+              </button>
+            </div>
           </div>
-          {errors.urgency && <p className="text-red-500 text-sm">{errors.urgency}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-green-800">Additional Details:</label>
-          <textarea
-            name="details"
-            value={formData.details}
-            onChange={handleChange}
-            className="w-full p-2 border rounded-lg border-green-300 hover:border-green-500 focus:ring-green-500"
-            placeholder="Provide additional details about the fire incident"
-          ></textarea>
-          {errors.details && <p className="text-red-500 text-sm">{errors.details}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-green-800">Attach Images (Optional):</label>
-          <input
-            type="file"
-            name="images"
-            onChange={handleFileChange}
-            className="w-full p-2 border border-green-300 rounded-lg hover:border-green-500 focus:ring-green-500"
-            multiple
-          />
-        </div>
-
-        <button type="submit" className="px-6 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 focus:ring-4 focus:ring-green-300">
-          Submit Fire Report
-        </button>
-      </form>
+        </form>
+      </div>
     </div>
   );
 }

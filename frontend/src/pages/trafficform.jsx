@@ -1,231 +1,253 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db, storage } from "../firebase/firebase";
+import IncidentFormFields from "../components/Common/IncidentFormFields";
+import { toast } from "react-toastify";
 
-export default function IncidentForm() {
+export default function TrafficIncidentForm() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    type: "",
-    location: "",
-    subcity: "",
-    urgency: "",
-    details: "",
-    images: null,
+    // Common fields
+    fullName: "",
+    phoneNumber: "",
+    severityLevel: "",
+    location: null,
+    locationDescription: "",
+    description: "",
+    files: [],
+    incidentDateTime: "",
+    // Traffic-specific fields
+    vehiclePlateNumber: "",
+    accidentType: "",
+    numberOfVehicles: "",
+    numberOfInjured: "",
     isSelfReport: "",
+    witnessDetails: "",
   });
 
   const [errors, setErrors] = useState({});
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
-  };
-
-  const handleFileChange = (e) => {
-    setFormData({
-      ...formData,
-      images: e.target.files,
-    });
-  };
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const validateForm = () => {
     const newErrors = {};
-    if (!formData.type) newErrors.type = "Type of incident is required.";
-    if (!formData.location) newErrors.location = "Location is required.";
-    if (!formData.subcity) newErrors.subcity = "Subcity is required.";
-    if (!formData.urgency) newErrors.urgency = "Urgency level is required.";
-    if (!formData.details) newErrors.details = "Additional details are required.";
-    if (!formData.isSelfReport) newErrors.isSelfReport = "Please specify if you are reporting yourself.";
+    // Common field validations
+    if (!formData.fullName) newErrors.fullName = "Full name is required";
+    if (!formData.phoneNumber) newErrors.phoneNumber = "Phone number is required";
+    if (!formData.severityLevel) newErrors.severityLevel = "Severity level is required";
+    if (!formData.location) newErrors.location = "Location is required";
+    if (!formData.locationDescription) newErrors.locationDescription = "Location description is required";
+    if (!formData.description) newErrors.description = "Description is required";
+    if (!formData.incidentDateTime) newErrors.incidentDateTime = "Date and time is required";
+
+    // Traffic-specific validations
+    if (!formData.vehiclePlateNumber) newErrors.vehiclePlateNumber = "Vehicle plate number is required";
+    if (!formData.accidentType) newErrors.accidentType = "Accident type is required";
+    if (!formData.numberOfVehicles) newErrors.numberOfVehicles = "Number of vehicles is required";
+    if (!formData.isSelfReport) newErrors.isSelfReport = "Please specify if you are reporting yourself";
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleLocationSelect = (location) => {
+    setFormData(prev => ({
+      ...prev,
+      location
+    }));
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (validateForm()) {
-      console.log("Form Data Submitted:", formData);
-      alert("Incident reported successfully!");
-      // Handle form submission logic, e.g., sending to an API
-    } else {
-      alert("Please complete all required fields.");
+    if (!validateForm()) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      // Upload files if any
+      const mediaUrls = [];
+      if (formData.files.length > 0) {
+        for (const file of formData.files) {
+          const storageRef = ref(storage, `incidents/traffic/${Date.now()}_${file.name}`);
+          const snapshot = await uploadBytes(storageRef, file);
+          const url = await getDownloadURL(snapshot.ref);
+          mediaUrls.push(url);
+        }
+      }
+
+      // Create incident document
+      const incidentData = {
+        ...formData,
+        type: "traffic",
+        mediaUrls,
+        status: "pending",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      // Remove files from the data before saving to Firestore
+      delete incidentData.files;
+
+      await addDoc(collection(db, "incidents"), incidentData);
+      toast.success("Traffic incident reported successfully!");
+      navigate("/dashboard");
+    } catch (error) {
+      console.error("Error submitting report:", error);
+      toast.error("Failed to submit report. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="container mx-auto p-6 bg-white rounded-lg shadow-lg">
-      <h1 className="text-3xl font-bold text-green-700 mb-6">Traffic Incident Report Form </h1>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-green-800">
-            Are you reporting accident on self?
-          </label>
-          <div className="flex items-center space-x-4">
-            <label className="inline-flex items-center">
+    <div className="w-[98%] mx-auto px-2 sm:px-4 py-8">
+      <div className="bg-gradient-to-br from-[#0d522c]/5 to-[#347752]/5 rounded-2xl shadow-xl border border-[#0d522c]/10">
+        <form onSubmit={handleSubmit} className="max-w-5xl mx-auto p-4 sm:p-8 space-y-8">
+          <h1 className="text-3xl sm:text-4xl font-bold text-[#0d522c] mb-8 text-center">Traffic Incident Report</h1>
+          <div className="space-y-6">
+            {/* Incident Date & Time */}
+            <div>
+              <label className="block text-sm font-medium text-[#0d522c] mb-1">Date and Time *</label>
               <input
-                type="radio"
-                name="isSelfReport"
-                value="Yes"
-                checked={formData.isSelfReport === "Yes"}
-                onChange={handleChange}
-                className="text-green-600 focus:ring-green-500 hover:text-green-700"
+                type="datetime-local"
+                name="incidentDateTime"
+                value={formData.incidentDateTime}
+                onChange={e => setFormData(prev => ({ ...prev, incidentDateTime: e.target.value }))}
+                className={`w-full px-4 py-2 rounded-lg border ${errors.incidentDateTime ? 'border-red-500' : 'border-[#0d522c]/20'} focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
+                required
               />
-              <span className="ml-2 text-green-800">Yes</span>
-            </label>
-            <label className="inline-flex items-center">
-              <input
-                type="radio"
-                name="isSelfReport"
-                value="No"
-                checked={formData.isSelfReport === "No"}
-                onChange={handleChange}
-                className="text-green-600 focus:ring-green-500 hover:text-green-700"
-              />
-              <span className="ml-2 text-green-800">No</span>
-            </label>
-          </div>
-          {errors.isSelfReport && <p className="text-red-500 text-sm">{errors.isSelfReport}</p>}
-        </div>
+              {errors.incidentDateTime && <p className="mt-1 text-sm text-red-600">{errors.incidentDateTime}</p>}
+            </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-green-800" htmlFor="type">
-              Type of Incident:
-            </label>
-            <input
-              type="text"
-              id="type"
-              name="type"
-              value={formData.type}
-              onChange={handleChange}
-              className={`w-full p-2 border rounded-lg ${errors.type ? 'border-red-500' : 'border-green-300'} hover:border-green-500 focus:ring-green-500`}
-              placeholder="Enter the type of incident"
+            {/* Common Fields */}
+            <IncidentFormFields
+              formData={formData}
+              setFormData={setFormData}
+              errors={errors}
+              incidentType="Traffic"
+              onLocationSelect={handleLocationSelect}
+              hideNamePhone={true}
             />
-            {errors.type && <p className="text-red-500 text-sm">{errors.type}</p>}
+
+            {/* Traffic-specific Fields */}
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-[#0d522c] mb-1">Type of Traffic Incident *</label>
+                <select
+                  name="trafficType"
+                  value={formData.trafficType}
+                  onChange={e => setFormData(prev => ({ ...prev, trafficType: e.target.value }))}
+                  className={`w-full px-4 py-2 rounded-lg border ${errors.trafficType ? 'border-red-500' : 'border-[#0d522c]/20'} focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
+                  required
+                >
+                  <option value="">Select incident type</option>
+                  <option value="collision">Vehicle Collision</option>
+                  <option value="pedestrian">Pedestrian Accident</option>
+                  <option value="hit-and-run">Hit and Run</option>
+                  <option value="road-hazard">Road Hazard</option>
+                  <option value="traffic-violation">Traffic Violation</option>
+                  <option value="other">Other</option>
+                </select>
+                {errors.trafficType && <p className="mt-1 text-sm text-red-600">{errors.trafficType}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#0d522c] mb-1">Number of Vehicles Involved *</label>
+                <input
+                  type="number"
+                  name="vehiclesInvolved"
+                  value={formData.vehiclesInvolved}
+                  onChange={e => setFormData(prev => ({ ...prev, vehiclesInvolved: e.target.value }))}
+                  min="1"
+                  className={`w-full px-4 py-2 rounded-lg border ${errors.vehiclesInvolved ? 'border-red-500' : 'border-[#0d522c]/20'} focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
+                  required
+                />
+                {errors.vehiclesInvolved && <p className="mt-1 text-sm text-red-600">{errors.vehiclesInvolved}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#0d522c] mb-1">Vehicle Details</label>
+                <textarea
+                  name="vehicleDetails"
+                  value={formData.vehicleDetails}
+                  onChange={e => setFormData(prev => ({ ...prev, vehicleDetails: e.target.value }))}
+                  rows="3"
+                  className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50"
+                  placeholder="Describe the vehicles involved (make, model, color, etc.)"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#0d522c] mb-1">Injuries</label>
+                <textarea
+                  name="injuries"
+                  value={formData.injuries}
+                  onChange={e => setFormData(prev => ({ ...prev, injuries: e.target.value }))}
+                  rows="3"
+                  className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50"
+                  placeholder="Describe any injuries sustained"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#0d522c] mb-1">Road Conditions</label>
+                <textarea
+                  name="roadConditions"
+                  value={formData.roadConditions}
+                  onChange={e => setFormData(prev => ({ ...prev, roadConditions: e.target.value }))}
+                  rows="3"
+                  className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50"
+                  placeholder="Describe the road conditions at the time of the incident"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#0d522c] mb-1">Weather Conditions</label>
+                <textarea
+                  name="weatherConditions"
+                  value={formData.weatherConditions}
+                  onChange={e => setFormData(prev => ({ ...prev, weatherConditions: e.target.value }))}
+                  rows="3"
+                  className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50"
+                  placeholder="Describe the weather conditions at the time of the incident"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#0d522c] mb-1">Additional Notes</label>
+                <textarea
+                  name="additionalNotes"
+                  value={formData.additionalNotes}
+                  onChange={e => setFormData(prev => ({ ...prev, additionalNotes: e.target.value }))}
+                  rows="3"
+                  className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50"
+                  placeholder="Any additional information about the incident"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-4 pt-4">
+              <button
+                type="button"
+                onClick={() => navigate("/dashboard")}
+                className="px-6 py-2 border border-[#0d522c]/20 text-[#0d522c] font-medium rounded-lg hover:bg-[#0d522c]/5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0d522c]"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-6 py-2 bg-[#0d522c] text-white font-medium rounded-lg hover:bg-[#347752] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0d522c] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? "Submitting..." : "Submit Report"}
+              </button>
+            </div>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-green-800" htmlFor="location">
-              Location:
-            </label>
-            <input
-              type="text"
-              id="location"
-              name="location"
-              value={formData.location}
-              onChange={handleChange}
-              className={`w-full p-2 border rounded-lg ${errors.location ? 'border-red-500' : 'border-green-300'} hover:border-green-500 focus:ring-green-500`}
-              placeholder="Enter the specific location"
-            />
-            {errors.location && <p className="text-red-500 text-sm">{errors.location}</p>}
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-green-800" htmlFor="subcity">
-            Subcity in Addis Ababa:
-          </label>
-          <select
-            id="subcity"
-            name="subcity"
-            value={formData.subcity}
-            onChange={handleChange}
-            className={`w-full p-2 border rounded-lg ${errors.subcity ? 'border-red-500' : 'border-green-300'} hover:border-green-500 focus:ring-green-500`}
-          >
-            <option value="">Select a subcity</option>
-            <option value="Bole">Bole</option>
-            <option value="Yeka">Yeka</option>
-            <option value="Lideta">Lideta</option>
-            <option value="Kirkos">Kirkos</option>
-            <option value="Kolfe">Kolfe</option>
-            <option value="Arada">Arada</option>
-            <option value="Gulele">Gulele</option>
-            <option value="Nifas Silk-Lafto">Nifas Silk-Lafto</option>
-            <option value="Akaky Kaliti">Akaky Kaliti</option>
-          </select>
-          {errors.subcity && <p className="text-red-500 text-sm">{errors.subcity}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-green-800" htmlFor="urgency">
-            Urgency Level:
-          </label>
-          <div className="space-y-2">
-            <label className="flex items-center space-x-2">
-              <input
-                type="radio"
-                id="urgency-low"
-                name="urgency"
-                value="Low"
-                checked={formData.urgency === "Low"}
-                onChange={handleChange}
-                className="text-green-600 focus:ring-green-500 hover:text-green-700"
-              />
-              <span className="text-green-800">Low - Minor issue, no immediate attention required</span>
-            </label>
-            <label className="flex items-center space-x-2">
-              <input
-                type="radio"
-                id="urgency-medium"
-                name="urgency"
-                value="Medium"
-                checked={formData.urgency === "Medium"}
-                onChange={handleChange}
-                className="text-yellow-600 focus:ring-yellow-500 hover:text-yellow-700"
-              />
-              <span className="text-yellow-800">Medium - Needs attention within a reasonable time</span>
-            </label>
-            <label className="flex items-center space-x-2">
-              <input
-                type="radio"
-                id="urgency-high"
-                name="urgency"
-                value="High"
-                checked={formData.urgency === "High"}
-                onChange={handleChange}
-                className="text-red-600 focus:ring-red-500 hover:text-red-700"
-              />
-              <span className="text-red-800">High - Requires immediate attention</span>
-            </label>
-          </div>
-          {errors.urgency && <p className="text-red-500 text-sm">{errors.urgency}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-green-800" htmlFor="details">
-            Additional Details:
-          </label>
-          <textarea
-            id="details"
-            name="details"
-            value={formData.details}
-            onChange={handleChange}
-            className={`w-full p-2 border rounded-lg ${errors.details ? 'border-red-500' : 'border-green-300'} hover:border-green-500 focus:ring-green-500`}
-            placeholder="Provide additional details about the incident"
-          ></textarea>
-          {errors.details && <p className="text-red-500 text-sm">{errors.details}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-green-800" htmlFor="images">
-            Attach Images (Optional):
-          </label>
-          <input
-            type="file"
-            id="images"
-            name="images"
-            onChange={handleFileChange}
-            className="w-full p-2 border border-green-300 rounded-lg hover:border-green-500 focus:ring-green-500"
-            multiple
-          />
-        </div>
-
-        <button
-          type="submit"
-          className="px-6 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 focus:ring-4 focus:ring-green-300"
-        >
-          Submit Incident Report
-        </button>
-      </form>
+        </form>
+      </div>
     </div>
   );
 }
