@@ -28,14 +28,24 @@ export default function ResponderRoute({ children }) {
 
   // Pending approval
   if (responderStatus === 'pending') {
-    return <Navigate to="/pending-approval" />;
+    return <Navigate to="/responder/pending" />;
   }
 
   // Rejected
   if (responderStatus === 'rejected') {
-    return <Navigate to="/not-approved" />;
+    return <Navigate to="/responder/rejected" />;
+  }
+
+  // Not registered as responder
+  if (responderStatus === 'unregistered') {
+    return <Navigate to="/responder/register" />;
   }
 
   // Approved - show the protected content
-  return children;
+  if (responderStatus === 'approved') {
+    return children;
+  }
+
+  // Default case - redirect to login
+  return <Navigate to="/login" />;
 } 

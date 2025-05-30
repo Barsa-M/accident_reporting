@@ -129,40 +129,6 @@ const Navigation = () => {
               >
                 Contact
               </Link>
-              {user && (
-                <>
-                  <Link 
-                    to="/forum" 
-                    className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
-                  >
-                    Forum
-                  </Link>
-                  <Link 
-                    to="/profile" 
-                    className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
-                  >
-                    Account
-                  </Link>
-                  <Link 
-                    to="/medical-form" 
-                    className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
-                  >
-                    Medical
-                  </Link>
-                  <Link 
-                    to="/fire-form" 
-                    className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
-                  >
-                    Fire
-                  </Link>
-                  <Link 
-                    to="/traffic-form" 
-                    className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
-                  >
-                    Traffic
-                  </Link>
-                </>
-              )}
             </div>
 
           {/* Auth Buttons - Right */}
@@ -173,31 +139,18 @@ const Navigation = () => {
             >
               Report Anonymously
             </Link>
-            {user ? (
-              <>
-                {userRole === 'user' && !isHomePage && (
-                  <Link 
-                    to="/report" 
-                    className={`px-6 py-2.5 ${buttonBg} rounded-lg font-medium tracking-wide hover:bg-[#B9E4C9] hover:text-[#0d522c] transition-all duration-300 transform hover:scale-[1.02] text-sm uppercase`}
-                  >
-                    Report Incident
-                  </Link>
-                )}
-                {!isHomePage && (
-                  <button
-                    onClick={handleSignOut}
-                    className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
-                  >
-                    Sign Out
-                  </button>
-                )}
-              </>
-            ) : (
+            <Link 
+              to="/login" 
+              className={`px-6 py-2.5 ${buttonBg} rounded-lg font-medium tracking-wide hover:bg-[#B9E4C9] hover:text-[#0d522c] transition-all duration-300 transform hover:scale-[1.02] text-sm uppercase`}
+            >
+              Sign In
+            </Link>
+            {user && userRole === 'user' && (
               <Link 
-                to="/login" 
+                to="/report" 
                 className={`px-6 py-2.5 ${buttonBg} rounded-lg font-medium tracking-wide hover:bg-[#B9E4C9] hover:text-[#0d522c] transition-all duration-300 transform hover:scale-[1.02] text-sm uppercase`}
               >
-                Sign In
+                Report Incident
               </Link>
             )}
           </div>

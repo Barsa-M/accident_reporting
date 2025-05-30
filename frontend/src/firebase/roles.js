@@ -55,4 +55,22 @@ export const hasPermission = (userRole, permission) => {
 // Helper function to validate responder type
 export const isValidResponderType = (type) => {
   return Object.values(RESPONDER_TYPES).includes(type);
+};
+
+// Helper function for case-insensitive role comparison
+export const normalizeRole = (role) => {
+  if (!role) return null;
+  const normalizedRole = role.toLowerCase();
+  
+  // Check against lowercase versions of roles
+  if (normalizedRole === ROLES.ADMIN.toLowerCase()) return ROLES.ADMIN;
+  if (normalizedRole === ROLES.USER.toLowerCase()) return ROLES.USER;
+  if (normalizedRole === ROLES.RESPONDER.toLowerCase()) return ROLES.RESPONDER;
+  
+  return null;
+};
+
+// Helper function to validate role
+export const isValidRole = (role) => {
+  return normalizeRole(role) !== null;
 }; 

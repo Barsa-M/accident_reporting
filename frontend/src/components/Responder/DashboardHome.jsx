@@ -1,159 +1,146 @@
 import { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firebase/firebase';
-import { FiUsers, FiShield, FiAlertTriangle, FiMessageSquare } from 'react-icons/fi';
+import { FiCheckCircle, FiClock, FiAlertTriangle, FiFileText } from 'react-icons/fi';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
          BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+import PropTypes from 'prop-types';
 import { toast } from 'react-hot-toast';
 
-const DashboardHome = () => {
+const DashboardHome = ({ responderData }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [stats, setStats] = useState({
-    totalUsers: 0,
-    totalResponders: 0,
-    totalIncidents: 0,
-    totalForumPosts: 0,
-    pendingResponders: 0,
+    totalAssigned: 0,
+    resolvedIncidents: 0,
+    pendingIncidents: 0,
+    averageResponseTime: 0,
     recentIncidents: [],
     incidentsByType: [],
     monthlyStats: []
   });
 
   useEffect(() => {
-    fetchDashboardStats();
-  }, []);
+    if (responderData) {
+      fetchDashboardStats();
+    }
+  }, [responderData]);
 
   const fetchDashboardStats = async () => {
     setLoading(true);
     setError(null);
     try {
-      console.log('Starting to fetch dashboard stats...');
-      
-      // Fetch all collections in parallel for better performance
-      const [
-        usersSnap,
-        respondersSnap,
-        incidentsSnap,
-        forumSnap
-      ] = await Promise.all([
-        getDocs(collection(db, 'users')),
-        getDocs(collection(db, 'responders')),
-        getDocs(collection(db, 'incidents')),
-        getDocs(collection(db, 'forum_posts'))
-      ]).catch(error => {
-        console.error('Error in Promise.all:', error);
-        throw error;
+      if (!responderData?.specialization || !responderData?.uid) {
+        console.log("Missing responder data:", { responderData });
+        setError('Missing responder information');
+        setLoading(false);
+        return;
+      }
+
+      // First, get all incidents for this responder type
+      const incidentsQuery = query(
+        collection(db, 'incidents'),
+        where('responderType', '==', responderData.specialization)
+      );
+
+      console.log("Fetching dashboard stats with query:", {
+        responderType: responderData.specialization
       });
 
-      console.log('Successfully fetched all collections');
+      const incidentsSnap = await getDocs(incidentsQuery);
+      const incidents = incidentsSnap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate()
+      }));
 
-      // Process users data
-      const totalUsers = usersSnap.size;
-      console.log('Total users:', totalUsers);
+      console.log("Fetched incidents for stats:", incidents.length);
 
-      // Process responders data
-      const totalResponders = respondersSnap.size;
-      const pendingResponders = respondersSnap.docs.filter(doc => {
-        const status = doc.data().status?.toLowerCase();
-        return status === 'pending';
-      }).length;
-      console.log('Responders stats:', { total: totalResponders, pending: pendingResponders });
+      // Filter incidents assigned to this responder
+      const assignedIncidents = incidents.filter(inc => inc.assignedTo === responderData.uid);
+      console.log("Assigned incidents:", assignedIncidents.length);
 
-      // Process incidents data
-      const incidents = incidentsSnap.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-          createdAt: data.createdAt?.toDate(),
-          type: data.type || data.incidentType || 'Unknown', // Handle both field names
-          status: data.status || 'pending'
-        };
-      });
-      console.log('Processed incidents:', incidents.length);
+      // Calculate statistics
+      const totalAssigned = assignedIncidents.length;
+      const resolvedIncidents = assignedIncidents.filter(inc => inc.status === 'resolved').length;
+      const pendingIncidents = assignedIncidents.filter(inc => inc.status === 'pending').length;
+
+      // Calculate average response time
+      const responseTimes = assignedIncidents
+        .filter(inc => inc.startedAt && inc.createdAt)
+        .map(inc => {
+          const start = inc.createdAt;
+          const responded = inc.startedAt.toDate();
+          return Math.floor((responded - start) / (1000 * 60)); // Convert to minutes
+        });
+
+      const averageResponseTime = responseTimes.length > 0
+        ? Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length)
+        : 0;
+
+      // Get recent incidents
+      const recentIncidents = [...assignedIncidents]
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+        .slice(0, 5);
 
       // Calculate incidents by type
-      const incidentsByType = incidents.reduce((acc, doc) => {
-        const type = doc.type || 'Unknown';
+      const typeCount = assignedIncidents.reduce((acc, inc) => {
+        const type = inc.incidentType || 'Other';
         acc[type] = (acc[type] || 0) + 1;
         return acc;
       }, {});
 
-      // Transform for pie chart
-      const incidentTypeData = Object.entries(incidentsByType)
-        .map(([name, value]) => ({
-          name,
-          value
-        }))
-        .filter(item => item.name !== 'Unknown' || item.value > 0); // Only include Unknown if it has values
-
-      // Get recent incidents
-      const recentIncidents = incidents
-        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
-        .slice(0, 5)
-        .map(incident => ({
-          ...incident,
-          createdAt: incident.createdAt?.toLocaleString() || 'Unknown'
-        }));
-
       // Calculate monthly stats
-      const monthlyData = await calculateMonthlyStats(incidents);
-      console.log('Monthly stats calculated:', monthlyData.length);
-
-      const statsData = {
-        totalUsers,
-        totalResponders,
-        totalIncidents: incidents.length,
-        totalForumPosts: forumSnap.size,
-        pendingResponders,
-        recentIncidents,
-        incidentsByType: incidentTypeData,
-        monthlyStats: monthlyData
-      };
-      
-      console.log('Setting final stats:', statsData);
-      setStats(statsData);
-    } catch (error) {
-      console.error('Error fetching dashboard stats:', error);
-      setError('Failed to load dashboard statistics. Please try again later.');
-      toast.error('Failed to load dashboard statistics');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const calculateMonthlyStats = async (incidents) => {
-    try {
-      const months = Array.from({ length: 6 }, (_, i) => {
+      const monthlyData = Array.from({ length: 6 }, (_, i) => {
         const date = new Date();
         date.setMonth(date.getMonth() - i);
-        return date.toLocaleString('default', { month: 'short' });
+        return {
+          name: date.toLocaleString('default', { month: 'short' }),
+          incidents: 0,
+          resolved: 0
+        };
       }).reverse();
 
-      const monthlyData = months.map(month => ({
-        name: month,
-        incidents: 0,
-        resolved: 0
-      }));
-
-      incidents.forEach(incident => {
+      assignedIncidents.forEach(incident => {
         if (incident.createdAt) {
           const month = incident.createdAt.toLocaleString('default', { month: 'short' });
           const monthData = monthlyData.find(data => data.name === month);
           if (monthData) {
             monthData.incidents++;
-            if (incident.status?.toLowerCase() === 'resolved') {
+            if (incident.status === 'resolved') {
               monthData.resolved++;
             }
           }
         }
       });
 
-      return monthlyData;
+      console.log("Setting dashboard stats:", {
+        totalAssigned,
+        resolvedIncidents,
+        pendingIncidents,
+        averageResponseTime,
+        recentIncidentsCount: recentIncidents.length,
+        monthlyStatsCount: monthlyData.length
+      });
+
+      setStats({
+        totalAssigned,
+        resolvedIncidents,
+        pendingIncidents,
+        averageResponseTime,
+        recentIncidents,
+        incidentsByType: Object.entries(typeCount).map(([name, value]) => ({
+          name,
+          value
+        })),
+        monthlyStats: monthlyData
+      });
     } catch (error) {
-      console.error('Error calculating monthly stats:', error);
-      return [];
+      console.error('Error fetching dashboard stats:', error);
+      setError('Failed to load dashboard statistics. Please try again later.');
+      toast.error('Failed to load dashboard statistics');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -190,11 +177,11 @@ const DashboardHome = () => {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Users</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.totalUsers}</p>
+              <p className="text-sm font-medium text-gray-600">Total Assigned</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.totalAssigned}</p>
             </div>
             <div className="p-3 bg-green-100 rounded-full">
-              <FiUsers className="h-6 w-6 text-green-600" />
+              <FiFileText className="h-6 w-6 text-green-600" />
             </div>
           </div>
         </div>
@@ -202,12 +189,11 @@ const DashboardHome = () => {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Active Responders</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.totalResponders}</p>
-              <p className="text-sm text-yellow-600">{stats.pendingResponders} pending</p>
+              <p className="text-sm font-medium text-gray-600">Resolved Incidents</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.resolvedIncidents}</p>
             </div>
             <div className="p-3 bg-blue-100 rounded-full">
-              <FiShield className="h-6 w-6 text-blue-600" />
+              <FiCheckCircle className="h-6 w-6 text-blue-600" />
             </div>
           </div>
         </div>
@@ -215,11 +201,11 @@ const DashboardHome = () => {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Incidents</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.totalIncidents}</p>
+              <p className="text-sm font-medium text-gray-600">Pending Incidents</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.pendingIncidents}</p>
             </div>
-            <div className="p-3 bg-red-100 rounded-full">
-              <FiAlertTriangle className="h-6 w-6 text-red-600" />
+            <div className="p-3 bg-yellow-100 rounded-full">
+              <FiAlertTriangle className="h-6 w-6 text-yellow-600" />
             </div>
           </div>
         </div>
@@ -227,11 +213,11 @@ const DashboardHome = () => {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Forum Posts</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.totalForumPosts}</p>
+              <p className="text-sm font-medium text-gray-600">Avg. Response Time</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.averageResponseTime}min</p>
             </div>
             <div className="p-3 bg-purple-100 rounded-full">
-              <FiMessageSquare className="h-6 w-6 text-purple-600" />
+              <FiClock className="h-6 w-6 text-purple-600" />
             </div>
           </div>
         </div>
@@ -307,23 +293,25 @@ const DashboardHome = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {stats.recentIncidents.map((incident) => (
                   <tr key={incident.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {incident.type || 'Unknown'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {incident.location || 'Unknown'}
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        incident.status === 'resolved' ? 'bg-green-100 text-green-800' :
-                        incident.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-red-100 text-red-800'
-                      }`}>
-                        {incident.status || 'Unknown'}
+                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                        {incident.incidentType}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {incident.createdAt}
+                      {incident.location}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        incident.status === 'resolved'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {incident.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {incident.createdAt?.toDate().toLocaleString()}
                     </td>
                   </tr>
                 ))}
@@ -334,6 +322,13 @@ const DashboardHome = () => {
       </div>
     </div>
   );
+};
+
+DashboardHome.propTypes = {
+  responderData: PropTypes.shape({
+    uid: PropTypes.string.isRequired,
+    specialization: PropTypes.string.isRequired,
+  }).isRequired,
 };
 
 export default DashboardHome; 

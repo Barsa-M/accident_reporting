@@ -96,23 +96,33 @@ const AnonymousReport = () => {
       // Upload media files
       const mediaUrls = [];
       for (const file of selectedFiles) {
-        const storageRef = ref(storage, `anonymous_reports/${Date.now()}_${file.name}`);
+        const storageRef = ref(storage, `incidents/${Date.now()}_${file.name}`);
         const snapshot = await uploadBytes(storageRef, file);
         const url = await getDownloadURL(snapshot.ref);
         mediaUrls.push(url);
       }
 
-      // Create report document
-      const reportData = {
-        ...formData,
-        location: { lat: position[0], lng: position[1] },
+      // Create incident document
+      const incidentData = {
+        incidentType: formData.incidentType,
+        description: formData.description,
+        location: { 
+          lat: position[0], 
+          lng: position[1],
+          description: formData.locationDescription 
+        },
         mediaUrls,
-        source: 'anonymous',
+        isAnonymous: true,
         status: 'pending',
         createdAt: serverTimestamp(),
+        responderType: formData.incidentType, // This will help in routing to correct responder type
+        assignedTo: null,
+        urgency: 'medium', // Default urgency for anonymous reports
+        reportedBy: 'anonymous',
+        lastUpdated: serverTimestamp()
       };
 
-      await addDoc(collection(db, 'anonymous_reports'), reportData);
+      await addDoc(collection(db, 'incidents'), incidentData);
 
       setSubmitStatus('success');
       // Reset form

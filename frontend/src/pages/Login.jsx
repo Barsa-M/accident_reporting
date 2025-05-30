@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { useNavigate, useLocation, Link } from "react-router-dom";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebase/firebase";
-import { ROLES } from "../firebase/roles";
+import { ROLES, normalizeRole, isValidRole } from "../firebase/roles";
 
 function Login() {
   const [email, setEmail] = useState("");
@@ -12,7 +12,6 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const from = location.state?.from || "/";
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -23,77 +22,106 @@ function Login() {
       const trimmedEmail = email.trim();
       const trimmedPassword = password.trim();
 
+      // Log the login attempt
+      console.log("Attempting login with email:", trimmedEmail);
+
       const userCredential = await signInWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);
       const user = userCredential.user;
+      console.log("Firebase Auth successful, user ID:", user.uid);
 
       // Get user data
-      const userDocRef = doc(db, "users", user.uid);
+      const userDocRef = doc(db, 'users', user.uid);
       const userSnap = await getDoc(userDocRef);
 
       if (!userSnap.exists()) {
+        console.error("User document not found in Firestore");
         throw new Error("User data not found");
       }
 
       const userData = userSnap.data();
-      const userRole = userData.role?.toLowerCase();
+      console.log("User data from Firestore:", {
+        role: userData.role,
+        uid: user.uid,
+        email: userData.email
+      });
 
-      // Always navigate to report page after successful login
-      navigate("/report");
-      return;
+      // Normalize and validate role
+      const normalizedRole = normalizeRole(userData.role);
+      if (!normalizedRole) {
+        console.error("Invalid role detected:", userData.role);
+        console.log("Available roles:", Object.values(ROLES));
+        setError("Invalid user role. Please contact support.");
+        await signOut(auth);
+        return;
+      }
 
-      // Handle routing based on role
-      switch (userRole) {
-        case ROLES.ADMIN.toLowerCase():
-          navigate("/admin/dashboard");
-          break;
+      // Update user data with normalized role
+      userData.role = normalizedRole;
 
-        case ROLES.RESPONDER.toLowerCase():
+      // Handle routing based on normalized role
+      switch (normalizedRole) {
+        case ROLES.ADMIN:
+          console.log("Admin login successful, navigating to dashboard");
+          navigate("/admin/dashboard", { replace: true });
+          return;
+
+        case ROLES.RESPONDER:
+          console.log("Responder login - checking status");
           // Get responder data for status check
-          const responderDocRef = doc(db, "responders", user.uid);
+          const responderDocRef = doc(db, 'responders', user.uid);
           const responderSnap = await getDoc(responderDocRef);
           
-          if (!responderSnap.exists()) {
-            // If responder document doesn't exist, create it with pending status
-            await setDoc(doc(db, "responders", user.uid), {
-              status: 'pending',
-              createdAt: serverTimestamp(),
-              userId: user.uid
-            });
-            navigate("/responder/pending");
-            break;
+          if (responderSnap.exists()) {
+            const responderData = responderSnap.data();
+            console.log("Responder status:", responderData.status);
+            // Route based on responder status
+            switch (responderData.status.toLowerCase()) {
+              case 'pending':
+                navigate("/responder/pending", { replace: true });
+                return;
+              case 'approved':
+                navigate("/responder/dashboard", { replace: true });
+                return;
+              case 'rejected':
+                navigate("/responder/rejected", { replace: true });
+                return;
+              default:
+                navigate("/responder/pending", { replace: true });
+                return;
+            }
+          } else {
+            console.log("New responder - routing to registration");
+            navigate("/responder/register", { replace: true });
+            return;
           }
 
-          const responderData = responderSnap.data();
-          
-          // Route based on responder status
-          switch (responderData.status.toLowerCase()) {
-            case 'pending':
-              navigate("/responder/pending");
-              break;
-            case 'approved':
-              navigate("/responder/dashboard");
-              break;
-            case 'rejected':
-              navigate("/responder/rejected");
-              break;
-            default:
-              navigate("/responder/pending");
-          }
-          break;
-
-        case ROLES.USER.toLowerCase():
-          navigate("/report");
-          break;
+        case ROLES.USER:
+          console.log("User login successful, navigating to report page");
+          navigate("/report", { replace: true });
+          return;
 
         default:
-          throw new Error("Invalid user role");
+          console.error("Unhandled role:", userData.role);
+          setError("Invalid user role. Please contact support.");
+          await signOut(auth);
+          return;
       }
     } catch (err) {
       console.error("Login error:", err);
       setError(
         err.code === "auth/invalid-credential"
-          ? "Invalid email or password"
-          : err.message
+          ? "Invalid email or password. Please check your credentials and try again."
+          : err.code === "auth/invalid-email"
+          ? "Please enter a valid email address."
+          : err.code === "auth/user-disabled"
+          ? "This account has been disabled. Please contact support."
+          : err.code === "auth/user-not-found"
+          ? "No account found with this email. Please check your email or create a new account."
+          : err.code === "auth/wrong-password"
+          ? "Incorrect password. Please try again."
+          : err.code === "auth/too-many-requests"
+          ? "Too many failed login attempts. Please try again later or reset your password."
+          : err.message || "An error occurred during login. Please try again."
       );
     } finally {
       setLoading(false);

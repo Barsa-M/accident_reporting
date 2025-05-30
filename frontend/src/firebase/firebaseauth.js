@@ -85,7 +85,23 @@ export async function getUserRole(uid) {
   const docRef = doc(db, "users", uid);
   const docSnap = await getDoc(docRef);
 
-  return docSnap.exists() ? docSnap.data().role : null;
+  if (!docSnap.exists()) return null;
+
+  const userData = docSnap.data();
+  // Ensure role matches exactly with ROLES constant values
+  switch(userData.role) {
+    case ROLES.ADMIN:
+    case ROLES.USER:
+    case ROLES.RESPONDER:
+      return userData.role;
+    default:
+      // If role doesn't match exactly, try to match case-insensitively
+      const normalizedRole = userData.role?.toUpperCase();
+      if (normalizedRole === ROLES.ADMIN.toUpperCase()) return ROLES.ADMIN;
+      if (normalizedRole === ROLES.USER.toUpperCase()) return ROLES.USER;
+      if (normalizedRole === ROLES.RESPONDER.toUpperCase()) return ROLES.RESPONDER;
+      return null;
+  }
 }
 
 // Get full user profile (optional)

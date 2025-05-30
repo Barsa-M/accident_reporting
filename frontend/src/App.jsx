@@ -11,11 +11,13 @@ import { useEffect, useState } from "react";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "./firebase/firebase";
 import { getUserRole } from "./firebase/firebaseauth";
-import { ROLES } from "./firebase/roles";
+import { ROLES, normalizeRole } from "./firebase/roles";
 import { ResponderAuthProvider } from "./contexts/ResponderAuthContext";
 import ResponderRoute from "./components/ResponderRoute";
 import AuthRoute from './components/AuthRoute';
 import { toast, Toaster } from "react-hot-toast";
+import { getDoc, doc } from "firebase/firestore";
+import { db } from "./firebase/firebase";
 
 // Reusable Pages
 import ChangePassword from "./components/ChangePassword";
@@ -40,11 +42,11 @@ import NotApproved from "./pages/NotApproved";
 import AnonymousReport from './pages/AnonymousReport';
 
 // User Pages
-import ReportAccident from "./pages/ReportAccident";
 import ReportHistory from "./pages/ReportHistory";
 import ForumDiscussion from "./pages/ForumDiscussion";
 import PostDetail from "./pages/PostDetail";
 import SafetyTips from "./pages/PostSafetyTips";
+import UserDashboard from "./pages/UserDashboard";
 
 // Admin Pages
 import AdminDashboard from "./pages/AdminDashboard";
@@ -68,40 +70,186 @@ import NotificationTest from "./components/Admin/NotificationTest";
 function App() {
   const [user] = useAuthState(auth);
   const [role, setRole] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
     const fetchUserRole = async () => {
-      if (user) {
-        const userRole = await getUserRole(user.uid);
-        setRole(userRole?.toUpperCase());
-      } else {
+      setLoading(true);
+      try {
+        if (user) {
+          console.log("Fetching role for user:", user.uid);
+          const userDoc = await getDoc(doc(db, "users", user.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            const normalizedRole = normalizeRole(userData.role);
+            console.log("User data loaded:", {
+              rawRole: userData.role,
+              normalizedRole,
+              uid: user.uid,
+              email: user.email
+            });
+            
+            if (!normalizedRole) {
+              console.error("Invalid role detected:", userData.role);
+              setRole(null);
+            } else {
+              console.log("Setting normalized role:", normalizedRole);
+              setRole(normalizedRole);
+            }
+          } else {
+            console.log("No user document found for:", user.uid);
+            setRole(null);
+          }
+        } else {
+          console.log("No user logged in");
+          setRole(null);
+        }
+      } catch (error) {
+        console.error("Error fetching user role:", error);
         setRole(null);
+      } finally {
+        setLoading(false);
+        setInitialized(true);
       }
     };
+
     fetchUserRole();
   }, [user]);
 
-  const ProtectedRoute = ({ children }) => {
-    if (!user) return <Navigate to="/login" />;
-    if (role === ROLES.ADMIN) return <Navigate to="/admin/dashboard" />;
-    if (role === ROLES.RESPONDER) return <Navigate to="/responder/dashboard" />;
+  // Show loading state only during initial load
+  if (!initialized) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#0D522C]"></div>
+      </div>
+    );
+  }
+
+  const ProtectedRoute = ({ children, requiredRole }) => {
+    console.log("Protected Route Check:", {
+      currentRole: role,
+      normalizedCurrentRole: normalizeRole(role),
+      requiredRole,
+      normalizedRequiredRole: normalizeRole(requiredRole),
+      isAuthenticated: !!user
+    });
+
+    // Not authenticated
+    if (!user) {
+      return <Navigate to="/login" replace />;
+    }
+
+    // Loading state
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#0D522C]"></div>
+        </div>
+      );
+    }
+
+    // No role assigned
+    if (!role) {
+      console.log("No role assigned");
+      return <Navigate to="/" replace />;
+    }
+
+    // If a specific role is required, check it
+    if (requiredRole && role !== requiredRole) {
+      console.log(`Role mismatch: current=${role}, required=${requiredRole}`);
+      // Redirect based on actual role
+      switch (role) {
+        case ROLES.ADMIN:
+          return <Navigate to="/admin/dashboard" replace />;
+        case ROLES.RESPONDER:
+          return <Navigate to="/responder/dashboard" replace />;
+        case ROLES.USER:
+          return <Navigate to="/report" replace />;
+        default:
+          return <Navigate to="/" replace />;
+      }
+    }
+
     return children;
   };
 
   const AdminRoute = ({ children }) => {
-    if (!user) return <Navigate to="/login" />;
-    if (role !== ROLES.ADMIN) return <Navigate to="/" />;
+    console.log("Admin Route Check:", { 
+      currentRole: role, 
+      normalizedRole: normalizeRole(role),
+      isAuthenticated: !!user,
+      loading 
+    });
+
+    // Not authenticated
+    if (!user) {
+      console.log("No user, redirecting to login");
+      return <Navigate to="/login" replace />;
+    }
+
+    // Loading state
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#0D522C]"></div>
+        </div>
+      );
+    }
+
+    // Normalize and validate role
+    const normalizedRole = normalizeRole(role);
+    if (normalizedRole !== ROLES.ADMIN) {
+      console.log("Not an admin, redirecting. Current role:", normalizedRole);
+      switch (normalizedRole) {
+        case ROLES.RESPONDER:
+          return <Navigate to="/responder/dashboard" replace />;
+        case ROLES.USER:
+          return <Navigate to="/report" replace />;
+        default:
+          return <Navigate to="/" replace />;
+      }
+    }
+
     return children;
   };
 
   const ResponderRoute = ({ children }) => {
-    if (!user) return <Navigate to="/login" />;
-    if (role !== ROLES.RESPONDER) return <Navigate to="/" />;
+    console.log("Responder Route Check:", { 
+      currentRole: role, 
+      normalizedRole: normalizeRole(role),
+      isAuthenticated: !!user,
+      loading 
+    });
+
+    // Not authenticated
+    if (!user) {
+      console.log("No user, redirecting to login");
+      return <Navigate to="/login" replace />;
+    }
+
+    // Loading state
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#0D522C]"></div>
+        </div>
+      );
+    }
+
+    // Normalize and validate role
+    const normalizedRole = normalizeRole(role);
+    if (normalizedRole !== ROLES.RESPONDER) {
+      console.log("Not a responder, redirecting to home");
+      return <Navigate to="/" replace />;
+    }
+
     return children;
   };
 
   ProtectedRoute.propTypes = {
     children: PropTypes.node.isRequired,
+    requiredRole: PropTypes.string,
   };
 
   AdminRoute.propTypes = {
@@ -131,15 +279,15 @@ function App() {
             <Route
               path="/report"
               element={
-                <ProtectedRoute>
-                  <ReportAccident />
+                <ProtectedRoute requiredRole={ROLES.USER}>
+                  <UserDashboard />
                 </ProtectedRoute>
               }
             />
             <Route
               path="/report-history"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={ROLES.USER}>
                   <ReportHistory />
                 </ProtectedRoute>
               }
@@ -147,7 +295,7 @@ function App() {
             <Route
               path="/forum"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={ROLES.USER}>
                   <ForumDiscussion />
                 </ProtectedRoute>
               }
@@ -155,7 +303,7 @@ function App() {
             <Route
               path="/post/:id"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={ROLES.USER}>
                   <PostDetail />
                 </ProtectedRoute>
               }
@@ -163,7 +311,7 @@ function App() {
             <Route
               path="/safety-tips"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={ROLES.USER}>
                   <SafetyTips />
                 </ProtectedRoute>
               }
@@ -171,7 +319,7 @@ function App() {
             <Route
               path="/create-post"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={ROLES.USER}>
                   <CreatePost />
                 </ProtectedRoute>
               }
@@ -179,7 +327,7 @@ function App() {
             <Route
               path="/profile"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={ROLES.USER}>
                   <ReporterProfile />
                 </ProtectedRoute>
               }
@@ -187,7 +335,7 @@ function App() {
             <Route
               path="/emergency-services"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={ROLES.USER}>
                   <EmergencyServices />
                 </ProtectedRoute>
               }
@@ -195,7 +343,7 @@ function App() {
             <Route
               path="/notifications"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={ROLES.USER}>
                   <Notifications />
                 </ProtectedRoute>
               }
@@ -203,7 +351,7 @@ function App() {
             <Route
               path="/post-safety-tips"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={ROLES.USER}>
                   <PostSafetyTips />
                 </ProtectedRoute>
               }
@@ -211,7 +359,7 @@ function App() {
             <Route
               path="/tips"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole={ROLES.USER}>
                   <Tips />
                 </ProtectedRoute>
               }
@@ -219,92 +367,56 @@ function App() {
 
             {/* Admin Routes */}
             <Route
-              path="/admin/dashboard"
+              path="/admin/*"
               element={
-                <AuthRoute allowedRoles={[ROLES.ADMIN]}>
+                <AdminRoute>
                   <AdminDashboard />
-                </AuthRoute>
+                </AdminRoute>
               }
             />
-            <Route
-              path="/admin/manage-users"
-              element={
-                <AuthRoute allowedRoles={[ROLES.ADMIN]}>
-                  <ManageUser />
-                </AuthRoute>
-              }
-            />
-            <Route path="/admin/notifications" element={<AdminRoute><NotificationTest /></AdminRoute>} />
 
             {/* Responder Routes */}
             <Route
-              path="/responder/dashboard"
+              path="/responder/*"
               element={
-                <AuthRoute allowedRoles={[ROLES.RESPONDER]}>
+                <ResponderRoute>
                   <ResponderDashboard />
-                </AuthRoute>
+                </ResponderRoute>
               }
             />
-            <Route
-              path="/responder/active-incidents"
-              element={
-                <AuthRoute allowedRoles={[ROLES.RESPONDER]}>
-                  <ActiveIncidents />
-                </AuthRoute>
-              }
-            />
-            <Route
-              path="/responder/reports"
-              element={
-                <AuthRoute allowedRoles={[ROLES.RESPONDER]}>
-                  <ViewReports />
-                </AuthRoute>
-              }
-            />
-            <Route path="/responder/pending" element={<PendingApproval />} />
-            <Route path="/responder/rejected" element={<NotApproved />} />
 
-            {/* Incident Form Routes */}
+            {/* Protected User Routes */}
             <Route
-              path="/traffic-form"
+              path="/change-password"
               element={
-                <ProtectedRoute>
-                  <TrafficForm />
+                <ProtectedRoute requiredRole={ROLES.USER}>
+                  <ChangePassword />
                 </ProtectedRoute>
               }
             />
             <Route
-              path="/TrafficForm"
+              path="/post-history"
               element={
-                <ProtectedRoute>
-                  <TrafficForm />
+                <ProtectedRoute requiredRole={ROLES.USER}>
+                  <PostHistory />
                 </ProtectedRoute>
               }
             />
             <Route
-              path="/police-form"
+              path="/notification-settings"
               element={
-                <ProtectedRoute>
-                  <PoliceForm />
+                <ProtectedRoute requiredRole={ROLES.USER}>
+                  <NotificationSettings />
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/medical-form"
-              element={
-                <ProtectedRoute>
-                  <MedicalForm />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/fire-form"
-              element={
-                <ProtectedRoute>
-                  <FireForm />
-                </ProtectedRoute>
-              }
-            />
+
+            {/* Responder Status Routes */}
+            <Route path="/pending-approval" element={<PendingApproval />} />
+            <Route path="/not-approved" element={<NotApproved />} />
+
+            {/* Catch-all redirect to home */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
       </div>

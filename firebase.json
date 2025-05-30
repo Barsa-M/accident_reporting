@@ -1,6 +1,8 @@
 {
   "firestore": {
-    "rules": "firestore.rules",
+    "database": "(default)",
+    "location": "nam5",
+    "rules": "frontend/firestore.rules",
     "indexes": "firestore.indexes.json"
   },
   "functions": [
@@ -15,5 +17,25 @@
         "*.local"
       ]
     }
-  ]
+  ],
+  "hosting": {
+    "public": "frontend/dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "storage": {
+    "rules": "frontend/storage.rules"
+  },
+  "database": {
+    "rules": "database.rules.json"
+  }
 }

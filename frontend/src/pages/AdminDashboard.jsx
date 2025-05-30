@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../firebase/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { ROLES, normalizeRole } from '../firebase/roles';
 import { FiMenu, FiX, FiHome, FiUsers, FiShield, FiFileText, FiMessageSquare, 
          FiPieChart, FiSettings, FiUser, FiBell, FiSearch } from 'react-icons/fi';
 import { Transition } from '@headlessui/react';
@@ -28,17 +29,50 @@ const AdminDashboard = () => {
   useEffect(() => {
     const fetchAdminData = async () => {
       try {
+        if (!auth.currentUser) {
+          console.log("No authenticated user");
+          navigate('/login');
+          return;
+        }
+
+        console.log("Fetching admin data for:", auth.currentUser.uid);
         const adminDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+        
         if (adminDoc.exists()) {
-          setAdminData(adminDoc.data());
+          const userData = adminDoc.data();
+          const normalizedRole = normalizeRole(userData.role);
+          
+          console.log("Admin data loaded:", {
+            rawRole: userData.role,
+            normalizedRole,
+            uid: auth.currentUser.uid
+          });
+
+          if (normalizedRole !== ROLES.ADMIN) {
+            console.log("User is not an admin:", normalizedRole);
+            navigate('/');
+            return;
+          }
+
+          setAdminData(userData);
+        } else {
+          console.log("No admin document found");
+          navigate('/');
         }
       } catch (error) {
         console.error('Error fetching admin data:', error);
+        navigate('/');
       }
     };
 
     fetchAdminData();
-  }, []);
+  }, [navigate]);
+
+  useEffect(() => {
+    // Set the current section based on the URL path
+    const path = location.pathname.split('/')[2] || 'dashboard';
+    setCurrentSection(path);
+  }, [location]);
 
   const handleSignOut = async () => {
     try {
@@ -47,6 +81,11 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('Error signing out:', error);
     }
+  };
+
+  const handleNavigation = (section) => {
+    setCurrentSection(section);
+    navigate(`/admin/${section}`);
   };
 
   const navigationItems = [
@@ -117,7 +156,7 @@ const AdminDashboard = () => {
               return (
                 <button
                   key={item.id}
-                  onClick={() => setCurrentSection(item.id)}
+                  onClick={() => handleNavigation(item.id)}
                   className={`flex items-center w-full px-4 py-2 text-sm rounded-lg transition-colors ${
                     currentSection === item.id
                       ? 'bg-[#347752] text-white'
