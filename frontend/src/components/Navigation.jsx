@@ -4,6 +4,7 @@ import { auth, db } from '../firebase/firebase';
 import { signOut } from 'firebase/auth';
 import { useState, useEffect } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
+import Sidebar from './Sidebar';
 
 const Navigation = () => {
   const [user] = useAuthState(auth);
@@ -12,6 +13,19 @@ const Navigation = () => {
   const [scrolled, setScrolled] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const isHomePage = location.pathname === '/';
+
+  // List of public routes where sidebar should not appear
+  const publicRoutes = [
+    '/', 
+    '/login', 
+    '/register', 
+    '/responder-register', 
+    '/anonymous-report',
+    '/services',
+    '/about',
+    '/contact'
+  ];
+  const shouldShowSidebar = !publicRoutes.includes(location.pathname) && user;
 
   useEffect(() => {
     const handleScroll = () => {
@@ -72,7 +86,7 @@ const Navigation = () => {
         <div className="flex items-center justify-between">
           {/* Logo Section - Left */}
           <div className="w-1/4">
-            <Link to="/" className="flex items-center space-x-3">
+            <Link to={user ? getDashboardLink() : "/"} className="flex items-center space-x-3">
               <img
                 src="/safereport.svg"
                 alt="SAFE Logo"
@@ -89,47 +103,98 @@ const Navigation = () => {
             </Link>
           </div>
 
-          {/* Navigation Links - Center */}
-          <div className="hidden md:flex items-center justify-center space-x-12 flex-1">
-            <Link 
-              to="/" 
-              className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
-            >
-              Home
-            </Link>
-            <Link 
-              to="/services" 
-              className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
-            >
-              Services
-            </Link>
-            <Link 
-              to="/about" 
-              className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
-            >
-              About Us
-            </Link>
-            <Link 
-              to="/contact" 
-              className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
-            >
-              Contact
-            </Link>
-          </div>
+            {/* Navigation Links - Center */}
+            <div className="hidden md:flex items-center justify-center space-x-12 flex-1">
+              <Link 
+                to="/" 
+                className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
+              >
+                Home
+              </Link>
+              <Link 
+                to="/services" 
+                className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
+              >
+                Services
+              </Link>
+              <Link 
+                to="/about" 
+                className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
+              >
+                About Us
+              </Link>
+              <Link 
+                to="/contact" 
+                className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
+              >
+                Contact
+              </Link>
+              {user && (
+                <>
+                  <Link 
+                    to="/forum" 
+                    className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
+                  >
+                    Forum
+                  </Link>
+                  <Link 
+                    to="/profile" 
+                    className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
+                  >
+                    Account
+                  </Link>
+                  <Link 
+                    to="/medical-form" 
+                    className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
+                  >
+                    Medical
+                  </Link>
+                  <Link 
+                    to="/fire-form" 
+                    className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
+                  >
+                    Fire
+                  </Link>
+                  <Link 
+                    to="/traffic-form" 
+                    className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
+                  >
+                    Traffic
+                  </Link>
+                </>
+              )}
+            </div>
 
           {/* Auth Buttons - Right */}
           <div className="hidden md:flex items-center justify-end space-x-6 w-1/4">
+            <Link 
+              to="/anonymous-report" 
+              className={`px-6 py-2.5 bg-red-600 text-white rounded-lg font-medium tracking-wide hover:bg-red-700 transition-all duration-300 transform hover:scale-[1.02] text-sm uppercase`}
+            >
+              Report Anonymously
+            </Link>
             {user ? (
-              <button
-                onClick={handleSignOut}
-                className={`px-6 py-2.5 ${buttonBg} rounded-lg font-medium tracking-wide hover:bg-[#B9E4C9] hover:text-[#0d522c] transition-all duration-300 transform hover:scale-[1.02] text-sm uppercase`}
-              >
-                Sign Out
-              </button>
+              <>
+                {userRole === 'user' && !isHomePage && (
+                  <Link 
+                    to="/report" 
+                    className={`px-6 py-2.5 ${buttonBg} rounded-lg font-medium tracking-wide hover:bg-[#B9E4C9] hover:text-[#0d522c] transition-all duration-300 transform hover:scale-[1.02] text-sm uppercase`}
+                  >
+                    Report Incident
+                  </Link>
+                )}
+                {!isHomePage && (
+                  <button
+                    onClick={handleSignOut}
+                    className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
+                  >
+                    Sign Out
+                  </button>
+                )}
+              </>
             ) : (
               <Link 
                 to="/login" 
-                state={{ from: location.pathname }}
                 className={`px-6 py-2.5 ${buttonBg} rounded-lg font-medium tracking-wide hover:bg-[#B9E4C9] hover:text-[#0d522c] transition-all duration-300 transform hover:scale-[1.02] text-sm uppercase`}
               >
                 Sign In

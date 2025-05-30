@@ -10,7 +10,11 @@ const HomePage = () => {
   const navigate = useNavigate();
 
   const handleReportIncident = () => {
+<<<<<<< HEAD
     navigate('/login', { state: { from: '/report' } });
+=======
+    navigate('/login', { state: { from: '/ReportAccident' } });
+>>>>>>> dbe8be70b7eb055b93452e8cc824c76d68e857ef
   };
 
   return (
@@ -179,11 +183,14 @@ const HomePage = () => {
             >
               Report Incident
             </button>
+<<<<<<< HEAD
             <Link to="/anonymous-report">
               <button className="px-8 py-3 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors">
                 Report Anonymously
               </button>
             </Link>
+=======
+>>>>>>> dbe8be70b7eb055b93452e8cc824c76d68e857ef
             <Link to="/responder-register">
               <button className="px-8 py-3 border-2 border-[#B9E4C9] text-[#B9E4C9] rounded-lg font-medium hover:bg-[#B9E4C9] hover:text-[#0d522c] transition-colors">
                 Register as Responder
