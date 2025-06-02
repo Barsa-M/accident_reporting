@@ -27,6 +27,14 @@ const Navigation = () => {
   ];
   const shouldShowSidebar = !publicRoutes.includes(location.pathname) && user;
 
+  // Function to check if a path is active
+  const isActive = (path) => {
+    if (path === '/') {
+      return location.pathname === '/';
+    }
+    return location.pathname.startsWith(path);
+  };
+
   useEffect(() => {
     const handleScroll = () => {
       const isScrolled = window.scrollY > 10;
@@ -103,33 +111,49 @@ const Navigation = () => {
             </Link>
           </div>
 
-            {/* Navigation Links - Center */}
-            <div className="hidden md:flex items-center justify-center space-x-12 flex-1">
-              <Link 
-                to="/" 
-                className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
-              >
-                Home
-              </Link>
-              <Link 
-                to="/services" 
-                className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
-              >
-                Services
-              </Link>
-              <Link 
-                to="/about" 
-                className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
-              >
-                About Us
-              </Link>
-              <Link 
-                to="/contact" 
-                className={`${linkColor} hover:text-[#B9E4C9] transition-colors text-base font-medium tracking-wide font-sans`}
-              >
-                Contact
-              </Link>
-            </div>
+          {/* Navigation Links - Center */}
+          <div className="hidden md:flex items-center justify-center space-x-12 flex-1">
+            <Link 
+              to="/" 
+              className={`${linkColor} transition-colors text-base font-medium tracking-wide font-sans ${
+                isActive('/') 
+                  ? 'text-[#0d522c] font-semibold border-b-2 border-[#0d522c]' 
+                  : 'hover:text-[#B9E4C9]'
+              }`}
+            >
+              Home
+            </Link>
+            <Link 
+              to="/services" 
+              className={`${linkColor} transition-colors text-base font-medium tracking-wide font-sans ${
+                isActive('/services') 
+                  ? 'text-[#0d522c] font-semibold border-b-2 border-[#0d522c]' 
+                  : 'hover:text-[#B9E4C9]'
+              }`}
+            >
+              Services
+            </Link>
+            <Link 
+              to="/about" 
+              className={`${linkColor} transition-colors text-base font-medium tracking-wide font-sans ${
+                isActive('/about') 
+                  ? 'text-[#0d522c] font-semibold border-b-2 border-[#0d522c]' 
+                  : 'hover:text-[#B9E4C9]'
+              }`}
+            >
+              About Us
+            </Link>
+            <Link 
+              to="/contact" 
+              className={`${linkColor} transition-colors text-base font-medium tracking-wide font-sans ${
+                isActive('/contact') 
+                  ? 'text-[#0d522c] font-semibold border-b-2 border-[#0d522c]' 
+                  : 'hover:text-[#B9E4C9]'
+              }`}
+            >
+              Contact
+            </Link>
+          </div>
 
           {/* Auth Buttons - Right */}
           <div className="hidden md:flex items-center justify-end space-x-6 w-1/4">

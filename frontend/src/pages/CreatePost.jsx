@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "../firebase/firebase";
 import { createPost } from "../firebase/postService";
-import Layout from "../components/Layout";
+import UserSidebar from "../components/UserSidebar";
 
 export default function CreatePost() {
   const [user] = useAuthState(auth);
@@ -59,130 +59,133 @@ export default function CreatePost() {
   };
 
   return (
-    <Layout>
-      <div className="max-w-4xl mx-auto px-6 py-10">
-        <div className="bg-white shadow-lg rounded-xl p-8">
-          <h1 className="text-3xl font-bold text-[#0d522c] mb-6">Create a New Post</h1>
+    <div className="flex min-h-screen bg-white">
+      <UserSidebar />
+      <div className="flex-1 p-8 ml-64">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white shadow-lg rounded-xl p-8">
+            <h1 className="text-3xl font-bold text-[#0d522c] mb-6">Create a New Post</h1>
 
-          {error && (
-            <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-lg">
-              {error}
-            </div>
-          )}
+            {error && (
+              <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-lg">
+                {error}
+              </div>
+            )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">
-                Title <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Enter a catchy title..."
-                className="w-full border border-gray-300 rounded-md px-4 py-2 focus:ring-2 focus:ring-[#0d522c] focus:outline-none"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">
-                Description <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe your idea in detail..."
-                className="w-full border border-gray-300 rounded-md px-4 py-2 h-32 resize-none focus:ring-2 focus:ring-[#0d522c] focus:outline-none"
-                required
-              ></textarea>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <label className="block text-gray-700 font-medium mb-2">
-                  Upload Image
+                  Title <span className="text-red-500">*</span>
                 </label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setImageFile(e.target.files[0])}
-                    className="w-full"
-                  />
-                  {imageFile && (
-                    <div className="mt-4">
-                      <img
-                        src={URL.createObjectURL(imageFile)}
-                        alt="Preview"
-                        className="rounded-md w-full h-40 object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setImageFile(null)}
-                        className="mt-2 text-red-600 hover:text-red-800"
-                      >
-                        Remove Image
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Enter a catchy title..."
+                  className="w-full border border-gray-300 rounded-md px-4 py-2 focus:ring-2 focus:ring-[#0d522c] focus:outline-none"
+                  required
+                />
               </div>
 
               <div>
                 <label className="block text-gray-700 font-medium mb-2">
-                  Upload Video
+                  Description <span className="text-red-500">*</span>
                 </label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
-                  <input
-                    type="file"
-                    accept="video/*"
-                    onChange={(e) => setVideoFile(e.target.files[0])}
-                    className="w-full"
-                  />
-                  {videoFile && (
-                    <div className="mt-4">
-                      <video
-                        src={URL.createObjectURL(videoFile)}
-                        controls
-                        className="rounded-md w-full h-40"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setVideoFile(null)}
-                        className="mt-2 text-red-600 hover:text-red-800"
-                      >
-                        Remove Video
-                      </button>
-                    </div>
-                  )}
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Describe your idea in detail..."
+                  className="w-full border border-gray-300 rounded-md px-4 py-2 h-32 resize-none focus:ring-2 focus:ring-[#0d522c] focus:outline-none"
+                  required
+                ></textarea>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">
+                    Upload Image
+                  </label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setImageFile(e.target.files[0])}
+                      className="w-full"
+                    />
+                    {imageFile && (
+                      <div className="mt-4">
+                        <img
+                          src={URL.createObjectURL(imageFile)}
+                          alt="Preview"
+                          className="rounded-md w-full h-40 object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setImageFile(null)}
+                          className="mt-2 text-red-600 hover:text-red-800"
+                        >
+                          Remove Image
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">
+                    Upload Video
+                  </label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={(e) => setVideoFile(e.target.files[0])}
+                      className="w-full"
+                    />
+                    {videoFile && (
+                      <div className="mt-4">
+                        <video
+                          src={URL.createObjectURL(videoFile)}
+                          controls
+                          className="rounded-md w-full h-40"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setVideoFile(null)}
+                          className="mt-2 text-red-600 hover:text-red-800"
+                        >
+                          Remove Video
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="flex justify-end space-x-4">
-              <button
-                type="button"
-                onClick={() => navigate("/forum")}
-                className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className={`px-6 py-2 rounded-md text-white font-semibold transition ${
-                  isSubmitting
-                    ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-[#0d522c] hover:bg-[#0a3f22]"
-                }`}
-              >
-                {isSubmitting ? "Creating..." : "Create Post"}
-              </button>
-            </div>
-          </form>
+              <div className="flex justify-end space-x-4">
+                <button
+                  type="button"
+                  onClick={() => navigate("/forum")}
+                  className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className={`px-6 py-2 rounded-md text-white font-semibold transition ${
+                    isSubmitting
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-[#0d522c] hover:bg-[#0a3f22]"
+                  }`}
+                >
+                  {isSubmitting ? "Creating..." : "Create Post"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
-    </Layout>
+    </div>
   );
 }

@@ -38,15 +38,21 @@ const Services = () => {
       <Navigation />
       <div className="container mx-auto px-6 py-20">
         <div className="text-center mb-16">
-          <h1 className="text-4xl font-bold text-[#0d522c] mb-4">Our Services</h1>
+          <h1 className="text-4xl font-bold text-[#0d522c] mt-10 mb-6">Our Services</h1>
           <p className="text-gray-600 max-w-2xl mx-auto">
             We provide comprehensive emergency response services to ensure the safety and well-being of our community.
           </p>
         </div>
 
         {/* Hero Section */}
-        <div className="relative bg-[#0d522c] py-20">
-          <div className="absolute inset-0 bg-black/20"></div>
+        <div className="relative bg-[#0d522c] py-20 rounded-2xl">
+          <div className="absolute inset-0 bg-black/40 rounded-2xl">
+            <img 
+              src="https://images.unsplash.com/photo-1576091160550-2173dba999ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80" 
+              alt="Emergency Services Hero" 
+              className="w-full h-full object-cover opacity-50 rounded-2xl"
+            />
+          </div>
           <div className="relative container mx-auto px-6 text-center">
             <h1 className="text-4xl md:text-5xl font-bold text-white mb-6">Our Emergency Services</h1>
             <p className="text-lg text-white/90 max-w-2xl mx-auto">
@@ -87,7 +93,7 @@ const Services = () => {
         </div>
 
         {/* CTA Section */}
-        <div className="bg-[#0d522c] py-16">
+        <div className="bg-[#0d522c] py-16 rounded-2xl">
           <div className="container mx-auto px-6 text-center">
             <h2 className="text-3xl font-bold text-white mb-8">Need Emergency Assistance?</h2>
             <div className="flex flex-wrap justify-center gap-4">
@@ -117,26 +123,42 @@ const Services = () => {
         {/* Service Cards Section */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 px-6 py-8">
           {/* Card 1 - Fire Incidents */}
-          <div className="bg-white p-6 rounded-lg shadow-lg border border-[#0D522C]">
-            <img src="placeholder-fire.jpg" alt="Fire Incidents" className="w-full h-40 object-cover rounded-md mb-4"/>
+          <div className="bg-white p-6 rounded-lg shadow-lg border border-[#0D522C] transform hover:scale-105 transition-transform duration-300">
+            <img 
+              src="https://eu-images.contentstack.com/v3/assets/blt4a147f9e36f0754a/bltf82a897f1ff778d0/6520131339088103a4c9a79e/fire-incident-1540_0.jpg?width=1280&auto=webp&quality=95&format=jpg&disable=upscale" 
+              alt="Fire Incidents" 
+              className="w-full h-48 object-cover rounded-md mb-4 shadow-md"
+            />
             <h2 className="text-2xl font-semibold text-[#0D522C]">Fire Incidents</h2>
           </div>
 
           {/* Card 2 - Medical Incidents */}
-          <div className="bg-white p-6 rounded-lg shadow-lg border border-[#0D522C]">
-            <img src="placeholder-medical.jpg" alt="Medical Incidents" className="w-full h-40 object-cover rounded-md mb-4"/>
+          <div className="bg-white p-6 rounded-lg shadow-lg border border-[#0D522C] transform hover:scale-105 transition-transform duration-300">
+            <img 
+              src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" 
+              alt="Medical Incidents" 
+              className="w-full h-48 object-cover rounded-md mb-4 shadow-md"
+            />
             <h2 className="text-2xl font-semibold text-[#0D522C]">Medical Incidents</h2>
           </div>
 
           {/* Card 3 - Police Incidents */}
-          <div className="bg-white p-6 rounded-lg shadow-lg border border-[#0D522C]">
-            <img src="placeholder-police.jpg" alt="Police Incidents" className="w-full h-40 object-cover rounded-md mb-4"/>
+          <div className="bg-white p-6 rounded-lg shadow-lg border border-[#0D522C] transform hover:scale-105 transition-transform duration-300">
+            <img 
+              src="https://images.unsplash.com/photo-1589829545856-d10d557cf95f?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" 
+              alt="Police Incidents" 
+              className="w-full h-48 object-cover rounded-md mb-4 shadow-md"
+            />
             <h2 className="text-2xl font-semibold text-[#0D522C]">Police Incidents</h2>
           </div>
 
           {/* Card 4 - Traffic Incidents */}
-          <div className="bg-white p-6 rounded-lg shadow-lg border border-[#0D522C]">
-            <img src="placeholder-traffic.jpg" alt="Traffic Incidents" className="w-full h-40 object-cover rounded-md mb-4"/>
+          <div className="bg-white p-6 rounded-lg shadow-lg border border-[#0D522C] transform hover:scale-105 transition-transform duration-300">
+            <img 
+              src="https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" 
+              alt="Traffic Incidents" 
+              className="w-full h-48 object-cover rounded-md mb-4 shadow-md"
+            />
             <h2 className="text-2xl font-semibold text-[#0D522C]">Traffic Incidents</h2>
           </div>
         </section>
@@ -173,13 +195,6 @@ const Services = () => {
             <p className="mt-4 text-gray-700">
               Access valuable advice to help you manage the aftermath of an accident effectively.
             </p>
-          </div>
-        </section>
-
-        {/* Image Section */}
-        <section className="flex justify-center items-center px-6 py-12">
-          <div className="w-full sm:w-1/2">
-            <img src="placeholder-image.jpg" alt="Key Benefits" className="w-full h-auto rounded-md"/>
           </div>
         </section>
       </div>

@@ -1,66 +1,71 @@
 import { Link, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { FiBell, FiMessageSquare, FiBookOpen } from 'react-icons/fi';
+import UserSidebar from '../components/UserSidebar';
+import { 
+  FiHome, 
+  FiFileText, 
+  FiMessageSquare, 
+  FiBookOpen, 
+  FiBell, 
+  FiMessageCircle,
+  FiUser,
+  FiLogOut
+} from 'react-icons/fi';
 import { useState } from 'react';
 import { toast } from 'react-toastify';
+import { auth } from '../firebase/firebase';
+import harassmentIcon from "../assets/icons/harassment.png";
 
 const UserDashboard = () => {
   const { currentUser } = useAuth();
   const location = useLocation();
 
-  // Determine which section to display based on the current route
-  const showSection = (path) => {
+  const isActive = (path) => {
     return location.pathname === path;
   };
+
+  const userNavItems = [
+    { 
+      path: '/report-history', 
+      label: 'My Reports', 
+      icon: <FiFileText className="w-5 h-5" /> 
+    },
+    { 
+      path: '/forum', 
+      label: 'Community Forum', 
+      icon: <FiMessageSquare className="w-5 h-5" /> 
+    },
+    { 
+      path: '/safety-tips', 
+      label: 'Safety Tips', 
+      icon: <FiBookOpen className="w-5 h-5" /> 
+    },
+    { 
+      path: '/notifications', 
+      label: 'Notifications', 
+      icon: <FiBell className="w-5 h-5" /> 
+    },
+    { 
+      path: '/chat', 
+      label: 'Chat with Responder', 
+      icon: <FiMessageCircle className="w-5 h-5" /> 
+    },
+    { 
+      path: '/profile', 
+      label: 'My Profile', 
+      icon: <FiUser className="w-5 h-5" /> 
+    }
+  ];
 
   return (
     <div className="flex min-h-screen bg-white">
       {/* Sidebar */}
-      <div className="w-64 bg-white shadow-md">
-        <div className="p-4 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-[#0d522c]">Dashboard</h2>
-          <img src="/path/to/logo.png" alt="Logo" className="h-12 mt-2" />
-        </div>
-        <nav className="p-4">
-          <ul className="space-y-2">
-            <li>
-              <Link to="/report-history" className="block p-2 text-[#0d522c] hover:bg-[#0d522c]/10 rounded">
-                My Reports
-              </Link>
-            </li>
-            <li>
-              <Link to="/forum" className="block p-2 text-[#0d522c] hover:bg-[#0d522c]/10 rounded">
-                Community Forum
-              </Link>
-            </li>
-            <li>
-              <Link to="/safety-tips" className="block p-2 text-[#0d522c] hover:bg-[#0d522c]/10 rounded">
-                Safety Tips
-              </Link>
-            </li>
-            <li>
-              <Link to="/notifications" className="block p-2 text-[#0d522c] hover:bg-[#0d522c]/10 rounded">
-                Notifications
-              </Link>
-            </li>
-            <li>
-              <Link to="/chat" className="block p-2 text-[#0d522c] hover:bg-[#0d522c]/10 rounded">
-                Chat with Responder
-              </Link>
-            </li>
-            <li>
-              <Link to="/profile" className="block p-2 text-[#0d522c] hover:bg-[#0d522c]/10 rounded">
-                My Profile
-              </Link>
-            </li>
-          </ul>
-        </nav>
-      </div>
+      <UserSidebar />
 
       {/* Main Content */}
-      <div className="flex-1 p-8 flex flex-col items-center">
+      <div className="flex-1 p-8 flex flex-col items-center ml-64">
         {/* Welcome Section */}
-        {showSection('/dashboard') && (
+        {isActive('/dashboard') && (
           <div className="bg-white rounded-xl shadow-md p-6 mb-8 border border-[#0d522c]/10 w-full max-w-4xl">
             <h1 className="text-2xl font-bold text-[#0d522c] mb-2">
               Welcome back, {currentUser?.displayName || 'User'}!
@@ -72,7 +77,7 @@ const UserDashboard = () => {
         )}
 
         {/* Professional My Profile Section */}
-        {showSection('/profile') && (
+        {isActive('/profile') && (
           <div className="bg-white/90 rounded-2xl shadow-2xl p-10 border border-[#0d522c]/10 w-full max-w-2xl flex flex-col items-center mt-8">
             <h2 className="text-3xl font-extrabold text-[#0d522c] mb-8 tracking-tight">My Profile</h2>
             <form
@@ -250,9 +255,7 @@ const UserDashboard = () => {
               </ul>
             </div>
             <div className="flex items-center justify-center p-6">
-              <svg className="h-24 w-24" viewBox="0 0 24 24" fill="#0D522C">
-                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 6c1.4 0 2.8 1.1 2.8 2.5V11c.6 0 1.2.6 1.2 1.2v3.5c0 .7-.6 1.3-1.2 1.3h-5.5c-.7 0-1.3-.6-1.3-1.2v-3.5c0-.7.6-1.3 1.2-1.3V9.5C9.2 8.1 10.6 7 12 7zm0 1c-.8 0-1.5.5-1.5 1.3V11h3v-1.8c0-.7-.7-1.2-1.5-1.2z"/>
-              </svg>
+              <img src={harassmentIcon} alt="Harassment Icon" className="h-24 w-24 object-contain" />
             </div>
           </Link>
         </div>

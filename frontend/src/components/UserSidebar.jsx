@@ -1,46 +1,59 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { 
-  FiLayout, 
-  FiUsers, 
+  FiFileText, 
+  FiMessageSquare, 
+  FiBookOpen, 
   FiBell, 
-  FiFlag, 
-  FiLogOut,
-  FiSettings
+  FiMessageCircle,
+  FiUser,
+  FiLogOut
 } from 'react-icons/fi';
 import { auth } from '../firebase/firebase';
 
-const SidebarAdmin = () => {
+const UserSidebar = () => {
+  const { currentUser } = useAuth();
   const location = useLocation();
 
   const isActive = (path) => {
     return location.pathname === path;
   };
 
-  const adminNavItems = [
+  const userNavItems = [
     { 
-      path: '/AdminDashboard', 
+      path: '/dashboard', 
       label: 'Dashboard', 
-      icon: <FiLayout className="w-5 h-5" /> 
+      icon: <FiFileText className="w-5 h-5" /> 
     },
     { 
-      path: '/ManageUser', 
-      label: 'Manage Users', 
-      icon: <FiUsers className="w-5 h-5" /> 
+      path: '/report-history', 
+      label: 'My Reports', 
+      icon: <FiFileText className="w-5 h-5" /> 
     },
     { 
-      path: '/notification-test', 
-      label: 'Test Notifications', 
+      path: '/forum', 
+      label: 'Community Forum', 
+      icon: <FiMessageSquare className="w-5 h-5" /> 
+    },
+    { 
+      path: '/safety-tips', 
+      label: 'Safety Tips', 
+      icon: <FiBookOpen className="w-5 h-5" /> 
+    },
+    { 
+      path: '/notifications', 
+      label: 'Notifications', 
       icon: <FiBell className="w-5 h-5" /> 
     },
     { 
-      path: '/flagged-posts', 
-      label: 'Flagged Posts', 
-      icon: <FiFlag className="w-5 h-5" /> 
+      path: '/chat', 
+      label: 'Chat with Responder', 
+      icon: <FiMessageCircle className="w-5 h-5" /> 
     },
     { 
-      path: '/admin/settings', 
-      label: 'Settings', 
-      icon: <FiSettings className="w-5 h-5" /> 
+      path: '/profile', 
+      label: 'My Profile', 
+      icon: <FiUser className="w-5 h-5" /> 
     }
   ];
 
@@ -48,14 +61,14 @@ const SidebarAdmin = () => {
     <div className="fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-100 shadow-sm">
       {/* Logo Section */}
       <div className="h-20 flex items-center px-6 border-b border-gray-100">
-        <Link to="/admin/dashboard" className="flex items-center space-x-3">
+        <Link to="/dashboard" className="flex items-center space-x-3">
           <img
             src="/safereport.svg"
             alt="SAFE Logo"
             className="h-8 w-8"
             style={{ filter: 'invert(80%) sepia(50%) saturate(500%) hue-rotate(90deg)' }}
           />
-          <span className="text-xl font-bold text-[#0d522c]">SAFE Admin</span>
+          <span className="text-xl font-bold text-[#0d522c]">SAFE User</span>
         </Link>
       </div>
 
@@ -63,10 +76,7 @@ const SidebarAdmin = () => {
       <nav className="px-4 py-6">
         <div className="space-y-1">
           <div className="mb-6">
-            <h3 className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-              Admin Menu
-            </h3>
-            {adminNavItems.map((item) => (
+            {userNavItems.map((item) => (
               <Link
                 key={item.path}
                 to={item.path}
@@ -101,4 +111,4 @@ const SidebarAdmin = () => {
   );
 };
 
-export default SidebarAdmin;
+export default UserSidebar; 

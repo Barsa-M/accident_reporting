@@ -1,123 +1,101 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { 
+  FiLayout, 
+  FiAlertCircle, 
+  FiEye, 
+  FiMessageSquare, 
+  FiLogOut,
+  FiInfo
+} from 'react-icons/fi';
+import { auth } from '../firebase/firebase';
 
 const SidebarResponder = () => {
+  const location = useLocation();
+
+  const isActive = (path) => {
+    return location.pathname === path;
+  };
+
+  const responderNavItems = [
+    { 
+      path: '/ResponderDashboard', 
+      label: 'Dashboard', 
+      icon: <FiLayout className="w-5 h-5" /> 
+    },
+    { 
+      path: '/ActiveIncidents', 
+      label: 'Active Incidents', 
+      icon: <FiAlertCircle className="w-5 h-5" /> 
+    },
+    { 
+      path: '/ViewReports', 
+      label: 'View Reports', 
+      icon: <FiEye className="w-5 h-5" /> 
+    },
+    { 
+      path: '/PostSafetyTips', 
+      label: 'Safety Tips', 
+      icon: <FiInfo className="w-5 h-5" /> 
+    },
+    { 
+      path: '/Forum', 
+      label: 'Forum', 
+      icon: <FiMessageSquare className="w-5 h-5" /> 
+    }
+  ];
+
   return (
-    <div className="flex min-h-screen">
-      <div className="shadow-lg w-64 flex flex-col border-r-4 border-[#F1F7F4] bg-white">
-        {/* Logo Section */}
-        <div className="p-6 flex items-center justify-center">
+    <div className="fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-100 shadow-sm">
+      {/* Logo Section */}
+      <div className="h-20 flex items-center px-6 border-b border-gray-100">
+        <Link to="/responder/dashboard" className="flex items-center space-x-3">
           <img
-            src="/public/safereport.svg"
-            alt="Logo"
-            className="h-12 w-12"
-            style={{
-              filter: "invert(80%) sepia(50%) saturate(500%) hue-rotate(90deg)",
-            }}
+            src="/safereport.svg"
+            alt="SAFE Logo"
+            className="h-8 w-8"
+            style={{ filter: 'invert(80%) sepia(50%) saturate(500%) hue-rotate(90deg)' }}
           />
-          <span className="text-xl font-bold ml-3 text-[#0D522C]">
-            Safe Report
-          </span>
+          <span className="text-xl font-bold text-[#0d522c]">SAFE Responder</span>
+        </Link>
+      </div>
+
+      {/* Navigation Section */}
+      <nav className="px-4 py-6">
+        <div className="space-y-1">
+          <div className="mb-6">
+            <h3 className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+              Responder Menu
+            </h3>
+            {responderNavItems.map((item) => (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+                  isActive(item.path)
+                    ? 'bg-[#0d522c] text-white shadow-sm'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-[#0d522c]'
+                }`}
+              >
+                {item.icon}
+                <span className="font-medium">{item.label}</span>
+              </Link>
+            ))}
+          </div>
         </div>
+      </nav>
 
-        {/* Navigation Links */}
-        <nav className="flex-1 p-4">
-          <ul>
-            <li>
-              <Link
-                to="/ResponderDashboard"
-                className="flex items-center p-3 rounded-md hover:bg-[#D2FFE8] mt-4"
-              >
-                <svg
-                  className="h-6 w-6 mr-5"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="#0d522c"
-                  stroke="#0d522c"
-                >
-                  <rect x="2" y="2" width="9" height="11" rx="2"></rect>
-                  <rect x="13" y="2" width="9" height="7" rx="2"></rect>
-                  <rect x="2" y="15" width="9" height="7" rx="2"></rect>
-                  <rect x="13" y="11" width="9" height="11" rx="2"></rect>
-                </svg>
-                Dashboard
-              </Link>
-            </li>
-
-            <li>
-              <Link
-                to="/ActiveIncidents"
-                className="flex items-center p-3 rounded-md hover:bg-[#D2FFE8] mt-3"
-              >
-                <svg
-                  className="h-6 w-6 mr-5"
-                  viewBox="0 0 16 16"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="#0d522c"
-                >
-                  <path
-                    fillRule="evenodd"
-                    clipRule="evenodd"
-                    d="M0 4a4 4 0 014-4h8a4 4 0 014 4v8a4 4 0 01-4 4H4a4 4 0 01-4-4V4zm6.996.165a1.017 1.017 0 112.012 0L8 11 6.996 4.165zM8 11a1 1 0 110 2 1 1 0 010-2z"
-                  ></path>
-                </svg>
-                Active Incidents
-              </Link>
-            </li>
-
-            <li>
-              <Link
-                to="/ViewReports"
-                className="flex items-center p-3 rounded-md hover:bg-[#D2FFE8] mt-3"
-              >
-                <svg
-                  className="h-6 w-6 mr-5"
-                  fill="#0d522c"
-                  viewBox="-3.5 0 32 32"
-                  version="1.1"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path d="M12.406 13.844c1.188 0 2.156 0.969 2.156 2.156s-0.969 2.125-2.156 2.125-2.125-0.938-2.125-2.125 0.938-2.156 2.125-2.156zM12.406 8.531c7.063 0 12.156 6.625 12.156 6.625 0.344 0.438 0.344 1.219 0 1.656 0 0-5.094 6.625-12.156 6.625s-12.156-6.625-12.156-6.625c-0.344-0.438-0.344-1.219 0-1.656 0 0 5.094-6.625 12.156-6.625zM12.406 21.344c2.938 0 5.344-2.406 5.344-5.344s-2.406-5.344-5.344-5.344-5.344 2.406-5.344 5.344 2.406 5.344 5.344 5.344z"></path>
-                </svg>
-                View Reports
-              </Link>
-            </li>
-
-            <li>
-              <Link
-                to="/PostSafetyTips"
-                className="flex items-center p-3 rounded-md hover:bg-[#D2FFE8] mt-3"
-              >
-                <svg
-                  className="h-6 w-6 mr-5"
-                  fill="#0d522c"
-                  viewBox="-3.5 0 32 32"
-                  version="1.1"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path d="M12.406 13.844c1.188 0 2.156 0.969 2.156 2.156s-0.969 2.125-2.156 2.125-2.125-0.938-2.125-2.125 0.938-2.156 2.125-2.156zM12.406 8.531c7.063 0 12.156 6.625 12.156 6.625 0.344 0.438 0.344 1.219 0 1.656 0 0-5.094 6.625-12.156 6.625s-12.156-6.625-12.156-6.625c-0.344-0.438-0.344-1.219 0-1.656 0 0 5.094-6.625 12.156-6.625zM12.406 21.344c2.938 0 5.344-2.406 5.344-5.344s-2.406-5.344-5.344-5.344-5.344 2.406-5.344 5.344 2.406 5.344 5.344 5.344z"></path>
-                </svg>
-                Post Safety Tips
-              </Link>
-            </li>
-
-            <li>
-              <Link
-                to="/Forum"
-                className="flex items-center p-3 rounded-md hover:bg-[#D2FFE8] mt-3"
-              >
-                <svg
-                  className="h-6 w-6 mr-5"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 512 512"
-                  fill="#0d522c"
-                >
-                  <path d="M..."></path>
-                </svg>
-                Forum
-              </Link>
-            </li>
-          </ul>
-        </nav>
+      {/* Footer Section */}
+      <div className="absolute bottom-0 w-full p-4 border-t border-gray-100">
+        <button
+          onClick={() => auth.signOut()}
+          className="flex items-center space-x-3 px-4 py-3 w-full rounded-lg text-gray-600 hover:bg-gray-50 hover:text-red-600 transition-all duration-200"
+        >
+          <FiLogOut className="w-5 h-5" />
+          <span className="font-medium">Sign Out</span>
+        </button>
+        <p className="text-center text-xs text-gray-400 mt-4">
+          &copy; {new Date().getFullYear()} SAFE Report
+        </p>
       </div>
     </div>
   );
