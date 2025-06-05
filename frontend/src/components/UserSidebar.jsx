@@ -68,7 +68,7 @@ const UserSidebar = () => {
             className="h-8 w-8"
             style={{ filter: 'invert(80%) sepia(50%) saturate(500%) hue-rotate(90deg)' }}
           />
-          <span className="text-xl font-bold text-[#0d522c]">SAFE User</span>
+          <span className="text-xl font-bold text-[#0d522c]">SAFE</span>
         </Link>
       </div>
 

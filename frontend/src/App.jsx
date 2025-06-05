@@ -16,6 +16,7 @@ import AboutUs from "./pages/AboutUs";
 import Services from "./pages/Services";
 import Contact from "./pages/Contact";
 import Login from "./pages/Login";
+import CreateAccount from "./pages/CreateAccount";
 import ResponderRegister from './pages/ResponderRegister';
 import AnonymousReport from './pages/AnonymousReport';
 
@@ -137,6 +138,7 @@ function App() {
                 {/* Public Routes */}
                 <Route path="/" element={<HomePage />} />
                 <Route path="/login" element={<Login />} />
+                <Route path="/create-account" element={<CreateAccount />} />
                 <Route path="/services" element={<Services />} />
                 <Route path="/about" element={<AboutUs />} />
                 <Route path="/contact" element={<Contact />} />
@@ -235,7 +237,7 @@ function App() {
                 <Route
                   path="/tips"
                   element={
-                    <ProtectedRoute requiredRole={ROLES.USER}>
+                    <ProtectedRoute requiredRole={ROLES.RESPONDER}>
                       <Tips />
                     </ProtectedRoute>
                   }
