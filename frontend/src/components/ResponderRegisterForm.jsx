@@ -5,7 +5,7 @@ import { getFirestore, collection, addDoc, serverTimestamp, doc, setDoc } from '
 import { getStorage, ref, uploadBytes, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import { ROLES, RESPONDER_STATUS } from '../firebase/roles';
 import { toast } from 'react-hot-toast';
-import { FiMapPin, FiUpload, FiLoader, FiCalendar, FiUser, FiFileText, FiHome, FiArrowLeft } from 'react-icons/fi';
+import { FiMapPin, FiUpload, FiLoader, FiCalendar, FiUser, FiFileText, FiHome, FiArrowLeft, FiShield, FiMail, FiPhone, FiLock } from 'react-icons/fi';
 import FileUpload from './Common/FileUpload';
 import L from "leaflet";
 import 'leaflet/dist/leaflet.css';
@@ -317,56 +317,113 @@ const ResponderRegisterForm = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-white rounded-lg shadow-xl p-6 sm:p-8">
-          <div className="flex justify-between items-center mb-8">
-            <h1 className="text-3xl font-bold text-[#0D522C]">Responder Registration</h1>
-            <button
-              onClick={() => navigate('/')}
-              className="flex items-center space-x-2 text-[#0D522C] hover:text-[#0D522C]/80 transition-colors"
-            >
-              <FiHome className="w-5 h-5" />
-              <span>Home</span>
-            </button>
+    <div className="min-h-screen flex">
+      {/* Left Panel - Branding & Image */}
+      <div className="hidden lg:flex lg:w-1/2 bg-[#0d522c] relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0d522c] to-[#094023] opacity-90"></div>
+        <div className="relative z-10 flex flex-col justify-between h-full p-12 text-white">
+          <div>
+            <img src="/safereport.svg" alt="SAFE Logo" className="w-16 h-16 mb-8 brightness-0 invert" />
+            <h1 className="text-4xl font-bold mb-4">Join as a Responder</h1>
+            <p className="text-lg text-white/80 max-w-md">
+              Register your emergency response organization and help make our community safer. Together, we can provide better emergency services.
+            </p>
+          </div>
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
+                <FiShield className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-semibold">Verified Responders</h3>
+                <p className="text-sm text-white/70">All responders are verified and authorized</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-semibold">Community Impact</h3>
+                <p className="text-sm text-white/70">Make a difference in emergency response</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Panel - Registration Form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
+        <div className="w-full max-w-2xl">
+          {/* Back Button */}
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center text-gray-600 hover:text-[#0d522c] transition-colors mb-6"
+          >
+            <FiArrowLeft className="mr-2" />
+            Back to Home
+          </button>
+
+          <div className="mb-6">
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">Responder Registration</h2>
+            <p className="text-gray-600">Register your emergency response organization</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          {formError && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-3">
+              <FiAlertCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-red-600">{formError}</p>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
             {/* Institute Information */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Institute Name <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  name="instituteName"
-                  value={formData.instituteName}
-                  onChange={handleChange}
-                  className={`w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#0D522C] ${
-                    errors.instituteName ? "border-red-500" : "border-gray-300"
-                  }`}
-                  placeholder="Enter your institute name"
-                />
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <FiUser className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    name="instituteName"
+                    value={formData.instituteName}
+                    onChange={handleChange}
+                    className={`block w-full pl-10 pr-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-[#0d522c] focus:border-transparent transition-colors ${
+                      errors.instituteName ? "border-red-500" : "border-gray-300"
+                    }`}
+                    placeholder="Institute name"
+                  />
+                </div>
                 {errors.instituteName && (
                   <p className="mt-1 text-sm text-red-600">{errors.instituteName}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Email <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  className={`w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#0D522C] ${
-                    errors.email ? "border-red-500" : "border-gray-300"
-                  }`}
-                  placeholder="Enter your email"
-                />
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <FiMail className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    className={`block w-full pl-10 pr-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-[#0d522c] focus:border-transparent transition-colors ${
+                      errors.email ? "border-red-500" : "border-gray-300"
+                    }`}
+                    placeholder="Email address"
+                  />
+                </div>
                 {errors.email && (
                   <p className="mt-1 text-sm text-red-600">{errors.email}</p>
                 )}
@@ -374,39 +431,44 @@ const ResponderRegisterForm = () => {
             </div>
 
             {/* Contact Information */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Phone Number <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="tel"
-                  name="phoneNumber"
-                  value={formData.phoneNumber}
-                  onChange={handleChange}
-                  className={`w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#0D522C] ${
-                    errors.phoneNumber ? "border-red-500" : "border-gray-300"
-                  }`}
-                  placeholder="+251 9XXXXXXXX"
-                />
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <FiPhone className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="tel"
+                    name="phoneNumber"
+                    value={formData.phoneNumber}
+                    onChange={handleChange}
+                    className={`block w-full pl-10 pr-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-[#0d522c] focus:border-transparent transition-colors ${
+                      errors.phoneNumber ? "border-red-500" : "border-gray-300"
+                    }`}
+                    placeholder="+251 9XXXXXXXX"
+                  />
+                </div>
                 {errors.phoneNumber && (
                   <p className="mt-1 text-sm text-red-600">{errors.phoneNumber}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Responder Type <span className="text-red-500">*</span>
                 </label>
                 <select
                   name="responderType"
                   value={formData.responderType}
                   onChange={handleChange}
-                  className={`w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#0D522C] ${
+                  className={`block w-full pl-3 pr-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-[#0d522c] focus:border-transparent transition-colors ${
                     errors.responderType ? "border-red-500" : "border-gray-300"
                   }`}
                 >
-                  <option value="">Select responder type</option>
+                  <option value="">Select type</option>
                   <option value="police">Police</option>
                   <option value="medical">Medical</option>
                   <option value="fire">Fire</option>
@@ -419,23 +481,28 @@ const ResponderRegisterForm = () => {
             </div>
 
             {/* Operating Details */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Operating Hours
                 </label>
-                <input
-                  type="text"
-                  name="operatingHours"
-                  value={formData.operatingHours}
-                  onChange={handleChange}
-                  className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0D522C]"
-                  placeholder="e.g., 24/7 or 8:00 AM - 5:00 PM"
-                />
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <FiCalendar className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    name="operatingHours"
+                    value={formData.operatingHours}
+                    onChange={handleChange}
+                    className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0d522c] focus:border-transparent transition-colors"
+                    placeholder="e.g., 24/7 or 8:00 AM - 5:00 PM"
+                  />
+                </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Capacity <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -443,7 +510,7 @@ const ResponderRegisterForm = () => {
                   name="capacity"
                   value={formData.capacity}
                   onChange={handleChange}
-                  className={`w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#0D522C] ${
+                  className={`block w-full pl-3 pr-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-[#0d522c] focus:border-transparent transition-colors ${
                     errors.capacity ? "border-red-500" : "border-gray-300"
                   }`}
                   placeholder="Enter capacity"
@@ -456,9 +523,9 @@ const ResponderRegisterForm = () => {
             </div>
 
             {/* Experience and License */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Years of Experience <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -466,10 +533,10 @@ const ResponderRegisterForm = () => {
                   name="yearsOfExperience"
                   value={formData.yearsOfExperience}
                   onChange={handleChange}
-                  className={`w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#0D522C] ${
+                  className={`block w-full pl-3 pr-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-[#0d522c] focus:border-transparent transition-colors ${
                     errors.yearsOfExperience ? "border-red-500" : "border-gray-300"
                   }`}
-                  placeholder="Enter years of experience"
+                  placeholder="Years of experience"
                   min="0"
                 />
                 {errors.yearsOfExperience && (
@@ -478,8 +545,10 @@ const ResponderRegisterForm = () => {
               </div>
 
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Professional License <span className="text-red-500">*</span>
+                </label>
                 <FileUpload
-                  label="Professional License"
                   name="licenseFile"
                   value={formData.licenseFile}
                   onChange={(e) => {
@@ -490,30 +559,12 @@ const ResponderRegisterForm = () => {
                         licenseFile: file,
                         licensePreview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null
                       }));
-                    } else {
-                      setFormData(prev => ({ 
-                        ...prev, 
-                        licenseFile: null,
-                        licensePreview: null
-                      }));
                     }
                   }}
                   error={errors.licenseFile}
                   type="LICENSE"
                   required
                 />
-                {formData.licensePreview && (
-                  <div className="mt-2">
-                    <p className="text-sm font-medium text-gray-700 mb-1">Preview:</p>
-                    <div className="max-w-xs">
-                      <img
-                        src={formData.licensePreview}
-                        alt="License preview"
-                        className="w-full h-auto rounded-lg border border-gray-300"
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -522,13 +573,13 @@ const ResponderRegisterForm = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Location <span className="text-red-500">*</span>
               </label>
-              <div id="map" className="h-[400px] rounded-lg overflow-hidden border border-gray-300"></div>
+              <div id="map" className="h-[200px] rounded-lg overflow-hidden border border-gray-300"></div>
               <div className="mt-2 flex items-center justify-between">
                 <p className="text-sm text-gray-500">
-                  Click and drag the marker to select your location
+                  Drag marker to select location
                 </p>
                 <div className="text-sm font-medium text-[#0D522C]">
-                  Coordinates: {formData.mapLocation[0].toFixed(6)}, {formData.mapLocation[1].toFixed(6)}
+                  {formData.mapLocation[0].toFixed(6)}, {formData.mapLocation[1].toFixed(6)}
                 </div>
               </div>
               {errors.location && (
@@ -537,40 +588,50 @@ const ResponderRegisterForm = () => {
             </div>
 
             {/* Password Fields */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Password <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  className={`w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#0D522C] ${
-                    errors.password ? "border-red-500" : "border-gray-300"
-                  }`}
-                  placeholder="Enter your password"
-                />
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <FiLock className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    className={`block w-full pl-10 pr-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-[#0d522c] focus:border-transparent transition-colors ${
+                      errors.password ? "border-red-500" : "border-gray-300"
+                    }`}
+                    placeholder="Create password"
+                  />
+                </div>
                 {errors.password && (
                   <p className="mt-1 text-sm text-red-600">{errors.password}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Confirm Password <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="password"
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  className={`w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#0D522C] ${
-                    errors.confirmPassword ? "border-red-500" : "border-gray-300"
-                  }`}
-                  placeholder="Confirm your password"
-                />
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <FiLock className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="password"
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    className={`block w-full pl-10 pr-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-[#0d522c] focus:border-transparent transition-colors ${
+                      errors.confirmPassword ? "border-red-500" : "border-gray-300"
+                    }`}
+                    placeholder="Confirm password"
+                  />
+                </div>
                 {errors.confirmPassword && (
                   <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
                 )}
@@ -579,31 +640,24 @@ const ResponderRegisterForm = () => {
 
             {/* Additional Details */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Additional Details
               </label>
               <textarea
                 name="additionalDetails"
                 value={formData.additionalDetails}
                 onChange={handleChange}
-                rows="4"
-                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0D522C]"
-                placeholder="Enter any additional information about your institute"
+                rows="3"
+                className="block w-full pl-3 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0d522c] focus:border-transparent transition-colors"
+                placeholder="Enter any additional information"
               ></textarea>
             </div>
 
-            {/* Form Error */}
-            {formError && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-600">{formError}</p>
-              </div>
-            )}
-
             {/* Upload Progress */}
             {uploadProgress > 0 && uploadProgress < 100 && (
-              <div className="w-full bg-gray-200 rounded-full h-2.5">
+              <div className="w-full bg-gray-200 rounded-full h-2">
                 <div 
-                  className="bg-[#0d522c] h-2.5 rounded-full transition-all duration-300" 
+                  className="bg-[#0d522c] h-2 rounded-full transition-all duration-300" 
                   style={{ width: `${uploadProgress}%` }}
                 ></div>
                 <p className="text-sm text-gray-600 mt-1 text-center">
@@ -613,32 +667,53 @@ const ResponderRegisterForm = () => {
             )}
 
             {/* Submit Button */}
-            <div className="flex justify-end space-x-4">
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className={`w-full flex items-center justify-center px-4 py-2.5 border border-transparent rounded-lg shadow-sm text-base font-medium text-white ${
+                isSubmitting
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-[#0d522c] hover:bg-[#347752] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0d522c]"
+              } transition-colors`}
+            >
+              {isSubmitting ? (
+                <div className="flex items-center">
+                  <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin mr-2"></div>
+                  Submitting...
+                </div>
+              ) : (
+                "Submit Application"
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6 space-y-4">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">Or continue with</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <button
                 type="button"
-                onClick={() => navigate('/responder/login')}
-                className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
-                disabled={isSubmitting}
+                onClick={() => navigate('/login')}
+                className="w-full flex items-center justify-center px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0d522c] transition-colors"
               >
-                Cancel
+                Login
               </button>
               <button
-                type="submit"
-                disabled={isSubmitting}
-                className={`px-6 py-2 bg-[#0d522c] text-white rounded-md hover:bg-[#0d522c]/90 transition-colors
-                  ${isSubmitting ? 'opacity-75 cursor-not-allowed' : ''}`}
+                type="button"
+                onClick={() => navigate('/create-account')}
+                className="w-full flex items-center justify-center px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0d522c] transition-colors"
               >
-                {isSubmitting ? (
-                  <span className="flex items-center space-x-2">
-                    <FiLoader className="animate-spin" />
-                    <span>Submitting...</span>
-                  </span>
-                ) : (
-                  'Submit Application'
-                )}
+                Create Account
               </button>
             </div>
-          </form>
+          </div>
         </div>
       </div>
     </div>
