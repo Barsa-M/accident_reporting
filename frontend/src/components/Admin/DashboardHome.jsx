@@ -41,24 +41,27 @@ const DashboardHome = () => {
         getDocs(collection(db, 'responders')),
         getDocs(collection(db, 'incidents')),
         getDocs(collection(db, 'forum_posts'))
-      ]).catch(error => {
-        console.error('Error in Promise.all:', error);
-        throw error;
-      });
-
-      console.log('Successfully fetched all collections');
+      ]);
 
       // Process users data
       const totalUsers = usersSnap.size;
-      console.log('Total users:', totalUsers);
 
       // Process responders data
-      const totalResponders = respondersSnap.size;
-      const pendingResponders = respondersSnap.docs.filter(doc => {
-        const status = doc.data().status?.toLowerCase();
-        return status === 'pending';
-      }).length;
-      console.log('Responders stats:', { total: totalResponders, pending: pendingResponders });
+      const responders = respondersSnap.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          status: data.status?.toLowerCase() || 'pending',
+          location: typeof data.location === 'object' ? 
+            `${data.location.address || ''} (${data.location.latitude}, ${data.location.longitude})` : 
+            data.location || 'N/A'
+        };
+      });
+      
+      const totalResponders = responders.length;
+      const pendingResponders = responders.filter(r => r.status === 'pending').length;
+      const activeResponders = responders.filter(r => r.status === 'approved').length;
 
       // Process incidents data
       const incidents = incidentsSnap.docs.map(doc => {
@@ -66,12 +69,14 @@ const DashboardHome = () => {
         return {
           id: doc.id,
           ...data,
-          createdAt: data.createdAt?.toDate(),
-          type: data.type || data.incidentType || 'Unknown', // Handle both field names
-          status: data.status || 'pending'
+          createdAt: data.createdAt?.toDate?.() || new Date(),
+          type: data.type || data.incidentType || 'Unknown',
+          status: data.status?.toLowerCase() || 'pending',
+          location: typeof data.location === 'object' ? 
+            `${data.location.address || ''} (${data.location.latitude}, ${data.location.longitude})` : 
+            data.location || 'N/A'
         };
       });
-      console.log('Processed incidents:', incidents.length);
 
       // Calculate incidents by type
       const incidentsByType = incidents.reduce((acc, doc) => {
@@ -86,7 +91,7 @@ const DashboardHome = () => {
           name,
           value
         }))
-        .filter(item => item.name !== 'Unknown' || item.value > 0); // Only include Unknown if it has values
+        .filter(item => item.name !== 'Unknown' || item.value > 0);
 
       // Get recent incidents
       const recentIncidents = incidents
@@ -99,14 +104,14 @@ const DashboardHome = () => {
 
       // Calculate monthly stats
       const monthlyData = await calculateMonthlyStats(incidents);
-      console.log('Monthly stats calculated:', monthlyData.length);
 
       const statsData = {
         totalUsers,
         totalResponders,
+        activeResponders,
+        pendingResponders,
         totalIncidents: incidents.length,
         totalForumPosts: forumSnap.size,
-        pendingResponders,
         recentIncidents,
         incidentsByType: incidentTypeData,
         monthlyStats: monthlyData
@@ -203,7 +208,7 @@ const DashboardHome = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Active Responders</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.totalResponders}</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.activeResponders}</p>
               <p className="text-sm text-yellow-600">{stats.pendingResponders} pending</p>
             </div>
             <div className="p-3 bg-blue-100 rounded-full">

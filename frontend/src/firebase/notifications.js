@@ -171,4 +171,21 @@ export const notifyResponderIncidentAssigned = async (responderId, incidentData)
   };
 
   await createNotification(notification);
+};
+
+// Send notification email
+export const sendNotificationEmail = async (to, subject, message) => {
+  try {
+    const notification = {
+      type: 'email',
+      title: subject,
+      message: message,
+      recipientEmail: to,
+      createdAt: new Date()
+    };
+    await createNotification(notification);
+  } catch (error) {
+    console.error('Error sending notification email:', error);
+    throw error;
+  }
 }; 

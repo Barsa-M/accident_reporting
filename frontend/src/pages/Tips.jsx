@@ -4,8 +4,10 @@ import { db } from '../firebase/firebase';
 import { toast } from 'react-hot-toast';
 import { FiX } from 'react-icons/fi';
 import PropTypes from 'prop-types';
+import { useNavigate } from 'react-router-dom';
 
 const Tips = ({ onClose, responderData }) => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     title: "",
     content: "",
@@ -15,6 +17,12 @@ const Tips = ({ onClose, responderData }) => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (!responderData) {
+      console.log('No responder data available, redirecting to dashboard');
+      navigate('/responder/dashboard');
+      return;
+    }
+
     console.log('Responder Data in Tips component:', responderData);
     if (!responderData?.uid || !responderData?.name || !responderData?.specialization) {
       console.error('Missing responder data fields:', {
@@ -23,9 +31,9 @@ const Tips = ({ onClose, responderData }) => {
         specialization: responderData?.specialization
       });
       toast.error('Missing responder information. Please try logging in again.');
-      onClose();
+      navigate('/responder/dashboard');
     }
-  }, [responderData, onClose]);
+  }, [responderData, navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -34,6 +42,13 @@ const Tips = ({ onClose, responderData }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!responderData) {
+      toast.error('Please log in as a responder to submit tips.');
+      navigate('/responder/dashboard');
+      return;
+    }
+
     console.log('Submitting with responder data:', responderData);
     
     if (!responderData?.uid || !responderData?.name || !responderData?.specialization) {
@@ -67,7 +82,6 @@ const Tips = ({ onClose, responderData }) => {
   };
 
   if (!responderData) {
-    console.log('No responder data available');
     return null;
   }
 
@@ -177,7 +191,7 @@ Tips.propTypes = {
     uid: PropTypes.string.isRequired,
     name: PropTypes.string.isRequired,
     specialization: PropTypes.string.isRequired,
-  }).isRequired,
+  }),
 };
 
 export default Tips;

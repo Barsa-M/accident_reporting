@@ -1,5 +1,5 @@
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { db } from '../firebase/firebase';
 
 // Maximum distance in kilometers for a responder to be considered
 const MAX_DISTANCE_KM = 10;

@@ -9,7 +9,7 @@ import { FiMenu, FiX, FiHome, FiUsers, FiShield, FiFileText, FiMessageSquare,
 import { Transition } from '@headlessui/react';
 import DashboardHome from '../components/Admin/DashboardHome';
 import UsersManagement from '../components/Admin/UsersManagement';
-import RespondersManagement from '../components/Admin/RespondersManagement';
+import ResponderList from '../components/Admin/ResponderList';
 import IncidentReports from '../components/Admin/IncidentReports';
 import ForumModeration from '../components/Admin/ForumModeration';
 import Analytics from '../components/Admin/Analytics';
@@ -105,7 +105,7 @@ const AdminDashboard = () => {
       case 'users':
         return <UsersManagement />;
       case 'responders':
-        return <RespondersManagement />;
+        return <ResponderList />;
       case 'incidents':
         return <IncidentReports />;
       case 'forum':
