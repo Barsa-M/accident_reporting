@@ -1,0 +1,28 @@
+[
+  {
+    "origin": ["http://localhost:5173", "http://localhost:3000", "http://localhost:8080"],
+    "method": ["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
+    "maxAgeSeconds": 3600,
+    "responseHeader": [
+      "Content-Type",
+      "Authorization",
+      "Content-Length",
+      "User-Agent",
+      "x-goog-resumable",
+      "x-goog-meta-*",
+      "x-goog-storage-class",
+      "x-goog-generation",
+      "x-goog-metageneration",
+      "x-goog-content-length-range",
+      "x-goog-content-encoding",
+      "x-goog-content-disposition",
+      "x-goog-content-language",
+      "x-goog-content-type",
+      "x-goog-cache-control",
+      "x-goog-acl",
+      "x-goog-encryption-algorithm",
+      "x-goog-encryption-key",
+      "x-goog-encryption-key-sha256"
+    ]
+  }
+] 

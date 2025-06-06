@@ -2,7 +2,7 @@
   "firestore": {
     "database": "(default)",
     "location": "nam5",
-    "rules": "frontend/firestore.rules",
+    "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
   "functions": [
@@ -33,7 +33,7 @@
     ]
   },
   "storage": {
-    "rules": "frontend/storage.rules"
+    "rules": "storage.rules"
   },
   "database": {
     "rules": "database.rules.json"

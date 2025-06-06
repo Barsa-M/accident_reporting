@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { signup } from "../firebase/firebaseauth";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, setDoc } from "firebase/firestore";
+import { auth, db } from "../firebase/firebase";
 import { ROLES } from "../firebase/roles";
 
 const CreateAccount = () => {
@@ -46,10 +48,25 @@ const CreateAccount = () => {
     setLoading(true);
 
     try {
-      await signup(email, password, role, null, { name, phone });
+      // Create user account
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Create user document in Firestore
+      await setDoc(doc(db, 'users', user.uid), {
+        uid: user.uid,
+        email: email,
+        name: name,
+        phone: phone,
+        role: role,
+        createdAt: new Date().toISOString(),
+        lastUpdated: new Date().toISOString()
+      });
+
       alert("Account created successfully! Please log in.");
       navigate("/login");
     } catch (err) {
+      console.error("Error creating account:", err);
       if (err.code === "auth/email-already-in-use") {
         setError("Email is already in use.");
       } else if (err.code === "auth/weak-password") {
@@ -63,144 +80,155 @@ const CreateAccount = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row items-center justify-center font-sans p-4">
-      {/* Left Green Panel */}
-      <div className="w-full md:w-[500px] bg-[#0d522c] p-6 rounded-t-2xl md:rounded-l-2xl md:rounded-tr-none shadow min-h-[300px] md:h-[750px] flex flex-col justify-between relative">
-        <div className="flex flex-col items-center mt-8 md:mt-40">
-          <img src="/safereport.svg" alt="Logo" className="w-20 md:w-24 mb-6" />
-          <div className="w-full md:w-72">
-            <h1 className="text-3xl md:text-5xl font-bold text-center text-white">
-              Create an Account
-            </h1>
-          </div>
-        </div>
-        <div className="flex flex-col items-center mb-8 md:mb-20">
-          <p className="text-lg text-white mb-4">Already have an account?</p>
-          <button
-            onClick={() => navigate("/login")}
-            className="w-[180px] border text-white py-2 rounded hover:border-none hover:bg-[#347752] transition"
+    <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">
+      <div className="flex flex-col md:flex-row w-full max-w-[1000px] shadow-2xl rounded-2xl overflow-hidden">
+        {/* Left Panel - Registration Form */}
+        <div className="w-full md:w-1/2">
+          <form
+            onSubmit={handleSubmit}
+            className="flex flex-col justify-between h-full bg-[#B9E4C9] p-8 md:p-16 text-[#0d522c]"
           >
-            Login
-          </button>
-        </div>
-      </div>
+            <div className="flex-1 flex flex-col justify-center">
+              <div className="mb-8">
+                <h2 className="text-3xl md:text-4xl font-bold mb-3">Create Account</h2>
+                <p className="text-sm md:text-base text-gray-600">Join our community</p>
+              </div>
 
-      {/* Right Form Panel */}
-      <div className="w-full md:w-[500px] bg-[#B9E4C9] p-6 md:p-16 text-[#0d522c] rounded-b-2xl md:rounded-r-2xl md:rounded-bl-none shadow-md min-h-[500px] md:h-[750px] flex flex-col justify-between">
-        <div>
-          <h2 className="text-xl md:text-2xl font-semibold text-center mb-6">
-            Create an Account
-          </h2>
-          {error && (
-            <p className="text-red-500 text-center mb-4 font-medium text-sm">{error}</p>
-          )}
+              {error && (
+                <div className="mb-4 p-3 bg-red-100 text-red-600 rounded-md text-sm">
+                  {error}
+                </div>
+              )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium">
-                Full Name
-              </label>
-              <input
-                type="text"
-                id="name"
-                name="name"
-                autoComplete="name"
-                value={formData.name}
-                onChange={handleChange}
-                className="w-full px-4 py-2 mt-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0d522c] focus:border-transparent"
-                required
-              />
-            </div>
+              <div className="space-y-6">
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium mb-2">
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0D522C] focus:border-transparent"
+                    placeholder="Enter your full name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    required
+                    disabled={loading}
+                  />
+                </div>
 
-            <div>
-              <label htmlFor="phone" className="block text-sm font-medium">
-                Phone Number
-              </label>
-              <input
-                type="tel"
-                id="phone"
-                name="phone"
-                autoComplete="tel"
-                value={formData.phone}
-                onChange={handleChange}
-                className="w-full px-4 py-2 mt-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0d522c] focus:border-transparent"
-                required
-              />
-            </div>
+                <div>
+                  <label htmlFor="phone" className="block text-sm font-medium mb-2">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    id="phone"
+                    name="phone"
+                    className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0D522C] focus:border-transparent"
+                    placeholder="Enter your phone number"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    required
+                    disabled={loading}
+                  />
+                </div>
 
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium">
-                Email
-              </label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                autoComplete="email"
-                value={formData.email}
-                onChange={handleChange}
-                className="w-full px-4 py-2 mt-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0d522c] focus:border-transparent"
-                required
-              />
-            </div>
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium mb-2">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0D522C] focus:border-transparent"
+                    placeholder="Enter your email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    required
+                    disabled={loading}
+                  />
+                </div>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium">
-                Password
-              </label>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                autoComplete="new-password"
-                value={formData.password}
-                onChange={handleChange}
-                className="w-full px-4 py-2 mt-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0d522c] focus:border-transparent"
-                required
-              />
-            </div>
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium mb-2">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0D522C] focus:border-transparent"
+                    placeholder="Create a password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    required
+                    disabled={loading}
+                  />
+                </div>
 
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium">
-                Confirm Password
-              </label>
-              <input
-                type="password"
-                id="confirmPassword"
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-4 py-2 mt-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0d522c] focus:border-transparent"
-                required
-              />
-            </div>
+                <div>
+                  <label htmlFor="confirmPassword" className="block text-sm font-medium mb-2">
+                    Confirm Password
+                  </label>
+                  <input
+                    type="password"
+                    id="confirmPassword"
+                    className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0D522C] focus:border-transparent"
+                    placeholder="Confirm your password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    disabled={loading}
+                  />
+                </div>
 
-            <div className="flex flex-col items-center mt-2">
-              <p className="text-sm text-center">
-                Are you a responder?{" "}
-                <Link
-                  to="/responder-register"
-                  className="text-[#0d522c] font-semibold underline hover:text-[#347752]"
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className={`w-full flex items-center justify-center text-white py-3 rounded-md transition-colors ${
+                    loading
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-[#0d522c] hover:bg-[#347752]"
+                  }`}
                 >
-                  Register as Responder
-                </Link>
-              </p>
-            </div>
-
-            <div className="flex justify-center pt-4">
-              <button
-                type="submit"
-                disabled={loading}
-                className={`w-full md:w-[250px] text-white py-2 rounded transition ${
-                  loading ? "bg-gray-500" : "bg-[#0d522c] hover:bg-[#347752]"
-                }`}
-              >
-                {loading ? "Signing Up..." : "Sign Up"}
-              </button>
+                  {loading ? (
+                    <div className="flex items-center">
+                      <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin mr-2"></div>
+                      Creating Account...
+                    </div>
+                  ) : (
+                    "Create Account"
+                  )}
+                </button>
+              </div>
             </div>
           </form>
         </div>
 
+        {/* Right Panel - Logo and Login Link */}
+        <div className="w-full md:w-1/2 bg-[#0d522c] p-8 md:p-16 flex flex-col items-center justify-center text-center">
+          <div className="mb-8">
+            <img
+              src="/safereport.svg"
+              alt="Logo"
+              className="w-24 md:w-32 mx-auto mb-6 brightness-0 invert"
+            />
+            <h1 className="text-4xl md:text-5xl font-bold text-white mb-8">Welcome</h1>
+          </div>
+
+          <div className="text-center">
+            <p className="text-lg text-white mb-4">Already have an account?</p>
+            <Link
+              to="/login"
+              className="w-full md:w-64 border border-white text-white py-3 rounded-md hover:bg-[#347752] transition-colors inline-block"
+            >
+              Sign In
+            </Link>
+          </div>
+        </div>
       </div>
     </div>
   );

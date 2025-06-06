@@ -33,6 +33,15 @@ service cloud.firestore {
       return type in ['Medical', 'Police', 'Fire', 'Traffic'];
     }
 
+    function isValidFileType() {
+      return request.resource.contentType.matches('image/.*') ||
+             request.resource.contentType.matches('application/pdf');
+    }
+
+    function isValidFileSize() {
+      return request.resource.size < 10 * 1024 * 1024; // 10MB
+    }
+
     // 🔐 USERS Collection
     match /users/{userId} {
       allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
@@ -74,16 +83,12 @@ service cloud.firestore {
 
     // 🚨 INCIDENTS Collection
     match /incidents/{incidentId} {
-      // Any signed-in user can create
       allow create: if isAuthenticated();
-
-      // Approved responders of matching type can read/update assigned incidents
       allow read, update: if isAuthenticated() && (
         resource.data.userId == request.auth.uid ||
         isAdmin() ||
         (isApprovedResponder() && resource.data.responderType == get(/databases/$(database)/documents/responders/$(request.auth.uid)).data.responderType)
       );
-
       allow delete: if isAdmin();
     }
 
@@ -172,6 +177,43 @@ service cloud.firestore {
       allow create: if isAdmin();
       allow update: if isAdmin();
       allow delete: if isAdmin();
+    }
+  }
+}
+
+// Storage rules
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isValidFileType(contentType) {
+      return contentType.matches('image/.*') ||
+             contentType.matches('video/.*') ||
+             contentType.matches('application/pdf');
+    }
+
+    function isValidFileSize(size) {
+      return size < 10 * 1024 * 1024; // 10MB
+    }
+
+    // License files
+    match /licenses/{userId}/{fileName} {
+      allow read: if isAuthenticated() && (isAdmin() || isOwner(userId));
+      allow write: if isAuthenticated() && isOwner(userId) && 
+                   isValidFileType(request.resource.contentType) && 
+                   isValidFileSize(request.resource.size);
+    }
+
+    // Incident files
+    match /incidents/{type}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && 
+                   isValidFileType(request.resource.contentType) && 
+                   isValidFileSize(request.resource.size);
+    }
+    
+    // Default deny
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }

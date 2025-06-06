@@ -4,6 +4,7 @@ import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebase/firebase";
 import { ROLES, normalizeRole, isValidRole } from "../firebase/roles";
+import { toast } from "react-hot-toast";
 
 function Login() {
   const [email, setEmail] = useState("");
@@ -35,7 +36,7 @@ function Login() {
 
       if (!userSnap.exists()) {
         console.error("User document not found in Firestore");
-        throw new Error("User data not found");
+        throw new Error("User data not found. Please create an account first.");
       }
 
       const userData = userSnap.data();
@@ -123,6 +124,7 @@ function Login() {
           ? "Too many failed login attempts. Please try again later or reset your password."
           : err.message || "An error occurred during login. Please try again."
       );
+      toast.error(err.message || "An error occurred during login. Please try again.");
     } finally {
       setLoading(false);
     }

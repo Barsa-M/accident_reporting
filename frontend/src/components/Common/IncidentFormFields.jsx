@@ -3,6 +3,7 @@ import L from 'leaflet';
 import { format } from 'date-fns';
 import { routeIncident } from '../../services/incidentRouting';
 import { toast } from 'react-toastify';
+import FileUpload from './FileUpload';
 
 const IncidentFormFields = ({ 
   formData, 
@@ -269,35 +270,16 @@ const IncidentFormFields = ({
               Media & Time
             </h2>
             <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-[#0d522c] mb-1">
-                  Attach Files (Images/Videos)
-                </label>
-                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-[#0d522c]/20 border-dashed rounded-lg bg-white/50">
-                  <div className="space-y-1 text-center">
-                    <svg className="mx-auto h-12 w-12 text-[#0d522c]/40" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <div className="flex text-sm text-[#0d522c]">
-                      <label className="relative cursor-pointer bg-white rounded-md font-medium text-[#0d522c] hover:text-[#347752] focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-[#0d522c]">
-                        <span>Upload files</span>
-                        <input
-                          type="file"
-                          multiple
-                          accept="image/*,video/*"
-                          onChange={handleFileChange}
-                          className="sr-only"
-                        />
-                      </label>
-                      <p className="pl-1">or drag and drop</p>
-                    </div>
-                    <p className="text-xs text-[#0d522c]/60">PNG, JPG, GIF up to 10MB</p>
-                  </div>
-                </div>
-                {errors.files && (
-                  <p className="mt-1 text-sm text-red-600">{errors.files}</p>
-                )}
-              </div>
+              <FileUpload
+                files={formData.files}
+                setFiles={(files) => setFormData(prev => ({ ...prev, files }))}
+                error={errors.files}
+                accept="image/*,video/*,.pdf"
+                maxSize={10 * 1024 * 1024}
+                maxFiles={5}
+                label="Attach Files (Images/Videos/PDFs)"
+                description="PNG, JPG, GIF, PDF up to 10MB"
+              />
 
               <div>
                 <label className="block text-sm font-medium text-[#0d522c] mb-1">

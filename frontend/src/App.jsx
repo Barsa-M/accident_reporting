@@ -19,6 +19,8 @@ import Login from "./pages/Login";
 import CreateAccount from "./pages/CreateAccount";
 import ResponderRegister from './pages/ResponderRegister';
 import AnonymousReport from './pages/AnonymousReport';
+import PendingApproval from './pages/PendingApproval';
+import RejectedApplication from './pages/RejectedApplication';
 
 // User Pages
 import UserDashboard from './pages/UserDashboard';
@@ -52,6 +54,10 @@ import FireForm from "./pages/FireForm";
 import ChangePassword from "./components/ChangePassword";
 import PostHistory from "./components/PostHistory";
 import NotificationSettings from "./components/NotificationSettings";
+import ResponderRoute from './components/ResponderRoute';
+import AdminRoute from './components/AdminRoute';
+import UserRoute from './components/UserRoute';
+import NotFound from './pages/NotFound';
 
 function App() {
   const [user] = useAuthState(auth);
@@ -147,7 +153,7 @@ function App() {
 
                 {/* User Routes */}
                 <Route
-                  path="/dashboard"
+                  path="/dashboard/*"
                   element={
                     <ProtectedRoute requiredRole={ROLES.USER}>
                       <UserDashboard />
@@ -238,7 +244,7 @@ function App() {
                   path="/tips"
                   element={
                     <ProtectedRoute requiredRole={ROLES.RESPONDER}>
-                      <Tips />
+                      <Tips onClose={() => navigate('/responder/dashboard')} responderData={null} />
                     </ProtectedRoute>
                   }
                 />
@@ -292,7 +298,9 @@ function App() {
                   path="/responder/*"
                   element={
                     <ProtectedRoute requiredRole={ROLES.RESPONDER}>
-                      <ResponderDashboard />
+                      <ResponderRoute>
+                        <ResponderDashboard />
+                      </ResponderRoute>
                     </ProtectedRoute>
                   }
                 />
@@ -323,8 +331,12 @@ function App() {
                   }
                 />
 
-                {/* Catch-all redirect to home */}
-                <Route path="*" element={<Navigate to="/" replace />} />
+                {/* Responder Routes */}
+                <Route path="/responder/pending" element={<PendingApproval />} />
+                <Route path="/responder/rejected" element={<RejectedApplication />} />
+
+                {/* 404 Route */}
+                <Route path="*" element={<NotFound />} />
               </Routes>
             </div>
           </div>

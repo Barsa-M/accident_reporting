@@ -3,12 +3,11 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { useState, useEffect } from 'react';
 import { auth, db } from '../firebase/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { ROLES, RESPONDER_STATUS } from '../firebase/roles';
+import { ROLES } from '../firebase/roles';
 
-export default function ResponderRoute({ children }) {
+export default function UserRoute({ children }) {
   const [user, loading] = useAuthState(auth);
   const [userRole, setUserRole] = useState(null);
-  const [responderStatus, setResponderStatus] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -21,16 +20,7 @@ export default function ResponderRoute({ children }) {
       try {
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         if (userDoc.exists()) {
-          const userData = userDoc.data();
-          setUserRole(userData.role);
-
-          // If user is a responder, check their status
-          if (userData.role === ROLES.RESPONDER) {
-            const responderDoc = await getDoc(doc(db, 'responders', user.uid));
-            if (responderDoc.exists()) {
-              setResponderStatus(responderDoc.data().status);
-            }
-          }
+          setUserRole(userDoc.data().role);
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
@@ -50,25 +40,9 @@ export default function ResponderRoute({ children }) {
     );
   }
 
-  // Not logged in
-  if (!user) {
+  if (!user || userRole !== ROLES.USER) {
     return <Navigate to="/login" />;
   }
 
-  // Not a responder
-  if (userRole !== ROLES.RESPONDER) {
-    return <Navigate to="/" />;
-  }
-
-  // Handle responder status routing
-  switch (responderStatus?.toLowerCase()) {
-    case RESPONDER_STATUS.PENDING:
-      return <Navigate to="/responder/pending" />;
-    case RESPONDER_STATUS.REJECTED:
-      return <Navigate to="/responder/rejected" />;
-    case RESPONDER_STATUS.APPROVED:
-      return children;
-    default:
-      return <Navigate to="/responder/pending" />;
-  }
+  return children;
 } 
