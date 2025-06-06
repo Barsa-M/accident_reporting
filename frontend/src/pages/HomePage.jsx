@@ -17,28 +17,28 @@ const HomePage = () => {
     <div className="min-h-screen flex flex-col">
       <Navigation />
       {/* Hero Section */}
-      <section className="relative h-screen">
+      <section className="relative h-[90vh] md:h-screen">
         <div className="absolute inset-0">
           <img 
             src="/src/assets/images/home.png" 
             alt="Emergency Response" 
             className="w-full h-full object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/40 to-transparent"></div>
+          <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-transparent md:from-black/60 md:via-black/40 md:to-transparent"></div>
         </div>
-        <div className="relative container mx-auto px-6 h-full flex items-center">
+        <div className="relative container mx-auto px-4 sm:px-6 h-full flex items-center">
           <div className="max-w-2xl text-white">
-            <h1 className="text-5xl font-bold mb-6 drop-shadow-lg leading-tight">Fast Emergency Response When Every Second Counts</h1>
-            <p className="text-xl mb-8 drop-shadow text-white/90 leading-relaxed">Report accidents quickly and securely. Connect with emergency responders in real-time. Save lives with SAFE.</p>
-            <div className="flex flex-wrap gap-4">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 md:mb-6 drop-shadow-lg leading-tight">Fast Emergency Response When Every Second Counts</h1>
+            <p className="text-lg sm:text-xl mb-6 md:mb-8 drop-shadow text-white/90 leading-relaxed">Report accidents quickly and securely. Connect with emergency responders in real-time. Save lives with SAFE.</p>
+            <div className="flex flex-col sm:flex-row gap-4">
               <button
                 onClick={handleReportIncident}
-                className="px-8 py-3 bg-white text-[#0d522c] rounded-lg font-medium hover:bg-[#B9E4C9] transition-all duration-300 transform hover:scale-[1.02]"
+                className="w-full sm:w-auto px-6 sm:px-8 py-3 bg-white text-[#0d522c] rounded-lg font-medium hover:bg-[#B9E4C9] transition-all duration-300 transform hover:scale-[1.02]"
               >
                 Report Incident
               </button>
-              <Link to="/responder-register">
-                <button className="px-8 py-3 border-2 border-white text-white rounded-lg font-medium hover:bg-white hover:text-[#0d522c] transition-all duration-300 transform hover:scale-[1.02]">
+              <Link to="/responder-register" className="w-full sm:w-auto">
+                <button className="w-full px-6 sm:px-8 py-3 border-2 border-white text-white rounded-lg font-medium hover:bg-white hover:text-[#0d522c] transition-all duration-300 transform hover:scale-[1.02]">
                   Join as Responder
                 </button>
               </Link>
@@ -48,13 +48,13 @@ const HomePage = () => {
       </section>
 
       {/* Services Section */}
-      <section className="py-20 bg-[#F1F7F4]">
+      <section className="py-12 md:py-20 bg-[#F1F7F4]">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-[#0d522c] mb-4">Our Emergency Services</h2>
-            <p className="text-gray-600 max-w-2xl mx-auto">Comprehensive emergency response services available 24/7</p>
+          <div className="text-center mb-12 md:mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-[#0d522c] mb-3 md:mb-4">Our Emergency Services</h2>
+            <p className="text-gray-600 max-w-2xl mx-auto text-sm md:text-base">Comprehensive emergency response services available 24/7</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
             {/* Medical Service */}
             <div className="bg-white p-6 rounded-lg shadow-sm border border-[#B9E4C9] hover:border-[#0d522c] transition-colors">
               <div className="w-14 h-14 bg-[#B9E4C9] rounded-lg flex items-center justify-center mb-4">
@@ -103,33 +103,33 @@ const HomePage = () => {
       </section>
 
       {/* Statistics Section */}
-      <section className="py-20 bg-white">
+      <section className="py-12 md:py-20 bg-white">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="text-4xl font-bold text-[#0d522c] mb-2">98%</div>
-              <p className="text-gray-600">Response Rate</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
+            <div className="text-center p-4">
+              <div className="text-3xl md:text-4xl font-bold text-[#0d522c] mb-2">98%</div>
+              <p className="text-gray-600 text-sm md:text-base">Response Rate</p>
             </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-[#0d522c] mb-2">&lt; 5 min</div>
-              <p className="text-gray-600">Average Response Time</p>
+            <div className="text-center p-4">
+              <div className="text-3xl md:text-4xl font-bold text-[#0d522c] mb-2">&lt; 5 min</div>
+              <p className="text-gray-600 text-sm md:text-base">Average Response Time</p>
             </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-[#0d522c] mb-2">24/7</div>
-              <p className="text-gray-600">Emergency Support</p>
+            <div className="text-center p-4">
+              <div className="text-3xl md:text-4xl font-bold text-[#0d522c] mb-2">24/7</div>
+              <p className="text-gray-600 text-sm md:text-base">Emergency Support</p>
             </div>
           </div>
         </div>
       </section>
 
       {/* How It Works Section */}
-      <section className="py-20 bg-[#F1F7F4]">
+      <section className="py-12 md:py-20 bg-[#F1F7F4]">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-[#0d522c] mb-4">How It Works</h2>
-            <p className="text-gray-600 max-w-2xl mx-auto">Simple steps to report an incident and get help quickly</p>
+          <div className="text-center mb-12 md:mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-[#0d522c] mb-3 md:mb-4">How It Works</h2>
+            <p className="text-gray-600 max-w-2xl mx-auto text-sm md:text-base">Simple steps to report an incident and get help quickly</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
             <div className="text-center">
               <div className="w-16 h-16 bg-[#B9E4C9] rounded-lg flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl font-bold text-[#0d522c]">1</span>
@@ -163,19 +163,19 @@ const HomePage = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-[#0d522c] text-white">
+      <section className="py-12 md:py-20 bg-[#0d522c] text-white">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-4xl font-bold mb-6">Ready to Make a Difference?</h2>
-          <p className="text-xl mb-8 max-w-2xl mx-auto">Join our network of emergency responders and help save lives in your community.</p>
-          <div className="flex justify-center space-x-4">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4 md:mb-6">Ready to Make a Difference?</h2>
+          <p className="text-lg md:text-xl mb-6 md:mb-8 max-w-2xl mx-auto">Join our network of emergency responders and help save lives in your community.</p>
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
             <button
               onClick={handleReportIncident}
-              className="px-8 py-3 bg-[#B9E4C9] text-[#0d522c] rounded-lg font-medium hover:bg-white transition-colors"
+              className="w-full sm:w-auto px-6 sm:px-8 py-3 bg-[#B9E4C9] text-[#0d522c] rounded-lg font-medium hover:bg-white transition-colors"
             >
               Report Incident
             </button>
-            <Link to="/responder-register">
-              <button className="px-8 py-3 border-2 border-[#B9E4C9] text-[#B9E4C9] rounded-lg font-medium hover:bg-[#B9E4C9] hover:text-[#0d522c] transition-colors">
+            <Link to="/responder-register" className="w-full sm:w-auto">
+              <button className="w-full px-6 sm:px-8 py-3 border-2 border-[#B9E4C9] text-[#B9E4C9] rounded-lg font-medium hover:bg-[#B9E4C9] hover:text-[#0d522c] transition-colors">
                 Register as Responder
               </button>
             </Link>
