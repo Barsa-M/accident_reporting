@@ -5,7 +5,7 @@ import { auth, db } from '../firebase/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { ROLES, normalizeRole } from '../firebase/roles';
 import { FiMenu, FiX, FiHome, FiUsers, FiShield, FiFileText, FiMessageSquare, 
-         FiPieChart, FiSettings, FiUser, FiBell, FiSearch } from 'react-icons/fi';
+         FiPieChart, FiSettings, FiUser, FiBell, FiSearch, FiCode } from 'react-icons/fi';
 import { Transition } from '@headlessui/react';
 import DashboardHome from '../components/Admin/DashboardHome';
 import UsersManagement from '../components/Admin/UsersManagement';
@@ -15,6 +15,7 @@ import ForumModeration from '../components/Admin/ForumModeration';
 import Analytics from '../components/Admin/Analytics';
 import Settings from '../components/Admin/Settings';
 import AdminProfile from '../components/Admin/AdminProfile';
+import TestPanel from '../components/Admin/TestPanel';
 
 const AdminDashboard = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -96,6 +97,7 @@ const AdminDashboard = () => {
     { id: 'forum', label: 'Forum Moderation', icon: FiMessageSquare },
     { id: 'analytics', label: 'Analytics', icon: FiPieChart },
     { id: 'settings', label: 'Settings', icon: FiSettings },
+    { id: 'test', label: 'Test Panel', icon: FiCode },
   ];
 
   const renderContent = () => {
@@ -116,6 +118,8 @@ const AdminDashboard = () => {
         return <Settings />;
       case 'profile':
         return <AdminProfile adminData={adminData} />;
+      case 'test':
+        return <TestPanel />;
       default:
         return <DashboardHome />;
     }

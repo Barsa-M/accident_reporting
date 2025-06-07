@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import { format } from 'date-fns';
-import { routeIncident } from '../../services/incidentRouting';
 import { toast } from 'react-toastify';
 import FileUpload from './FileUpload';
+import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 
 const IncidentFormFields = ({ 
   formData, 
@@ -11,10 +11,9 @@ const IncidentFormFields = ({
   errors, 
   incidentType,
   onLocationSelect,
-  onSubmit 
+  isSubmitting
 }) => {
   const [currentLocation, setCurrentLocation] = useState([9.03, 38.74]); // Default to Addis Ababa
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
 
@@ -65,258 +64,253 @@ const IncidentFormFields = ({
     }));
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const files = Array.from(e.target.files);
-    setFormData(prev => ({
-      ...prev,
-      files: files
-    }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
+    if (!files || files.length === 0) return;
 
     try {
-      // Prepare incident data
-      const incidentData = {
-        ...formData,
-        type: incidentType,
-        location: currentLocation,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-        userId: auth.currentUser.uid // Assuming you have auth context
-      };
+      // Process each file
+      const processedFiles = await Promise.all(files.map(async (file) => {
+        // Check file size (max 10MB)
+        const maxSize = 10 * 1024 * 1024;
+        if (file.size > maxSize) {
+          throw new Error(`File ${file.name} is too large. Maximum size is 10MB.`);
+        }
 
-      // Route the incident
-      const routingResult = await routeIncident(incidentData);
+        // Create a unique filename
+        const timestamp = Date.now();
+        const filename = `${timestamp}_${file.name}`;
+        
+        // Read file as base64
+        const fileData = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error('Failed to read file'));
+          reader.readAsDataURL(file);
+        });
 
-      if (routingResult.success) {
-        toast.success('Incident reported successfully and assigned to a responder');
-        onSubmit(incidentData);
-      } else {
-        toast.warning(routingResult.message);
-        // Still submit the incident but mark it as queued
-        incidentData.status = 'queued';
-        onSubmit(incidentData);
-      }
+        // Store in localStorage
+        const localStorageKey = `incident_${filename}`;
+        localStorage.setItem(localStorageKey, fileData);
+
+        return {
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          data: fileData,
+          url: `local://incidents/${filename}`
+        };
+      }));
+
+      // Update form data with processed files
+      setFormData(prev => ({
+        ...prev,
+        files: [...(prev.files || []), ...processedFiles]
+      }));
+
+      toast.success('Files uploaded successfully');
     } catch (error) {
-      console.error('Error submitting incident:', error);
-      toast.error('Failed to submit incident. Please try again.');
-    } finally {
-      setIsSubmitting(false);
+      console.error('Error uploading files:', error);
+      toast.error(error.message);
     }
   };
 
+  const handleMapClick = (e) => {
+    const latlng = e.latlng;
+    setCurrentLocation([latlng.lat, latlng.lng]);
+    onLocationSelect([latlng.lat, latlng.lng]);
+  };
+
+  const handleRemoveFile = (index) => {
+    const file = formData.files[index];
+    if (file) {
+      // Remove from localStorage
+      const filename = file.url.split('/').pop();
+      localStorage.removeItem(`incident_${filename}`);
+    }
+
+    // Update form data
+    setFormData(prev => ({
+      ...prev,
+      files: prev.files.filter((_, i) => i !== index)
+    }));
+  };
+
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <div className="bg-gradient-to-br from-[#0d522c]/5 to-[#347752]/5 rounded-2xl shadow-xl border border-[#0d522c]/10">
-        <form onSubmit={handleSubmit} className="p-8 space-y-8">
-          {/* Personal Information Panel */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-md p-6 border border-[#0d522c]/10">
-            <h2 className="text-xl font-semibold text-[#0d522c] mb-4 flex items-center">
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              Personal Information
-            </h2>
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-[#0d522c] mb-1">
-                  Full Name *
-                </label>
-                <input
-                  type="text"
-                  name="fullName"
-                  value={formData.fullName || ''}
-                  onChange={handleChange}
-                  className={`w-full px-4 py-2 rounded-lg border ${
-                    errors.fullName ? 'border-red-500' : 'border-[#0d522c]/20'
-                  } focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
-                  required
-                />
-                {errors.fullName && (
-                  <p className="mt-1 text-sm text-red-600">{errors.fullName}</p>
-                )}
-              </div>
+    <div className="space-y-6">
+      {/* Incident Type */}
+      <div>
+        <label className="block text-sm font-medium text-[#0d522c] mb-1">
+          Type of Emergency
+        </label>
+        <input
+          type="text"
+          value={incidentType}
+          className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 bg-[#0d522c]/5"
+          disabled
+        />
+      </div>
 
-              <div>
-                <label className="block text-sm font-medium text-[#0d522c] mb-1">
-                  Phone Number *
-                </label>
-                <input
-                  type="tel"
-                  name="phoneNumber"
-                  value={formData.phoneNumber || ''}
-                  onChange={handleChange}
-                  className={`w-full px-4 py-2 rounded-lg border ${
-                    errors.phoneNumber ? 'border-red-500' : 'border-[#0d522c]/20'
-                  } focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
-                  required
-                />
-                {errors.phoneNumber && (
-                  <p className="mt-1 text-sm text-red-600">{errors.phoneNumber}</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Incident Details Panel */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-md p-6 border border-[#0d522c]/10">
-            <h2 className="text-xl font-semibold text-[#0d522c] mb-4 flex items-center">
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Incident Details
-            </h2>
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-[#0d522c] mb-1">
-                  Type of Emergency
-                </label>
-                <input
-                  type="text"
-                  value={incidentType}
-                  className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 bg-[#0d522c]/5"
-                  disabled
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#0d522c] mb-2">
-                  Severity Level *
-                </label>
-                <div className="flex space-x-6">
-                  {['Low', 'Medium', 'High'].map((level) => (
-                    <label key={level} className="inline-flex items-center">
-                      <input
-                        type="radio"
-                        name="severityLevel"
-                        value={level}
-                        checked={formData.severityLevel === level}
-                        onChange={handleChange}
-                        className="w-4 h-4 text-[#0d522c] border-[#0d522c]/20 focus:ring-[#0d522c]"
-                        required
-                      />
-                      <span className="ml-2 text-[#0d522c]">{level}</span>
-                    </label>
-                  ))}
-                </div>
-                {errors.severityLevel && (
-                  <p className="mt-1 text-sm text-red-600">{errors.severityLevel}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#0d522c] mb-1">
-                  Description *
-                </label>
-                <textarea
-                  name="description"
-                  value={formData.description || ''}
-                  onChange={handleChange}
-                  rows="4"
-                  className={`w-full px-4 py-2 rounded-lg border ${
-                    errors.description ? 'border-red-500' : 'border-[#0d522c]/20'
-                  } focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
-                  required
-                />
-                {errors.description && (
-                  <p className="mt-1 text-sm text-red-600">{errors.description}</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Location Panel */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-md p-6 border border-[#0d522c]/10">
-            <h2 className="text-xl font-semibold text-[#0d522c] mb-4 flex items-center">
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              Location Details
-            </h2>
-            <div className="space-y-4">
-              <div id="map" className="h-64 rounded-lg overflow-hidden border border-[#0d522c]/20"></div>
-              <div>
-                <label className="block text-sm font-medium text-[#0d522c] mb-1">
-                  Location Description *
-                </label>
-                <input
-                  type="text"
-                  name="locationDescription"
-                  value={formData.locationDescription || ''}
-                  onChange={handleChange}
-                  placeholder="Enter detailed location description"
-                  className={`w-full px-4 py-2 rounded-lg border ${
-                    errors.locationDescription ? 'border-red-500' : 'border-[#0d522c]/20'
-                  } focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
-                  required
-                />
-                {errors.locationDescription && (
-                  <p className="mt-1 text-sm text-red-600">{errors.locationDescription}</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Media & Time Panel */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-md p-6 border border-[#0d522c]/10">
-            <h2 className="text-xl font-semibold text-[#0d522c] mb-4 flex items-center">
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              Media & Time
-            </h2>
-            <div className="space-y-6">
-              <FileUpload
-                files={formData.files}
-                setFiles={(files) => setFormData(prev => ({ ...prev, files }))}
-                error={errors.files}
-                accept="image/*,video/*,.pdf"
-                maxSize={10 * 1024 * 1024}
-                maxFiles={5}
-                label="Attach Files (Images/Videos/PDFs)"
-                description="PNG, JPG, GIF, PDF up to 10MB"
+      {/* Severity Level */}
+      <div>
+        <label className="block text-sm font-medium text-[#0d522c] mb-2">
+          Severity Level *
+        </label>
+        <div className="flex space-x-6">
+          {['Low', 'Medium', 'High'].map((level) => (
+            <label key={level} className="inline-flex items-center">
+              <input
+                type="radio"
+                name="severityLevel"
+                value={level}
+                checked={formData.severityLevel === level}
+                onChange={handleChange}
+                className="w-4 h-4 text-[#0d522c] border-[#0d522c]/20 focus:ring-[#0d522c]"
+                required
               />
+              <span className="ml-2 text-[#0d522c]">{level}</span>
+            </label>
+          ))}
+        </div>
+        {errors.severityLevel && (
+          <p className="mt-1 text-sm text-red-600">{errors.severityLevel}</p>
+        )}
+      </div>
 
-              <div>
-                <label className="block text-sm font-medium text-[#0d522c] mb-1">
-                  Date & Time of Incident *
-                </label>
+      {/* Description */}
+      <div>
+        <label className="block text-sm font-medium text-[#0d522c] mb-1">
+          Description *
+        </label>
+        <textarea
+          name="description"
+          value={formData.description || ''}
+          onChange={handleChange}
+          rows="4"
+          className={`w-full px-4 py-2 rounded-lg border ${
+            errors.description ? 'border-red-500' : 'border-[#0d522c]/20'
+          } focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
+          required
+        />
+        {errors.description && (
+          <p className="mt-1 text-sm text-red-600">{errors.description}</p>
+        )}
+      </div>
+
+      {/* Location */}
+      <div>
+        <label className="block text-sm font-medium text-[#0d522c] mb-1">
+          Location *
+        </label>
+        <div id="map" className="h-64 rounded-lg overflow-hidden border border-[#0d522c]/20 mb-2"></div>
+        <div className="text-sm text-[#0d522c] font-medium mb-2">
+          Coordinates: {currentLocation[0].toFixed(6)}, {currentLocation[1].toFixed(6)}
+        </div>
+        <input
+          type="text"
+          name="locationDescription"
+          value={formData.locationDescription || ''}
+          onChange={handleChange}
+          placeholder="Enter detailed location description (optional)"
+          className={`w-full px-4 py-2 rounded-lg border ${
+            errors.locationDescription ? 'border-red-500' : 'border-[#0d522c]/20'
+          } focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
+        />
+        {errors.locationDescription && (
+          <p className="mt-1 text-sm text-red-600">{errors.locationDescription}</p>
+        )}
+      </div>
+
+      {/* Date & Time */}
+      <div>
+        <label className="block text-sm font-medium text-[#0d522c] mb-1">
+          Date & Time of Incident *
+        </label>
+        <input
+          type="datetime-local"
+          name="incidentDateTime"
+          value={formData.incidentDateTime || format(new Date(), "yyyy-MM-dd'T'HH:mm")}
+          onChange={handleChange}
+          className={`w-full px-4 py-2 rounded-lg border ${
+            errors.incidentDateTime ? 'border-red-500' : 'border-[#0d522c]/20'
+          } focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
+          required
+        />
+        {errors.incidentDateTime && (
+          <p className="mt-1 text-sm text-red-600">{errors.incidentDateTime}</p>
+        )}
+      </div>
+
+      {/* File Upload */}
+      <div>
+        <label className="block text-sm font-medium text-[#0d522c] mb-1">Upload Files (Optional)</label>
+        <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-[#0d522c]/20 border-dashed rounded-lg">
+          <div className="space-y-1 text-center">
+            <svg
+              className="mx-auto h-12 w-12 text-[#0d522c]/40"
+              stroke="currentColor"
+              fill="none"
+              viewBox="0 0 48 48"
+              aria-hidden="true"
+            >
+              <path
+                d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <div className="flex text-sm text-[#0d522c]/60">
+              <label
+                htmlFor="file-upload"
+                className="relative cursor-pointer rounded-md font-medium text-[#0d522c] hover:text-[#347752] focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-[#0d522c]"
+              >
+                <span>Upload files</span>
                 <input
-                  type="datetime-local"
-                  name="incidentDateTime"
-                  value={formData.incidentDateTime || format(new Date(), "yyyy-MM-dd'T'HH:mm")}
-                  onChange={handleChange}
-                  className={`w-full px-4 py-2 rounded-lg border ${
-                    errors.incidentDateTime ? 'border-red-500' : 'border-[#0d522c]/20'
-                  } focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
-                  required
+                  id="file-upload"
+                  name="file-upload"
+                  type="file"
+                  multiple
+                  className="sr-only"
+                  onChange={handleFileChange}
                 />
-                {errors.incidentDateTime && (
-                  <p className="mt-1 text-sm text-red-600">{errors.incidentDateTime}</p>
-                )}
-              </div>
+              </label>
+              <p className="pl-1">or drag and drop</p>
+            </div>
+            <p className="text-xs text-[#0d522c]/60">PNG, JPG, GIF up to 10MB</p>
+          </div>
+        </div>
+        {formData.files && formData.files.length > 0 && (
+          <div className="mt-4">
+            <h4 className="text-sm font-medium text-[#0d522c] mb-2">Selected Files:</h4>
+            <div className="grid grid-cols-2 gap-4">
+              {formData.files.map((file, index) => (
+                <div key={index} className="relative group">
+                  {file.type.startsWith('image/') ? (
+                    <img
+                      src={file.data}
+                      alt={file.name}
+                      className="w-full h-32 object-cover rounded-lg"
+                    />
+                  ) : (
+                    <div className="w-full h-32 flex items-center justify-center bg-gray-100 rounded-lg">
+                      <span className="text-sm text-gray-500">{file.name}</span>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveFile(index)}
+                    className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
-
-          {/* Submit Button */}
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className={`px-6 py-3 rounded-lg text-white font-medium ${
-                isSubmitting
-                  ? 'bg-[#0d522c]/50 cursor-not-allowed'
-                  : 'bg-[#0d522c] hover:bg-[#347752]'
-              } transition-colors`}
-            >
-              {isSubmitting ? 'Submitting...' : 'Submit Report'}
-            </button>
-          </div>
-        </form>
+        )}
       </div>
     </div>
   );

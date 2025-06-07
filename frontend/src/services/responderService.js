@@ -16,7 +16,9 @@ export const approveResponder = async (responderId, action, adminId, rejectionRe
     const updateData = {
       status: action,
       updatedAt: serverTimestamp(),
-      updatedBy: adminId
+      updatedBy: adminId,
+      specialization: responderDoc.data().responderType || 'general',
+      currentStatus: 'available'
     };
 
     if (action === 'rejected' && rejectionReason) {

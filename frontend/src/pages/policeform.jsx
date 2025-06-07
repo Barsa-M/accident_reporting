@@ -1,67 +1,104 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, storage } from "../firebase/firebase";
+import { collection, addDoc, updateDoc, arrayUnion, getDoc, doc } from "firebase/firestore";
+import { db } from "../firebase/firebase";
 import IncidentFormFields from "../components/Common/IncidentFormFields";
 import UserSidebar from "../components/UserSidebar";
 import { toast } from "react-toastify";
+import { auth } from "../firebase/firebase";
+import { routeIncident } from "../services/enhancedRouting";
+import { createChatRoom } from "../services/chatService";
 
 export default function PoliceIncidentForm() {
   const navigate = useNavigate();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
-    // Common fields
-    fullName: "",
-    phoneNumber: "",
     severityLevel: "",
-    location: null,
-    locationDescription: "",
     description: "",
-    files: [],
-    incidentDateTime: "",
-    // Crime-specific fields
-    crimeType: "",
-    suspectDetails: {
-      description: "",
-      clothing: "",
-      lastSeen: "",
-      direction: "",
-      vehicle: "",
-    },
-    evidence: "",
-    witnesses: "",
-    isAnonymous: false,
-    isOngoing: "",
-    weaponsInvolved: "",
-    propertyDamage: "",
-    stolenItems: "",
-    injuries: "",
-    policeReportNumber: "",
+    location: [9.03, 38.74], // Default to Addis Ababa
+    locationDescription: "",
+    incidentDateTime: new Date().toISOString().slice(0, 16),
+    files: []
   });
 
   const [errors, setErrors] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const validateForm = () => {
     const newErrors = {};
-    // Common field validations
-    if (!formData.fullName && !formData.isAnonymous) newErrors.fullName = "Full name is required";
-    if (!formData.phoneNumber && !formData.isAnonymous) newErrors.phoneNumber = "Phone number is required";
-    if (!formData.severityLevel) newErrors.severityLevel = "Severity level is required";
-    if (!formData.location) newErrors.location = "Location is required";
-    if (!formData.locationDescription) newErrors.locationDescription = "Location description is required";
-    if (!formData.description) newErrors.description = "Description is required";
-    if (!formData.incidentDateTime) newErrors.incidentDateTime = "Date and time is required";
-
-    // Crime-specific validations
-    if (!formData.crimeType) newErrors.crimeType = "Type of crime is required";
-    if (!formData.isOngoing) newErrors.isOngoing = "Please specify if the incident is ongoing";
-    if (!formData.suspectDetails.description && !formData.isAnonymous) {
-      newErrors["suspectDetails.description"] = "Suspect description is required";
+    if (!formData.severityLevel) {
+      newErrors.severityLevel = 'Please select a severity level';
     }
-
+    if (!formData.description) {
+      newErrors.description = 'Please provide a description';
+    }
+    if (!formData.location) {
+      newErrors.location = 'Please select a location';
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // First, create the incident document
+      const incidentData = {
+        ...formData,
+        type: 'Police',
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        userId: auth.currentUser.uid,
+        location: {
+          latitude: formData.location[0],
+          longitude: formData.location[1]
+        }
+      };
+
+      // Add the incident to Firestore
+      const docRef = await addDoc(collection(db, 'incidents'), incidentData);
+
+      // Now route the incident with the document ID
+      const routingResult = await routeIncident({
+        ...incidentData,
+        id: docRef.id
+      });
+
+      if (routingResult.success) {
+        const successMessage = routingResult.responder 
+          ? `Your police report has been submitted successfully and assigned to ${routingResult.responder.name}.`
+          : 'Your police report has been submitted successfully.';
+        
+        toast.success(successMessage);
+        
+        // Wait for 2 seconds to show the success message
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Navigate to dashboard
+        navigate('/user-dashboard');
+      } else {
+        // If no responder is available, queue the incident
+        toast.info('Your report has been submitted and is queued for assignment.');
+        
+        // Wait for 2 seconds to show the message
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Navigate to dashboard
+        navigate('/user-dashboard');
+      }
+    } catch (error) {
+      console.error('Error submitting incident:', error);
+      toast.error('Failed to submit report. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleLocationSelect = (location) => {
@@ -71,207 +108,47 @@ export default function PoliceIncidentForm() {
     }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!validateForm()) {
-      toast.error("Please fill in all required fields");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      // Upload files if any
-      const mediaUrls = [];
-      if (formData.files.length > 0) {
-        for (const file of formData.files) {
-          const storageRef = ref(storage, `incidents/crime/${Date.now()}_${file.name}`);
-          const snapshot = await uploadBytes(storageRef, file);
-          const url = await getDownloadURL(snapshot.ref);
-          mediaUrls.push(url);
-        }
-      }
-
-      // Create incident document
-      const incidentData = {
-        ...formData,
-        type: "crime",
-        mediaUrls,
-        status: "pending",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
-
-      // Remove files from the data before saving to Firestore
-      delete incidentData.files;
-
-      await addDoc(collection(db, "incidents"), incidentData);
-      toast.success("Crime incident reported successfully!");
-      navigate("/dashboard");
-    } catch (error) {
-      console.error("Error submitting report:", error);
-      toast.error("Failed to submit report. Please try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   return (
-    <div className="flex min-h-screen bg-white">
+    <div className="min-h-screen bg-gradient-to-b from-[#0d522c]/5 to-white py-12">
       <UserSidebar />
-      <div className="flex-1 p-8 ml-64">
-        <div className="w-[98%] mx-auto">
-          <div className="bg-gradient-to-br from-[#0d522c]/5 to-[#347752]/5 rounded-2xl shadow-xl border border-[#0d522c]/10">
-            <form onSubmit={handleSubmit} className="max-w-5xl mx-auto p-4 sm:p-8 space-y-8">
-              <h1 className="text-3xl sm:text-4xl font-bold text-[#0d522c] mb-8 text-center">Police Incident Report</h1>
-              <div className="space-y-6">
-                {/* Incident Date & Time */}
-                <div>
-                  <label className="block text-sm font-medium text-[#0d522c] mb-1">Date and Time *</label>
-                  <input
-                    type="datetime-local"
-                    name="incidentDateTime"
-                    value={formData.incidentDateTime}
-                    onChange={e => setFormData(prev => ({ ...prev, incidentDateTime: e.target.value }))}
-                    className={`w-full px-4 py-2 rounded-lg border ${errors.incidentDateTime ? 'border-red-500' : 'border-[#0d522c]/20'} focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
-                    required
-                  />
-                  {errors.incidentDateTime && <p className="mt-1 text-sm text-red-600">{errors.incidentDateTime}</p>}
-                </div>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="bg-white rounded-2xl shadow-xl p-8">
+          <h1 className="text-3xl font-bold text-[#0d522c] mb-8">Police Emergency Report</h1>
+          
+          <form onSubmit={handleSubmit} className="space-y-8">
+            <IncidentFormFields
+              formData={formData}
+              setFormData={setFormData}
+              errors={errors}
+              incidentType="Police"
+              onLocationSelect={handleLocationSelect}
+              isSubmitting={isSubmitting}
+            />
 
-                {/* Common Fields */}
-                <IncidentFormFields
-                  formData={formData}
-                  setFormData={setFormData}
-                  errors={errors}
-                  incidentType="Police"
-                  onLocationSelect={handleLocationSelect}
-                  hideNamePhone={true}
-                />
-
-                {/* Crime-specific Fields */}
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-medium text-[#0d522c] mb-1">Type of Crime *</label>
-                    <select
-                      name="crimeType"
-                      value={formData.crimeType}
-                      onChange={e => setFormData(prev => ({ ...prev, crimeType: e.target.value }))}
-                      className={`w-full px-4 py-2 rounded-lg border ${errors.crimeType ? 'border-red-500' : 'border-[#0d522c]/20'} focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
-                      required
-                    >
-                      <option value="">Select crime type</option>
-                      <option value="theft">Theft or Robbery</option>
-                      <option value="assault">Assault</option>
-                      <option value="vandalism">Vandalism</option>
-                      <option value="harassment">Harassment</option>
-                      <option value="fraud">Fraud</option>
-                      <option value="suspicious">Suspicious Activity</option>
-                      <option value="other">Other</option>
-                    </select>
-                    {errors.crimeType && <p className="mt-1 text-sm text-red-600">{errors.crimeType}</p>}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-[#0d522c] mb-1">Is the Incident Ongoing? *</label>
-                    <div className="flex space-x-6">
-                      {["Yes", "No", "Unknown"].map(option => (
-                        <label key={option} className="inline-flex items-center">
-                          <input
-                            type="radio"
-                            name="isOngoing"
-                            value={option}
-                            checked={formData.isOngoing === option}
-                            onChange={e => setFormData(prev => ({ ...prev, isOngoing: e.target.value }))}
-                            className="w-4 h-4 text-[#0d522c] border-[#0d522c]/20 focus:ring-[#0d522c]"
-                            required
-                          />
-                          <span className="ml-2 text-[#0d522c]">{option}</span>
-                        </label>
-                      ))}
-                    </div>
-                    {errors.isOngoing && <p className="mt-1 text-sm text-red-600">{errors.isOngoing}</p>}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-[#0d522c] mb-1">Suspect Details</label>
-                    <textarea
-                      name="suspectDetails"
-                      value={formData.suspectDetails}
-                      onChange={e => setFormData(prev => ({ ...prev, suspectDetails: e.target.value }))}
-                      rows="3"
-                      className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50"
-                      placeholder="Describe the suspect(s) if known"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-[#0d522c] mb-1">Weapons Involved</label>
-                    <textarea
-                      name="weaponsInvolved"
-                      value={formData.weaponsInvolved}
-                      onChange={e => setFormData(prev => ({ ...prev, weaponsInvolved: e.target.value }))}
-                      rows="3"
-                      className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50"
-                      placeholder="Describe any weapons involved in the incident"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-[#0d522c] mb-1">Property Damage</label>
-                    <textarea
-                      name="propertyDamage"
-                      value={formData.propertyDamage}
-                      onChange={e => setFormData(prev => ({ ...prev, propertyDamage: e.target.value }))}
-                      rows="3"
-                      className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50"
-                      placeholder="Describe any property damage"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-[#0d522c] mb-1">Evidence</label>
-                    <textarea
-                      name="evidence"
-                      value={formData.evidence}
-                      onChange={e => setFormData(prev => ({ ...prev, evidence: e.target.value }))}
-                      rows="3"
-                      className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50"
-                      placeholder="Describe any evidence available"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-[#0d522c] mb-1">Witness Information</label>
-                    <textarea
-                      name="witnessInfo"
-                      value={formData.witnessInfo}
-                      onChange={e => setFormData(prev => ({ ...prev, witnessInfo: e.target.value }))}
-                      rows="3"
-                      className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50"
-                      placeholder="Provide any witness information"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end space-x-4 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => navigate("/dashboard")}
-                    className="px-6 py-2 border border-[#0d522c]/20 text-[#0d522c] font-medium rounded-lg hover:bg-[#0d522c]/5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0d522c]"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="px-6 py-2 bg-[#0d522c] text-white font-medium rounded-lg hover:bg-[#347752] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0d522c] disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isSubmitting ? "Submitting..." : "Submit Report"}
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className={`px-6 py-3 rounded-lg text-white font-medium ${
+                  isSubmitting 
+                    ? 'bg-[#0d522c]/50 cursor-not-allowed' 
+                    : 'bg-[#0d522c] hover:bg-[#347752]'
+                } transition-colors duration-200 flex items-center space-x-2`}
+              >
+                {isSubmitting ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Submitting...</span>
+                  </>
+                ) : (
+                  <span>Submit Report</span>
+                )}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>

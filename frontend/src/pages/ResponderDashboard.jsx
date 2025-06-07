@@ -88,7 +88,7 @@ const ResponderDashboard = () => {
             ...userData,
             ...responderInfo,
             uid: auth.currentUser.uid,
-            specialization: responderInfo.responderType || 'unknown',
+            specialization: responderInfo.specialization || responderInfo.responderType || 'unknown',
             role: normalizedRole,
             status: responderInfo.status || 'pending'
           };
@@ -155,6 +155,7 @@ const ResponderDashboard = () => {
       const responderRef = doc(db, 'responders', auth.currentUser.uid);
       await updateDoc(responderRef, {
         currentStatus: newStatus,
+        status: newStatus,
         lastStatusUpdate: new Date()
       });
       setCurrentStatus(newStatus);

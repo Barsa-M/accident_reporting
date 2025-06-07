@@ -127,12 +127,7 @@ export const findBestResponder = async (incidentData) => {
     const respondersQuery = query(
       collection(db, 'responders'),
       where('specialization', '==', type),
-      where('status', 'in', [
-        ROUTING_CONFIG.RESPONDER_STATUS.AVAILABLE,
-        ROUTING_CONFIG.RESPONDER_STATUS.BUSY,
-        ROUTING_CONFIG.RESPONDER_STATUS.ON_BREAK
-      ]),
-      orderBy('lastActive', 'desc')
+      where('status', '==', ROUTING_CONFIG.RESPONDER_STATUS.AVAILABLE)
     );
     
     const respondersSnap = await getDocs(respondersQuery);
