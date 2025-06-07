@@ -168,7 +168,7 @@ const Navigation = () => {
                 Report Anonymously
               </Link>
               <Link 
-                to="/login" 
+                to="/create-account" 
                 className={`px-3 lg:px-4 py-2 lg:py-2.5 ${buttonBg} rounded-lg font-medium tracking-wide hover:bg-[#B9E4C9] hover:text-[#0d522c] transition-all duration-300 transform hover:scale-[1.02] text-xs lg:text-sm lg:uppercase whitespace-nowrap`}
               >
                 Sign In
@@ -258,7 +258,7 @@ const Navigation = () => {
                 Report Anonymously
               </Link>
               <Link
-                to="/login"
+                to="/create-account"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="block w-full px-4 py-2 text-center text-[#0d522c] bg-white border border-[#0d522c] rounded-lg hover:bg-[#0d522c] hover:text-white transition-colors"
               >

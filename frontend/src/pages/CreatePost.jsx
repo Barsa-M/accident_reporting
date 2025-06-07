@@ -1,20 +1,81 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthState } from "react-firebase-hooks/auth";
-import { auth } from "../firebase/firebase";
-import { createPost } from "../firebase/postService";
+import { auth, db } from "../firebase/firebase";
+import { doc, getDoc } from "firebase/firestore";
 import UserSidebar from "../components/UserSidebar";
+import { FiUpload, FiImage, FiVideo, FiX } from "react-icons/fi";
 
 export default function CreatePost() {
   const [user] = useAuthState(auth);
+  const [userData, setUserData] = useState(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [imageFile, setImageFile] = useState(null);
   const [videoFile, setVideoFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [videoPreview, setVideoPreview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (user) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists()) {
+            setUserData(userDoc.data());
+          }
+        } catch (error) {
+          console.error("Error fetching user data:", error);
+        }
+      }
+    };
+
+    fetchUserData();
+  }, [user]);
+
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Check file size (max 5MB)
+      const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+      if (file.size > maxSize) {
+        setError("Image size must be less than 5MB");
+        return;
+      }
+
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleVideoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Check file size (max 50MB)
+      const maxSize = 50 * 1024 * 1024; // 50MB in bytes
+      if (file.size > maxSize) {
+        setError("Video size must be less than 50MB");
+        return;
+      }
+
+      setVideoFile(file);
+      setVideoPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+  };
+
+  const removeVideo = () => {
+    setVideoFile(null);
+    setVideoPreview(null);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -33,20 +94,54 @@ export default function CreatePost() {
     try {
       setIsSubmitting(true);
 
+      // Convert files to base64
+      let imageData = null;
+      let videoData = null;
+
+      if (imageFile) {
+        imageData = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error('Failed to read image file'));
+          reader.readAsDataURL(imageFile);
+        });
+      }
+
+      if (videoFile) {
+        videoData = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error('Failed to read video file'));
+          reader.readAsDataURL(videoFile);
+        });
+      }
+
       const postData = {
+        id: Date.now().toString(),
         title,
         description,
-        image: imageFile,
-        video: videoFile
+        imageData,
+        videoData,
+        createdAt: new Date().toISOString(),
+        userId: user.uid,
+        userName: userData?.name || user.displayName || user.email?.split('@')[0] || 'User',
+        userEmail: user.email,
+        likes: 0,
+        comments: []
       };
 
-      await createPost(postData, user.uid);
+      // Store in localStorage
+      const posts = JSON.parse(localStorage.getItem('forum_posts') || '[]');
+      posts.push(postData);
+      localStorage.setItem('forum_posts', JSON.stringify(posts));
       
       // Clear form
       setTitle("");
       setDescription("");
       setImageFile(null);
       setVideoFile(null);
+      setImagePreview(null);
+      setVideoPreview(null);
 
       // Redirect to forum discussion
       navigate("/forum");
@@ -106,25 +201,30 @@ export default function CreatePost() {
                     Upload Image
                   </label>
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => setImageFile(e.target.files[0])}
-                      className="w-full"
-                    />
-                    {imageFile && (
-                      <div className="mt-4">
+                    {!imagePreview ? (
+                      <div className="flex flex-col items-center justify-center">
+                        <FiImage className="w-8 h-8 text-gray-400 mb-2" />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageChange}
+                          className="w-full"
+                        />
+                        <p className="text-sm text-gray-500 mt-2">Max size: 5MB</p>
+                      </div>
+                    ) : (
+                      <div className="relative">
                         <img
-                          src={URL.createObjectURL(imageFile)}
+                          src={imagePreview}
                           alt="Preview"
                           className="rounded-md w-full h-40 object-cover"
                         />
                         <button
                           type="button"
-                          onClick={() => setImageFile(null)}
-                          className="mt-2 text-red-600 hover:text-red-800"
+                          onClick={removeImage}
+                          className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
                         >
-                          Remove Image
+                          <FiX className="w-4 h-4" />
                         </button>
                       </div>
                     )}
@@ -136,25 +236,30 @@ export default function CreatePost() {
                     Upload Video
                   </label>
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
-                    <input
-                      type="file"
-                      accept="video/*"
-                      onChange={(e) => setVideoFile(e.target.files[0])}
-                      className="w-full"
-                    />
-                    {videoFile && (
-                      <div className="mt-4">
+                    {!videoPreview ? (
+                      <div className="flex flex-col items-center justify-center">
+                        <FiVideo className="w-8 h-8 text-gray-400 mb-2" />
+                        <input
+                          type="file"
+                          accept="video/*"
+                          onChange={handleVideoChange}
+                          className="w-full"
+                        />
+                        <p className="text-sm text-gray-500 mt-2">Max size: 50MB</p>
+                      </div>
+                    ) : (
+                      <div className="relative">
                         <video
-                          src={URL.createObjectURL(videoFile)}
+                          src={videoPreview}
                           controls
                           className="rounded-md w-full h-40"
                         />
                         <button
                           type="button"
-                          onClick={() => setVideoFile(null)}
-                          className="mt-2 text-red-600 hover:text-red-800"
+                          onClick={removeVideo}
+                          className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
                         >
-                          Remove Video
+                          <FiX className="w-4 h-4" />
                         </button>
                       </div>
                     )}

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../firebase/firebase";
 import { ROLES, normalizeRole, isValidRole } from "../firebase/roles";
@@ -12,6 +12,7 @@ function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -126,6 +127,29 @@ function Login() {
           : err.message || "An error occurred during login. Please try again."
       );
       toast.error(err.message || "An error occurred during login. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      toast.error("Please enter your email address");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await sendPasswordResetEmail(auth, email.trim());
+      setResetSent(true);
+      toast.success("Password reset email sent! Please check your inbox.");
+    } catch (err) {
+      console.error("Password reset error:", err);
+      toast.error(
+        err.code === "auth/user-not-found"
+          ? "No account found with this email address"
+          : "Failed to send reset email. Please try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -251,9 +275,11 @@ function Login() {
               </div>
               <button
                 type="button"
-                className="text-sm font-medium text-[#0d522c] hover:text-[#347752]"
+                onClick={handleForgotPassword}
+                disabled={loading}
+                className="text-sm font-medium text-[#0d522c] hover:text-[#347752] disabled:text-gray-400 disabled:cursor-not-allowed"
               >
-                Forgot password?
+                {loading ? "Sending..." : "Forgot password?"}
               </button>
             </div>
 

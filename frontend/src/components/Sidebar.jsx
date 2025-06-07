@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '../firebase/firebase';
 import { 
@@ -15,6 +15,7 @@ import {
 const Sidebar = () => {
   const [user] = useAuthState(auth);
   const location = useLocation();
+  const navigate = useNavigate();
 
   const isActive = (path) => {
     return location.pathname === path;
@@ -101,7 +102,10 @@ const Sidebar = () => {
       {user && (
         <div className="absolute bottom-0 w-full p-4 border-t border-gray-100">
           <button
-            onClick={() => auth.signOut()}
+            onClick={async () => {
+              await auth.signOut();
+              navigate('/');
+            }}
             className="flex items-center space-x-3 px-4 py-3 w-full rounded-lg text-gray-600 hover:bg-gray-50 hover:text-red-600 transition-all duration-200"
           >
             <FiLogOut className="w-5 h-5" />
