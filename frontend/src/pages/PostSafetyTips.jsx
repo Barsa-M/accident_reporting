@@ -1,19 +1,40 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import UserSidebar from "../components/UserSidebar";
-import { FiSearch, FiAlertCircle, FiCheckCircle } from "react-icons/fi";
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { FiSearch, FiAlertCircle, FiCheckCircle, FiSend, FiMessageSquare, FiPlus, FiChevronDown, FiChevronUp, FiCornerDownRight } from "react-icons/fi";
+import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 import { toast } from 'react-hot-toast';
+import { useAuth } from '../contexts/AuthContext';
+import { format } from "date-fns";
 
 const PostSafetyTips = () => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const [tips, setTips] = useState([]);
   const [filteredTips, setFilteredTips] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [comments, setComments] = useState({});
   const [loading, setLoading] = useState(true);
+  const [responderRole, setResponderRole] = useState(null);
+  const [commentTexts, setCommentTexts] = useState({});
+  const [submittingComments, setSubmittingComments] = useState({});
+  const [expandedTips, setExpandedTips] = useState({});
+  const [localComments, setLocalComments] = useState(() => {
+    try {
+      const savedComments = localStorage.getItem('safety_tips_comments');
+      return savedComments ? JSON.parse(savedComments) : {};
+    } catch (error) {
+      console.error('Error loading comments from localStorage:', error);
+      return {};
+    }
+  });
+  const [expandedComments, setExpandedComments] = useState({});
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [expandedReplies, setExpandedReplies] = useState({});
+  const [error, setError] = useState(null);
+  const [commentUnsubscribes, setCommentUnsubscribes] = useState({});
 
   // Categories for filtering
   const categories = [
@@ -21,87 +42,268 @@ const PostSafetyTips = () => {
     { id: "fire", name: "Fire Safety", color: "red" },
     { id: "police", name: "Police Safety", color: "blue" },
     { id: "medical", name: "Medical Safety", color: "green" },
+    { id: "traffic", name: "Traffic Safety", color: "yellow" }
   ];
+
+  // Fetch responder role when component mounts
+  useEffect(() => {
+    const fetchResponderRole = async () => {
+      if (currentUser) {
+        try {
+          const responderDoc = await getDocs(query(collection(db, 'responders'), where('uid', '==', currentUser.uid)));
+          if (!responderDoc.empty) {
+            setResponderRole(responderDoc.docs[0].data().role);
+            // Set initial category based on responder's role
+            setSelectedCategory(responderDoc.docs[0].data().role.toLowerCase());
+          }
+        } catch (error) {
+          console.error('Error fetching responder role:', error);
+        }
+      }
+    };
+
+    fetchResponderRole();
+  }, [currentUser]);
 
   // Fetch tips from Firebase with real-time updates
   useEffect(() => {
     console.log('Setting up real-time listener for safety tips...');
-    const tipsQuery = query(
-      collection(db, 'safety_tips'),
-      orderBy('createdAt', 'desc')
-    );
+    let tipsQuery;
+    let unsubscribe;
 
-    // Set up real-time listener
-    const unsubscribe = onSnapshot(tipsQuery, 
-      (snapshot) => {
-        // Log the type of change
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === 'removed') {
-            console.log('Tip removed:', change.doc.id);
-          } else if (change.type === 'added') {
-            console.log('Tip added:', change.doc.id);
-          } else if (change.type === 'modified') {
-            console.log('Tip modified:', change.doc.id);
-          }
-        });
-
-        const tipsList = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate(),
-          verifiedAt: doc.data().verifiedAt?.toDate()
-        }));
-        console.log('Current tips list:', tipsList);
-        setTips(tipsList);
-        setFilteredTips(tipsList);
-        setLoading(false);
-      },
-      (error) => {
-        console.error('Error in real-time listener:', error);
-        toast.error('Failed to load safety tips');
-        setLoading(false);
+    try {
+      if (selectedCategory !== 'all') {
+        tipsQuery = query(
+          collection(db, 'safety_tips'),
+          where('authorType', '==', selectedCategory)
+        );
+      } else {
+        tipsQuery = query(
+          collection(db, 'safety_tips')
+        );
       }
-    );
 
-    // Log when component unmounts
+      unsubscribe = onSnapshot(tipsQuery, 
+        (snapshot) => {
+          const tipsList = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate(),
+            verifiedAt: doc.data().verifiedAt?.toDate()
+          })).sort((a, b) => b.createdAt - a.createdAt);
+          
+          console.log('Current tips list:', tipsList);
+          setTips(tipsList);
+          setFilteredTips(tipsList);
+          setLoading(false);
+          setError(null);
+        },
+        (error) => {
+          console.error('Error in real-time listener:', error);
+          setError('Failed to load safety tips. Please try refreshing the page.');
+          setLoading(false);
+        }
+      );
+    } catch (error) {
+      console.error('Error setting up tips listener:', error);
+      setError('Failed to load safety tips. Please try refreshing the page.');
+      setLoading(false);
+    }
+
     return () => {
       console.log('Cleaning up real-time listener...');
-      unsubscribe();
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
     };
-  }, []);
+  }, [selectedCategory]);
 
-  // Filter tips based on search query and category
+  // Filter tips based on search query only
   useEffect(() => {
     let filtered = tips;
+    
     if (searchQuery) {
       filtered = filtered.filter(tip =>
         tip.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        tip.content.toLowerCase().includes(searchQuery.toLowerCase())
+        tip.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        tip.authorName?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
-    if (selectedCategory !== "all") {
-      filtered = filtered.filter(tip => tip.authorType.toLowerCase() === selectedCategory);
-    }
-    setFilteredTips(filtered);
-  }, [searchQuery, selectedCategory, tips]);
 
-  const handleCommentSubmit = (tipId, commentText) => {
-    if (!commentText.trim()) return;
-    setComments(prev => ({
-      ...prev,
-      [tipId]: [...(prev[tipId] || []), {
+    setFilteredTips(filtered);
+  }, [searchQuery, tips]);
+
+  // Load comments from localStorage on component mount
+  useEffect(() => {
+    const loadComments = () => {
+      try {
+        const storedComments = JSON.parse(localStorage.getItem('safety_tips_comments') || '{}');
+        setLocalComments(storedComments);
+      } catch (error) {
+        console.error('Error loading comments:', error);
+      }
+    };
+    loadComments();
+  }, []);
+
+  // Save comments to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('safety_tips_comments', JSON.stringify(localComments));
+    } catch (error) {
+      console.error('Error saving comments to localStorage:', error);
+    }
+  }, [localComments]);
+
+  // Fetch comments for a tip
+  const fetchComments = async (tipId) => {
+    try {
+      const commentsQuery = query(
+        collection(db, 'comments'),
+        where('tipId', '==', tipId)
+      );
+      
+      const unsubscribe = onSnapshot(commentsQuery, (snapshot) => {
+        const commentsList = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate()
+        })).sort((a, b) => b.createdAt - a.createdAt);
+        
+        setComments(prev => ({
+          ...prev,
+          [tipId]: commentsList
+        }));
+      });
+
+      // Store the unsubscribe function
+      setCommentUnsubscribes(prev => ({
+        ...prev,
+        [tipId]: unsubscribe
+      }));
+
+      return unsubscribe;
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+      toast.error('Failed to load comments');
+      return null;
+    }
+  };
+
+  // Set up comment listeners when tips change
+  useEffect(() => {
+    const unsubscribes = tips.map(tip => fetchComments(tip.id));
+    
+    return () => {
+      // Clean up all comment listeners
+      Object.values(commentUnsubscribes).forEach(unsubscribe => {
+        if (typeof unsubscribe === 'function') {
+          unsubscribe();
+        }
+      });
+      setCommentUnsubscribes({});
+    };
+  }, [tips]);
+
+  // Update handleCommentSubmit to use serverTimestamp
+  const handleCommentSubmit = async (tipId, parentCommentId = null, replyToReplyId = null) => {
+    if (!currentUser) {
+      toast.error('Please log in to comment');
+      navigate('/login');
+      return;
+    }
+
+    const commentText = replyToReplyId 
+      ? commentTexts[`reply-${replyToReplyId}`]?.trim()
+      : parentCommentId 
+        ? commentTexts[`reply-${parentCommentId}`]?.trim()
+        : commentTexts[tipId]?.trim();
+    
+    if (!commentText) return;
+
+    setSubmittingComments(prev => ({ ...prev, [tipId]: true }));
+
+    try {
+      let userName = 'Anonymous User';
+      try {
+        const userDoc = await getDocs(query(collection(db, 'users'), where('uid', '==', currentUser.uid)));
+        if (!userDoc.empty) {
+          userName = userDoc.docs[0].data().name;
+        }
+      } catch (error) {
+        console.error('Error fetching user name:', error);
+      }
+
+      const newComment = {
+        id: Date.now().toString(),
         text: commentText,
-        author: "Current User",
-        date: new Date().toISOString(),
-      }],
-    }));
+        authorId: currentUser.uid,
+        authorName: userName,
+        tipId: tipId,
+        createdAt: new Date().toISOString(),
+        parentId: replyToReplyId || parentCommentId
+      };
+
+      // Update local state immediately
+      setLocalComments(prev => {
+        const updatedComments = { ...prev };
+        if (replyToReplyId) {
+          updatedComments[tipId] = (prev[tipId] || []).map(comment => {
+            if (comment.id === parentCommentId) {
+              return {
+                ...comment,
+                replies: (comment.replies || []).map(reply => {
+                  if (reply.id === replyToReplyId) {
+                    return {
+                      ...reply,
+                      replies: [...(reply.replies || []), newComment]
+                    };
+                  }
+                  return reply;
+                })
+              };
+            }
+            return comment;
+          });
+        } else if (parentCommentId) {
+          updatedComments[tipId] = (prev[tipId] || []).map(comment => {
+            if (comment.id === parentCommentId) {
+              return {
+                ...comment,
+                replies: [...(comment.replies || []), newComment]
+              };
+            }
+            return comment;
+          });
+        } else {
+          updatedComments[tipId] = [...(prev[tipId] || []), newComment];
+        }
+        return updatedComments;
+      });
+
+      // Clear the comment input
+      if (replyToReplyId) {
+        setCommentTexts(prev => ({ ...prev, [`reply-${replyToReplyId}`]: '' }));
+      } else if (parentCommentId) {
+        setCommentTexts(prev => ({ ...prev, [`reply-${parentCommentId}`]: '' }));
+      } else {
+        setCommentTexts(prev => ({ ...prev, [tipId]: '' }));
+      }
+      
+      setReplyingTo(null);
+      toast.success('Comment posted successfully');
+    } catch (error) {
+      console.error('Error posting comment:', error);
+      toast.error('Failed to post comment. Please try again.');
+    } finally {
+      setSubmittingComments(prev => ({ ...prev, [tipId]: false }));
+    }
   };
 
   const renderMedia = (tip) => {
     if (!tip.imageUrl) return null;
     
     if (tip.imageUrl.includes('youtube.com') || tip.imageUrl.includes('youtu.be')) {
-      // Convert YouTube URL to embed URL
       const videoId = tip.imageUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
       if (videoId) {
         return (
@@ -118,13 +320,209 @@ const PostSafetyTips = () => {
       }
     }
     
-    // Default to image
     return (
       <img
         src={tip.imageUrl}
         alt={tip.title}
         className="rounded-lg w-full h-64 object-cover"
       />
+    );
+  };
+
+  const toggleComments = (tipId) => {
+    setExpandedComments(prev => ({
+      ...prev,
+      [tipId]: !prev[tipId]
+    }));
+  };
+
+  // Add toggle function for replies
+  const toggleReplies = (commentId) => {
+    setExpandedReplies(prev => ({
+      ...prev,
+      [commentId]: !prev[commentId]
+    }));
+  };
+
+  // Add function to render nested replies
+  const renderNestedReplies = (replies, tipId, parentCommentId) => {
+    return replies.map((reply) => (
+      <div key={reply.id} className="bg-gray-50 rounded-lg p-3">
+        <div className="flex items-start justify-between">
+          <div>
+            <span className="font-medium text-gray-700">{reply.authorName}</span>
+            <p className="text-gray-600 mt-1">{reply.text}</p>
+          </div>
+          <div className="flex flex-col items-end">
+            <span className="text-sm text-gray-500">
+              {format(new Date(reply.createdAt), "MMM d, yyyy 'at' h:mm a")}
+            </span>
+            <div className="flex items-center gap-4 mt-2">
+              <button
+                onClick={() => setReplyingTo({ commentId: parentCommentId, replyId: reply.id })}
+                className="text-[#0d522c] hover:text-[#347752] text-sm flex items-center"
+              >
+                <FiCornerDownRight className="w-4 h-4 mr-1" />
+                Reply
+              </button>
+              {reply.replies?.length > 0 && (
+                <button
+                  onClick={() => toggleReplies(reply.id)}
+                  className="text-[#0d522c] hover:text-[#347752] text-sm flex items-center"
+                >
+                  <span>{reply.replies.length} {reply.replies.length === 1 ? 'Reply' : 'Replies'}</span>
+                  {expandedReplies[reply.id] ? (
+                    <FiChevronUp className="w-4 h-4 ml-1" />
+                  ) : (
+                    <FiChevronDown className="w-4 h-4 ml-1" />
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Nested reply form */}
+        {replyingTo?.replyId === reply.id && (
+          <div className="mt-3 ml-4">
+            <div className="flex gap-3">
+              <input
+                type="text"
+                value={commentTexts[`reply-${reply.id}`] || ''}
+                onChange={(e) => setCommentTexts(prev => ({ ...prev, [`reply-${reply.id}`]: e.target.value }))}
+                placeholder="Write a reply..."
+                className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0d522c] bg-white"
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleCommentSubmit(tipId, parentCommentId, reply.id);
+                  }
+                }}
+              />
+              <button
+                onClick={() => handleCommentSubmit(tipId, parentCommentId, reply.id)}
+                disabled={submittingComments[tipId]}
+                className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+                  submittingComments[tipId]
+                    ? 'bg-gray-300 cursor-not-allowed'
+                    : 'bg-[#0d522c] text-white hover:bg-[#347752]'
+                }`}
+              >
+                {submittingComments[tipId] ? (
+                  <div className="w-4 h-4 border-t-2 border-b-2 border-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <FiSend className="w-4 h-4" />
+                    Reply
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Render nested replies */}
+        {reply.replies?.length > 0 && expandedReplies[reply.id] && (
+          <div className="mt-3 ml-4 space-y-3">
+            {renderNestedReplies(reply.replies, tipId, parentCommentId)}
+          </div>
+        )}
+      </div>
+    ));
+  };
+
+  // Update the renderComments function to use the new nested replies
+  const renderComments = (tipId) => {
+    const tipComments = localComments[tipId] || [];
+    if (!expandedComments[tipId]) return null;
+    
+    return (
+      <div className="space-y-4 mb-6">
+        {tipComments.map((comment) => (
+          <div key={comment.id} className="bg-white rounded-lg p-4 shadow-sm">
+            <div className="flex items-start justify-between mb-2">
+              <div>
+                <span className="font-medium text-gray-700">{comment.authorName}</span>
+                <p className="text-gray-600 mt-1">{comment.text}</p>
+              </div>
+              <div className="flex flex-col items-end">
+                <span className="text-sm text-gray-500">
+                  {format(new Date(comment.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                </span>
+                <div className="flex items-center gap-4 mt-2">
+                  <button
+                    onClick={() => setReplyingTo({ commentId: comment.id })}
+                    className="text-[#0d522c] hover:text-[#347752] text-sm flex items-center"
+                  >
+                    <FiCornerDownRight className="w-4 h-4 mr-1" />
+                    Reply
+                  </button>
+                  
+                  {comment.replies?.length > 0 && (
+                    <button
+                      onClick={() => toggleReplies(comment.id)}
+                      className="text-[#0d522c] hover:text-[#347752] text-sm flex items-center"
+                    >
+                      <span>{comment.replies.length} {comment.replies.length === 1 ? 'Reply' : 'Replies'}</span>
+                      {expandedReplies[comment.id] ? (
+                        <FiChevronUp className="w-4 h-4 ml-1" />
+                      ) : (
+                        <FiChevronDown className="w-4 h-4 ml-1" />
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Reply form */}
+            {replyingTo?.commentId === comment.id && !replyingTo?.replyId && (
+              <div className="mt-3 ml-4">
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    value={commentTexts[`reply-${comment.id}`] || ''}
+                    onChange={(e) => setCommentTexts(prev => ({ ...prev, [`reply-${comment.id}`]: e.target.value }))}
+                    placeholder="Write a reply..."
+                    className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0d522c] bg-white"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleCommentSubmit(tipId, comment.id);
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={() => handleCommentSubmit(tipId, comment.id)}
+                    disabled={submittingComments[tipId]}
+                    className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+                      submittingComments[tipId]
+                        ? 'bg-gray-300 cursor-not-allowed'
+                        : 'bg-[#0d522c] text-white hover:bg-[#347752]'
+                    }`}
+                  >
+                    {submittingComments[tipId] ? (
+                      <div className="w-4 h-4 border-t-2 border-b-2 border-white rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <FiSend className="w-4 h-4" />
+                        Reply
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Replies section */}
+            {comment.replies?.length > 0 && expandedReplies[comment.id] && (
+              <div className="mt-3 ml-4 space-y-3">
+                {renderNestedReplies(comment.replies, tipId, comment.id)}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     );
   };
 
@@ -139,6 +537,30 @@ const PostSafetyTips = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <UserSidebar />
+        <div className="flex-1 p-8 ml-64">
+          <div className="max-w-6xl mx-auto">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-8">
+              <div className="flex items-center">
+                <FiAlertCircle className="text-red-500 mr-2" />
+                <p className="text-red-700">{error}</p>
+              </div>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-4 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+              >
+                Refresh Page
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       <UserSidebar />
@@ -148,11 +570,11 @@ const PostSafetyTips = () => {
           {/* Header Section */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-[#0d522c]">Safety Tips</h1>
-            <p className="text-gray-600 mt-1">Discover important safety information</p>
+            <p className="text-gray-600 mt-1">Discover important safety information from emergency responders</p>
           </div>
 
           {/* Search and Filter Section */}
-          <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
+          <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
             <div className="flex flex-col md:flex-row gap-4">
               <div className="flex-1 relative">
                 <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -161,7 +583,7 @@ const PostSafetyTips = () => {
                   placeholder="Search safety tips..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0d522c] focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0d522c] focus:border-transparent"
                 />
               </div>
               <div className="flex flex-wrap gap-2">
@@ -171,7 +593,7 @@ const PostSafetyTips = () => {
                     onClick={() => setSelectedCategory(category.id)}
                     className={`px-4 py-2 rounded-lg transition-colors ${
                       selectedCategory === category.id
-                        ? 'bg-[#0d522c] text-white'
+                        ? 'bg-[#0d522c] text-white shadow-md'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
@@ -187,85 +609,124 @@ const PostSafetyTips = () => {
             {filteredTips.map(tip => (
               <div
                 key={tip.id}
-                className={`bg-white rounded-xl shadow-md p-6 border-l-4 ${
-                  tip.authorType === 'fire' ? 'border-red-600' :
-                  tip.authorType === 'police' ? 'border-blue-600' :
-                  tip.authorType === 'medical' ? 'border-green-600' :
-                  'border-gray-600'
-                } hover:shadow-lg transition duration-300`}
+                className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition duration-300"
               >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center">
-                    <div className={`rounded-full h-10 w-10 flex items-center justify-center text-xl font-bold text-white ${
-                      tip.authorType === 'fire' ? 'bg-red-600' :
-                      tip.authorType === 'police' ? 'bg-blue-600' :
-                      tip.authorType === 'medical' ? 'bg-green-600' :
-                      'bg-gray-600'
-                    }`}>
-                      <span>{tip.authorType.charAt(0).toUpperCase()}</span>
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-lg font-semibold text-gray-700">{tip.authorName}</p>
-                      <div className="flex items-center text-sm text-gray-500">
-                        <span>{tip.createdAt?.toLocaleDateString()}</span>
-                        {tip.status === 'verified' && (
-                          <FiCheckCircle className="ml-2 text-green-500" title="Verified Tip" />
-                        )}
+                {/* Tip Header */}
+                <div className="p-6 border-b border-gray-100">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-4">
+                      <div className={`rounded-full h-12 w-12 flex items-center justify-center text-xl font-bold text-white ${
+                        tip.authorType?.toLowerCase() === 'fire' ? 'bg-red-600' :
+                        tip.authorType?.toLowerCase() === 'police' ? 'bg-blue-600' :
+                        tip.authorType?.toLowerCase() === 'medical' ? 'bg-green-600' :
+                        tip.authorType?.toLowerCase() === 'traffic' ? 'bg-yellow-600' :
+                        'bg-gray-600'
+                      }`}>
+                        {tip.authorType?.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-800">{tip.authorName}</h3>
+                        <div className="flex items-center text-sm text-gray-500">
+                          <span>{tip.createdAt?.toLocaleDateString()}</span>
+                          {tip.status === 'verified' && (
+                            <FiCheckCircle className="ml-2 text-green-500" title="Verified Tip" />
+                          )}
+                        </div>
                       </div>
                     </div>
+                    <span className={`px-4 py-2 rounded-full text-sm font-medium ${
+                      tip.authorType?.toLowerCase() === 'fire' ? 'bg-red-100 text-red-600' :
+                      tip.authorType?.toLowerCase() === 'police' ? 'bg-blue-100 text-blue-600' :
+                      tip.authorType?.toLowerCase() === 'medical' ? 'bg-green-100 text-green-600' :
+                      tip.authorType?.toLowerCase() === 'traffic' ? 'bg-yellow-100 text-yellow-600' :
+                      'bg-gray-100 text-gray-600'
+                    }`}>
+                      {categories.find(c => c.id === tip.authorType?.toLowerCase())?.name || tip.authorType}
+                    </span>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    tip.authorType === 'fire' ? 'bg-red-100 text-red-600' :
-                    tip.authorType === 'police' ? 'bg-blue-100 text-blue-600' :
-                    tip.authorType === 'medical' ? 'bg-green-100 text-green-600' :
-                    'bg-gray-100 text-gray-600'
-                  }`}>
-                    {categories.find(c => c.id === tip.authorType)?.name || tip.authorType}
-                  </span>
+                  <h2 className="text-2xl font-bold text-gray-800 mb-3">{tip.title}</h2>
+                  <p className="text-gray-600 text-lg leading-relaxed">{tip.content}</p>
                 </div>
 
-                <h2 className="text-2xl font-semibold text-gray-800">{tip.title}</h2>
-                <p className="mt-2 text-lg text-gray-600">{tip.content}</p>
-
+                {/* Media Section */}
                 {tip.imageUrl && (
-                  <div className="mt-4">
+                  <div className="px-6 py-4 bg-gray-50">
                     {renderMedia(tip)}
                   </div>
                 )}
 
                 {/* Comments Section */}
-                <div className="mt-6 border-t pt-4">
-                  <h3 className="text-lg font-semibold mb-4">Comments</h3>
-                  <div className="space-y-4">
-                    {(comments[tip.id] || []).map((comment, index) => (
-                      <div key={index} className="bg-gray-50 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-medium text-gray-700">{comment.author}</span>
-                          <span className="text-sm text-gray-500">{new Date(comment.date).toLocaleDateString()}</span>
-                        </div>
-                        <p className="text-gray-600">{comment.text}</p>
-                      </div>
-                    ))}
+                <div className="p-6 bg-gray-50">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center">
+                      <FiMessageSquare className="text-gray-500 mr-2" />
+                      <button
+                        onClick={() => toggleComments(tip.id)}
+                        className="flex items-center gap-2 text-[#0d522c] hover:text-[#347752] transition-colors"
+                      >
+                        <h3 className="text-lg font-semibold text-gray-700">Comments</h3>
+                        <span className="text-sm text-gray-500">
+                          ({(localComments[tip.id] || []).length})
+                        </span>
+                        {expandedComments[tip.id] ? (
+                          <FiChevronUp className="w-5 h-5" />
+                        ) : (
+                          <FiChevronDown className="w-5 h-5" />
+                        )}
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => setExpandedTips(prev => ({ ...prev, [tip.id]: !prev[tip.id] }))}
+                      className="flex items-center gap-2 text-[#0d522c] hover:text-[#347752] transition-colors"
+                    >
+                      <FiPlus className={`w-5 h-5 transition-transform ${expandedTips[tip.id] ? 'rotate-45' : ''}`} />
+                      <span>{expandedTips[tip.id] ? 'Close' : 'Add Comment'}</span>
+                    </button>
                   </div>
-                  <div className="mt-4">
-                    <input
-                      type="text"
-                      placeholder="Add a comment..."
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter') {
-                          handleCommentSubmit(tip.id, e.target.value);
-                          e.target.value = '';
-                        }
-                      }}
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0d522c]"
-                    />
-                  </div>
+                  
+                  {renderComments(tip.id)}
+
+                  {expandedTips[tip.id] && (
+                    <div className="flex gap-3">
+                      <input
+                        type="text"
+                        value={commentTexts[tip.id] || ''}
+                        onChange={(e) => setCommentTexts(prev => ({ ...prev, [tip.id]: e.target.value }))}
+                        placeholder="Add a comment..."
+                        className="flex-1 px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0d522c] bg-white"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleCommentSubmit(tip.id);
+                          }
+                        }}
+                      />
+                      <button
+                        onClick={() => handleCommentSubmit(tip.id)}
+                        disabled={submittingComments[tip.id]}
+                        className={`px-6 py-3 rounded-lg flex items-center gap-2 transition-colors ${
+                          submittingComments[tip.id]
+                            ? 'bg-gray-300 cursor-not-allowed'
+                            : 'bg-[#0d522c] text-white hover:bg-[#347752]'
+                        }`}
+                      >
+                        {submittingComments[tip.id] ? (
+                          <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            <FiSend className="w-4 h-4" />
+                            Post
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
 
             {filteredTips.length === 0 && (
-              <div className="text-center py-12">
+              <div className="text-center py-16 bg-white rounded-xl shadow-sm">
                 <FiAlertCircle className="mx-auto text-gray-400 text-5xl mb-4" />
                 <h3 className="text-xl font-semibold text-gray-600">No safety tips found</h3>
                 <p className="text-gray-500 mt-2">Try adjusting your search or filters</p>

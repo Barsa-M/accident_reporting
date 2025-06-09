@@ -11,8 +11,7 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() && 
-        getUserRole().lower() == 'admin';
+      return isAuthenticated() && request.auth.token.role == 'admin';
     }
 
     function isResponder() {
@@ -42,32 +41,33 @@ service cloud.firestore {
       return request.resource.size < 10 * 1024 * 1024; // 10MB
     }
 
-    // 🔐 USERS Collection
+    // Users collection
     match /users/{userId} {
-      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
-      allow create: if isAuthenticated();
-      allow update: if isAdmin() || isOwner(userId);
-      allow delete: if isAdmin();
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
     }
 
-    // 🛡️ RESPONDERS Collection
+    // Responders collection
     match /responders/{responderId} {
-      // Anyone can create a responder application with valid responder type
+      allow read: if isAuthenticated();
+      allow write: if isOwner(responderId);
+    }
+
+    // Safety tips collection
+    match /safety_tips/{tipId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && 
+        (isAdmin() || resource.data.authorId == request.auth.uid);
+    }
+
+    // Comments collection (as a separate top-level collection)
+    match /comments/{commentId} {
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated() && 
-                     isValidResponderType(request.resource.data.responderType);
-      
-      // Responders can read their own data, admins can read all
-      allow read: if isAuthenticated() && (isOwner(responderId) || isAdmin());
-      
-      // Only admins can update status, responders can update their own non-status fields
-      allow update: if isAdmin() || 
-        (isResponder() && isOwner(responderId) && 
-         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'createdAt']) &&
-         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['responderType']) || 
-          isValidResponderType(request.resource.data.responderType)));
-      
-      // Only admins can delete
-      allow delete: if isAdmin();
+        request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && 
+        resource.data.authorId == request.auth.uid;
     }
 
     // 📢 NOTIFICATIONS Collection
@@ -106,14 +106,6 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create, delete: if isAuthenticated() && 
         request.auth.uid == request.resource.data.userId;
-    }
-
-    // Comments subcollection
-    match /forum_posts/{postId}/comments/{commentId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAdmin() || 
-        (isAuthenticated() && resource.data.authorId == request.auth.uid);
     }
 
     // Reports Collection
@@ -163,20 +155,17 @@ service cloud.firestore {
       allow delete: if isAdmin() || isOwner(resource.data.userId);
     }
 
-    // Comments
-    match /comments/{commentId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && (isAdmin() || isOwner(resource.data.userId));
-      allow delete: if isAdmin() || isOwner(resource.data.userId);
-    }
-
     // Notifications
     match /notifications/{notificationId} {
       allow read: if isAuthenticated() && (isAdmin() || isOwner(resource.data.userId));
       allow create: if isAdmin();
       allow update: if isAdmin();
       allow delete: if isAdmin();
+    }
+
+    // Admin access
+    match /{document=**} {
+      allow read, write: if isAdmin();
     }
   }
 }

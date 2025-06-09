@@ -5,14 +5,16 @@ import { toast } from 'react-hot-toast';
 import { FiX } from 'react-icons/fi';
 import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 const Tips = ({ onClose, responderData }) => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const [formData, setFormData] = useState({
     title: "",
     content: "",
     imageUrl: "",
-    category: "fire"
+    category: "" // We'll set this automatically based on responder's specialization
   });
   const [loading, setLoading] = useState(false);
 
@@ -32,7 +34,14 @@ const Tips = ({ onClose, responderData }) => {
       });
       toast.error('Missing responder information. Please try logging in again.');
       navigate('/responder/dashboard');
+      return;
     }
+
+    // Set the category based on responder's specialization
+    setFormData(prev => ({
+      ...prev,
+      category: responderData.specialization.toLowerCase()
+    }));
   }, [responderData, navigate]);
 
   const handleChange = (e) => {
@@ -102,7 +111,7 @@ const Tips = ({ onClose, responderData }) => {
 
         <div className="p-6">
           <p className="text-sm text-gray-600 mb-6">
-            Share your expertise with the community
+            Share your expertise with the community as a {responderData.specialization} responder
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -117,20 +126,6 @@ const Tips = ({ onClose, responderData }) => {
                 required
                 placeholder="Enter tip title"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-              <select
-                name="category"
-                value={formData.category}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0d522c]"
-              >
-                <option value="fire">Fire Safety</option>
-                <option value="police">Police Safety</option>
-                <option value="medical">Medical Safety</option>
-              </select>
             </div>
 
             <div>

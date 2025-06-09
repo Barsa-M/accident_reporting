@@ -5,7 +5,7 @@ import { getFirestore, collection, addDoc, serverTimestamp, doc, setDoc } from '
 import { getStorage, ref, uploadBytes, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import { ROLES, RESPONDER_STATUS } from '../firebase/roles';
 import { toast } from 'react-hot-toast';
-import { FiMapPin, FiUpload, FiLoader, FiCalendar, FiUser, FiFileText, FiHome, FiArrowLeft, FiShield, FiMail, FiPhone, FiLock } from 'react-icons/fi';
+import { FiMapPin, FiUpload, FiLoader, FiCalendar, FiUser, FiFileText, FiHome, FiArrowLeft, FiShield, FiMail, FiPhone, FiLock, FiAlertCircle } from 'react-icons/fi';
 import FileUpload from './Common/FileUpload';
 import L from "leaflet";
 import 'leaflet/dist/leaflet.css';
@@ -28,6 +28,7 @@ const ResponderRegisterForm = () => {
   const navigate = useNavigate();
   const mapRef = useRef(null);
   const markerRef = useRef(null);
+  const [mapError, setMapError] = useState(null);
   
   const [formData, setFormData] = useState({
     instituteName: '',
@@ -54,48 +55,63 @@ const ResponderRegisterForm = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!mapRef.current) {
-      mapRef.current = L.map("map", {
-        center: formData.mapLocation,
-        zoom: ZOOM_LEVEL,
-        minZoom: 8,
-        maxZoom: 16,
-      });
+    let mapInstance = null;
+    try {
+      if (!mapRef.current) {
+        const mapContainer = document.getElementById("map");
+        if (!mapContainer) {
+          console.error("Map container not found");
+          setMapError("Map container not found");
+          return;
+        }
 
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      }).addTo(mapRef.current);
+        mapInstance = L.map("map", {
+          center: formData.mapLocation,
+          zoom: ZOOM_LEVEL,
+          minZoom: 8,
+          maxZoom: 16,
+        });
 
-      markerRef.current = L.marker(formData.mapLocation, { draggable: true }).addTo(mapRef.current);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution:
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        }).addTo(mapInstance);
 
-      markerRef.current.on("dragend", (event) => {
-        const newLocation = event.target.getLatLng();
-        setFormData((prev) => ({
-          ...prev,
-          mapLocation: [newLocation.lat, newLocation.lng],
-        }));
-      });
+        markerRef.current = L.marker(formData.mapLocation, { draggable: true }).addTo(mapInstance);
 
-      // Set bounds for Ethiopia
-      const bounds = [
-        [3.4, 33.0], // South-West
-        [15.0, 48.0], // North-East
-      ];
-      mapRef.current.setMaxBounds(bounds);
-      mapRef.current.on("drag", () => {
-        mapRef.current.panInsideBounds(bounds, { animate: false });
-      });
-    }
+        markerRef.current.on("dragend", (event) => {
+          const newLocation = event.target.getLatLng();
+          setFormData((prev) => ({
+            ...prev,
+            mapLocation: [newLocation.lat, newLocation.lng],
+          }));
+        });
 
-    if (markerRef.current) {
-      markerRef.current.setLatLng(formData.mapLocation);
-      mapRef.current.panTo(formData.mapLocation);
+        // Set bounds for Ethiopia
+        const bounds = [
+          [3.4, 33.0], // South-West
+          [15.0, 48.0], // North-East
+        ];
+        mapInstance.setMaxBounds(bounds);
+        mapInstance.on("drag", () => {
+          mapInstance.panInsideBounds(bounds, { animate: false });
+        });
+
+        mapRef.current = mapInstance;
+      }
+
+      if (markerRef.current) {
+        markerRef.current.setLatLng(formData.mapLocation);
+        mapRef.current.panTo(formData.mapLocation);
+      }
+    } catch (error) {
+      console.error("Error initializing map:", error);
+      setMapError("Failed to initialize map. Please refresh the page.");
     }
 
     return () => {
-      if (mapRef.current) {
-        mapRef.current.remove();
+      if (mapInstance) {
+        mapInstance.remove();
         mapRef.current = null;
       }
     };
@@ -226,7 +242,20 @@ const ResponderRegisterForm = () => {
       }
 
       // Create user account
-      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+      let userCredential;
+      try {
+        userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+      } catch (error) {
+        console.error('Error creating user:', error);
+        if (error.code === 'auth/email-already-in-use') {
+          setFormError('This email is already registered. Please use a different email or try logging in.');
+        } else {
+          setFormError('Failed to create account. Please try again.');
+        }
+        setIsSubmitting(false);
+        return;
+      }
+
       const user = userCredential.user;
 
       // Upload license file
@@ -241,6 +270,12 @@ const ResponderRegisterForm = () => {
           setUploadProgress(100);
         } catch (error) {
           console.error('Error uploading license:', error);
+          // Clean up the created user account
+          try {
+            await user.delete();
+          } catch (deleteError) {
+            console.error('Error cleaning up user account:', deleteError);
+          }
           throw new Error('Failed to upload license file. Please try again.');
         }
       }
@@ -257,7 +292,7 @@ const ResponderRegisterForm = () => {
           longitude: selectedLocation[1]
         },
         licenseUrl,
-        licenseData, // Store the actual data in Firestore
+        licenseData,
         status: RESPONDER_STATUS.PENDING,
         createdAt: new Date().toISOString(),
         applicationDate: new Date().toISOString(),
@@ -269,49 +304,59 @@ const ResponderRegisterForm = () => {
         additionalDetails: formData.additionalDetails
       };
 
-      // Save responder data
-      await setDoc(doc(db, 'responders', user.uid), responderData);
+      try {
+        // Save responder data
+        await setDoc(doc(db, 'responders', user.uid), responderData);
 
-      // Create user document
-      await setDoc(doc(db, 'users', user.uid), {
-        uid: user.uid,
-        email: formData.email,
-        name: formData.instituteName,
-        phone: formData.phoneNumber,
-        role: ROLES.RESPONDER,
-        createdAt: new Date().toISOString(),
-        lastUpdated: new Date().toISOString()
-      });
+        // Create user document
+        await setDoc(doc(db, 'users', user.uid), {
+          uid: user.uid,
+          email: formData.email,
+          name: formData.instituteName,
+          phone: formData.phoneNumber,
+          role: ROLES.RESPONDER,
+          createdAt: new Date().toISOString(),
+          lastUpdated: new Date().toISOString()
+        });
 
-      toast.success('Application submitted successfully!');
-      setIsSubmitting(false);
+        toast.success('Application submitted successfully!');
+        setIsSubmitting(false);
 
-      // Clear form data
-      setFormData({
-        instituteName: '',
-        email: '',
-        phoneNumber: '',
-        responderType: '',
-        operatingHours: '',
-        capacity: '',
-        additionalDetails: '',
-        password: '',
-        confirmPassword: '',
-        mapLocation: DEFAULT_LOCATION,
-        yearsOfExperience: '',
-        licenseFile: null,
-        licensePreview: null
-      });
+        // Clear form data
+        setFormData({
+          instituteName: '',
+          email: '',
+          phoneNumber: '',
+          responderType: '',
+          operatingHours: '',
+          capacity: '',
+          additionalDetails: '',
+          password: '',
+          confirmPassword: '',
+          mapLocation: DEFAULT_LOCATION,
+          yearsOfExperience: '',
+          licenseFile: null,
+          licensePreview: null
+        });
 
-      // Redirect to login page after a delay
-      setTimeout(() => {
-        navigate('/responder/login');
-      }, 2000);
-
+        // Redirect to login page after a delay
+        setTimeout(() => {
+          navigate('/responder/login');
+        }, 2000);
+      } catch (error) {
+        console.error('Error saving responder data:', error);
+        // Clean up the created user account
+        try {
+          await user.delete();
+        } catch (deleteError) {
+          console.error('Error cleaning up user account:', deleteError);
+        }
+        throw new Error('Failed to save responder data. Please try again.');
+      }
     } catch (error) {
       console.error('Error submitting form:', error);
       setError(error.message);
-      setFormError('Failed to submit application. Please try again.');
+      setFormError(error.message || 'Failed to submit application. Please try again.');
       setIsSubmitting(false);
     }
   };
@@ -375,6 +420,13 @@ const ResponderRegisterForm = () => {
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-3">
               <FiAlertCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
               <p className="text-sm text-red-600">{formError}</p>
+            </div>
+          )}
+
+          {mapError && (
+            <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start space-x-3">
+              <FiAlertCircle className="w-5 h-5 text-yellow-500 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-yellow-600">{mapError}</p>
             </div>
           )}
 

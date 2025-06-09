@@ -128,7 +128,12 @@ const SafetyTipsManagement = ({ responderData }) => {
 
   const handleOpenModal = () => {
     console.log('Responder Data in SafetyTipsManagement:', responderData);
-    if (!responderData?.uid || !responderData?.instituteName || !responderData?.role) {
+    if (!responderData?.uid || !responderData?.name || !responderData?.role) {
+      console.error('Missing responder data fields:', {
+        uid: responderData?.uid,
+        name: responderData?.name,
+        role: responderData?.role
+      });
       toast.error('Missing responder information. Please try logging in again.');
       return;
     }
@@ -212,8 +217,8 @@ const SafetyTipsManagement = ({ responderData }) => {
           onClose={() => setIsModalOpen(false)} 
           responderData={{
             uid: responderData.uid,
-            name: responderData.instituteName,
-            specialization: responderData.role
+            name: responderData.name,
+            specialization: responderData.type || responderData.role
           }}
         />
       )}
