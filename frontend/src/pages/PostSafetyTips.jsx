@@ -74,9 +74,9 @@ const PostSafetyTips = () => {
     try {
       if (selectedCategory !== 'all') {
         tipsQuery = query(
-          collection(db, 'safety_tips'),
+      collection(db, 'safety_tips'),
           where('authorType', '==', selectedCategory)
-        );
+    );
       } else {
         tipsQuery = query(
           collection(db, 'safety_tips')
@@ -84,26 +84,26 @@ const PostSafetyTips = () => {
       }
 
       unsubscribe = onSnapshot(tipsQuery, 
-        (snapshot) => {
-          const tipsList = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            createdAt: doc.data().createdAt?.toDate(),
-            verifiedAt: doc.data().verifiedAt?.toDate()
+      (snapshot) => {
+        const tipsList = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate(),
+          verifiedAt: doc.data().verifiedAt?.toDate()
           })).sort((a, b) => b.createdAt - a.createdAt);
           
-          console.log('Current tips list:', tipsList);
-          setTips(tipsList);
-          setFilteredTips(tipsList);
-          setLoading(false);
+        console.log('Current tips list:', tipsList);
+        setTips(tipsList);
+        setFilteredTips(tipsList);
+        setLoading(false);
           setError(null);
-        },
-        (error) => {
-          console.error('Error in real-time listener:', error);
+      },
+      (error) => {
+        console.error('Error in real-time listener:', error);
           setError('Failed to load safety tips. Please try refreshing the page.');
-          setLoading(false);
-        }
-      );
+        setLoading(false);
+      }
+    );
     } catch (error) {
       console.error('Error setting up tips listener:', error);
       setError('Failed to load safety tips. Please try refreshing the page.');
@@ -113,7 +113,7 @@ const PostSafetyTips = () => {
     return () => {
       console.log('Cleaning up real-time listener...');
       if (typeof unsubscribe === 'function') {
-        unsubscribe();
+      unsubscribe();
       }
     };
   }, [selectedCategory]);
@@ -170,8 +170,8 @@ const PostSafetyTips = () => {
           createdAt: doc.data().createdAt?.toDate()
         })).sort((a, b) => b.createdAt - a.createdAt);
         
-        setComments(prev => ({
-          ...prev,
+    setComments(prev => ({
+      ...prev,
           [tipId]: commentsList
         }));
       });
@@ -613,36 +613,36 @@ const PostSafetyTips = () => {
               >
                 {/* Tip Header */}
                 <div className="p-6 border-b border-gray-100">
-                  <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-4">
                       <div className={`rounded-full h-12 w-12 flex items-center justify-center text-xl font-bold text-white ${
                         tip.authorType?.toLowerCase() === 'fire' ? 'bg-red-600' :
                         tip.authorType?.toLowerCase() === 'police' ? 'bg-blue-600' :
                         tip.authorType?.toLowerCase() === 'medical' ? 'bg-green-600' :
                         tip.authorType?.toLowerCase() === 'traffic' ? 'bg-yellow-600' :
-                        'bg-gray-600'
-                      }`}>
+                      'bg-gray-600'
+                    }`}>
                         {tip.authorType?.charAt(0).toUpperCase()}
-                      </div>
+                    </div>
                       <div>
                         <h3 className="text-lg font-semibold text-gray-800">{tip.authorName}</h3>
-                        <div className="flex items-center text-sm text-gray-500">
-                          <span>{tip.createdAt?.toLocaleDateString()}</span>
-                          {tip.status === 'verified' && (
-                            <FiCheckCircle className="ml-2 text-green-500" title="Verified Tip" />
-                          )}
-                        </div>
+                      <div className="flex items-center text-sm text-gray-500">
+                        <span>{tip.createdAt?.toLocaleDateString()}</span>
+                        {tip.status === 'verified' && (
+                          <FiCheckCircle className="ml-2 text-green-500" title="Verified Tip" />
+                        )}
                       </div>
                     </div>
+                  </div>
                     <span className={`px-4 py-2 rounded-full text-sm font-medium ${
                       tip.authorType?.toLowerCase() === 'fire' ? 'bg-red-100 text-red-600' :
                       tip.authorType?.toLowerCase() === 'police' ? 'bg-blue-100 text-blue-600' :
                       tip.authorType?.toLowerCase() === 'medical' ? 'bg-green-100 text-green-600' :
                       tip.authorType?.toLowerCase() === 'traffic' ? 'bg-yellow-100 text-yellow-600' :
-                      'bg-gray-100 text-gray-600'
-                    }`}>
+                    'bg-gray-100 text-gray-600'
+                  }`}>
                       {categories.find(c => c.id === tip.authorType?.toLowerCase())?.name || tip.authorType}
-                    </span>
+                  </span>
                   </div>
                   <h2 className="text-2xl font-bold text-gray-800 mb-3">{tip.title}</h2>
                   <p className="text-gray-600 text-lg leading-relaxed">{tip.content}</p>
@@ -674,7 +674,7 @@ const PostSafetyTips = () => {
                           <FiChevronDown className="w-5 h-5" />
                         )}
                       </button>
-                    </div>
+                        </div>
                     <button
                       onClick={() => setExpandedTips(prev => ({ ...prev, [tip.id]: !prev[tip.id] }))}
                       className="flex items-center gap-2 text-[#0d522c] hover:text-[#347752] transition-colors"
@@ -688,13 +688,13 @@ const PostSafetyTips = () => {
 
                   {expandedTips[tip.id] && (
                     <div className="flex gap-3">
-                      <input
-                        type="text"
+                    <input
+                      type="text"
                         value={commentTexts[tip.id] || ''}
                         onChange={(e) => setCommentTexts(prev => ({ ...prev, [tip.id]: e.target.value }))}
-                        placeholder="Add a comment..."
+                      placeholder="Add a comment..."
                         className="flex-1 px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0d522c] bg-white"
-                        onKeyPress={(e) => {
+                      onKeyPress={(e) => {
                           if (e.key === 'Enter' && !e.shiftKey) {
                             e.preventDefault();
                             handleCommentSubmit(tip.id);
@@ -719,7 +719,7 @@ const PostSafetyTips = () => {
                           </>
                         )}
                       </button>
-                    </div>
+                  </div>
                   )}
                 </div>
               </div>

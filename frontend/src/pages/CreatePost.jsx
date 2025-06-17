@@ -2,9 +2,55 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth, db } from "../firebase/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, doc, getDoc } from "firebase/firestore";
 import UserSidebar from "../components/UserSidebar";
-import { FiUpload, FiImage, FiVideo, FiX } from "react-icons/fi";
+import { FiImage, FiVideo, FiX } from "react-icons/fi";
+import { toast } from "react-toastify";
+
+// Function to compress image
+const compressImage = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        
+        // Calculate new dimensions while maintaining aspect ratio
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 800;
+        
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height = Math.round((height * MAX_WIDTH) / width);
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width = Math.round((width * MAX_HEIGHT) / height);
+            height = MAX_HEIGHT;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Convert to JPEG with 0.7 quality
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        resolve(compressedDataUrl);
+      };
+      img.onerror = reject;
+    };
+    reader.onerror = reject;
+  });
+};
 
 export default function CreatePost() {
   const [user] = useAuthState(auth);
@@ -15,11 +61,11 @@ export default function CreatePost() {
   const [videoFile, setVideoFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [videoPreview, setVideoPreview] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
 
+  // Fetch user data when component mounts
   useEffect(() => {
     const fetchUserData = async () => {
       if (user) {
@@ -37,33 +83,100 @@ export default function CreatePost() {
     fetchUserData();
   }, [user]);
 
-  const handleImageChange = (e) => {
-    const file = e.target.files?.[0];
+  const handleImageChange = async (e) => {
+    const file = e.target.files[0];
     if (file) {
-      // Check file size (max 5MB)
-      const maxSize = 5 * 1024 * 1024; // 5MB in bytes
-      if (file.size > maxSize) {
-        setError("Image size must be less than 5MB");
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        toast.error("Image size should be less than 5MB");
         return;
       }
-
       setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
+      try {
+        const compressedImage = await compressImage(file);
+        setImagePreview(compressedImage);
+      } catch (error) {
+        console.error("Error compressing image:", error);
+        toast.error("Failed to process image. Please try again.");
+        setImageFile(null);
+        setImagePreview(null);
+      }
     }
   };
 
   const handleVideoChange = (e) => {
-    const file = e.target.files?.[0];
+    const file = e.target.files[0];
     if (file) {
-      // Check file size (max 50MB)
-      const maxSize = 50 * 1024 * 1024; // 50MB in bytes
-      if (file.size > maxSize) {
-        setError("Video size must be less than 50MB");
+      if (file.size > 50 * 1024 * 1024) { // 50MB limit
+        toast.error("Video size should be less than 50MB");
         return;
       }
-
       setVideoFile(file);
-      setVideoPreview(URL.createObjectURL(file));
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setVideoPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!user) {
+      toast.error("Please log in to create a post");
+      navigate("/login");
+      return;
+    }
+
+    if (!title.trim() || !description.trim()) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const postData = {
+        title: title.trim(),
+        description: description.trim(),
+        userId: user.uid,
+        userName: userData?.name || user.displayName || 'Anonymous',
+        createdAt: serverTimestamp(),
+        likes: 0,
+        comments: []
+      };
+
+      // Only add media if they exist and are within size limits
+      if (imagePreview) {
+        if (imagePreview.length > 900000) { // ~900KB limit to be safe
+          toast.error("Image is too large even after compression. Please choose a smaller image.");
+          setLoading(false);
+          return;
+        }
+        postData.imageData = imagePreview;
+      }
+
+      if (videoPreview) {
+        if (videoPreview.length > 900000) { // ~900KB limit to be safe
+          toast.error("Video is too large. Please choose a smaller video.");
+          setLoading(false);
+          return;
+        }
+        postData.videoData = videoPreview;
+      }
+
+      await addDoc(collection(db, 'forum_posts'), postData);
+      
+      toast.success("Post created successfully!");
+      navigate("/forum");
+    } catch (error) {
+      console.error("Error creating post:", error);
+      if (error.message.includes("longer than 1048487 bytes")) {
+        toast.error("The image or video is too large. Please choose smaller files.");
+      } else {
+        toast.error("Failed to create post. Please try again.");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -77,218 +190,130 @@ export default function CreatePost() {
     setVideoPreview(null);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError(null);
-
-    if (!user) {
-      setError("Please sign in to create a post");
-      return;
-    }
-
-    if (!title.trim() || !description.trim()) {
-      setError("Please complete all required fields");
-      return;
-    }
-
-    try {
-      setIsSubmitting(true);
-
-      // Convert files to base64
-      let imageData = null;
-      let videoData = null;
-
-      if (imageFile) {
-        imageData = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = () => reject(new Error('Failed to read image file'));
-          reader.readAsDataURL(imageFile);
-        });
-      }
-
-      if (videoFile) {
-        videoData = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = () => reject(new Error('Failed to read video file'));
-          reader.readAsDataURL(videoFile);
-        });
-      }
-
-      const postData = {
-        id: Date.now().toString(),
-        title,
-        description,
-        imageData,
-        videoData,
-        createdAt: new Date().toISOString(),
-        userId: user.uid,
-        userName: userData?.name || user.displayName || user.email?.split('@')[0] || 'User',
-        userEmail: user.email,
-        likes: 0,
-        comments: []
-      };
-
-      // Store in localStorage
-      const posts = JSON.parse(localStorage.getItem('forum_posts') || '[]');
-      posts.push(postData);
-      localStorage.setItem('forum_posts', JSON.stringify(posts));
-      
-      // Clear form
-      setTitle("");
-      setDescription("");
-      setImageFile(null);
-      setVideoFile(null);
-      setImagePreview(null);
-      setVideoPreview(null);
-
-      // Redirect to forum discussion
-      navigate("/forum");
-    } catch (error) {
-      console.error("Error creating post:", error);
-      setError("Failed to create post. Please try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   return (
     <div className="flex min-h-screen bg-white">
       <UserSidebar />
       <div className="flex-1 p-8 ml-64">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-white shadow-lg rounded-xl p-8">
-            <h1 className="text-3xl font-bold text-[#0d522c] mb-6">Create a New Post</h1>
+          <h1 className="text-3xl font-bold text-[#0d522c] mb-8">Create New Post</h1>
+          
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
+                Title *
+              </label>
+              <input
+                type="text"
+                id="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-4 py-2 focus:ring-2 focus:ring-[#0d522c] focus:outline-none"
+                placeholder="Enter post title"
+                required
+              />
+            </div>
 
-            {error && (
-              <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-lg">
-                {error}
-              </div>
-            )}
+            <div>
+              <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+                Description *
+              </label>
+              <textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-4 py-2 focus:ring-2 focus:ring-[#0d522c] focus:outline-none"
+                rows="6"
+                placeholder="Write your post content here..."
+                required
+              />
+            </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-4">
               <div>
-                <label className="block text-gray-700 font-medium mb-2">
-                  Title <span className="text-red-500">*</span>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Add Image (Optional)
                 </label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Enter a catchy title..."
-                  className="w-full border border-gray-300 rounded-md px-4 py-2 focus:ring-2 focus:ring-[#0d522c] focus:outline-none"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-medium mb-2">
-                  Description <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Describe your idea in detail..."
-                  className="w-full border border-gray-300 rounded-md px-4 py-2 h-32 resize-none focus:ring-2 focus:ring-[#0d522c] focus:outline-none"
-                  required
-                ></textarea>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-gray-700 font-medium mb-2">
-                    Upload Image
+                <div className="flex items-center space-x-4">
+                  <label className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50">
+                    <FiImage className="w-5 h-5 text-[#0d522c]" />
+                    <span>Choose Image</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="hidden"
+                    />
                   </label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
-                    {!imagePreview ? (
-                      <div className="flex flex-col items-center justify-center">
-                        <FiImage className="w-8 h-8 text-gray-400 mb-2" />
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageChange}
-                          className="w-full"
-                        />
-                        <p className="text-sm text-gray-500 mt-2">Max size: 5MB</p>
-                      </div>
-                    ) : (
-                      <div className="relative">
-                        <img
-                          src={imagePreview}
-                          alt="Preview"
-                          className="rounded-md w-full h-40 object-cover"
-                        />
-                        <button
-                          type="button"
-                          onClick={removeImage}
-                          className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                        >
-                          <FiX className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-gray-700 font-medium mb-2">
-                    Upload Video
-                  </label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
-                    {!videoPreview ? (
-                      <div className="flex flex-col items-center justify-center">
-                        <FiVideo className="w-8 h-8 text-gray-400 mb-2" />
-                        <input
-                          type="file"
-                          accept="video/*"
-                          onChange={handleVideoChange}
-                          className="w-full"
-                        />
-                        <p className="text-sm text-gray-500 mt-2">Max size: 50MB</p>
-                      </div>
-                    ) : (
-                      <div className="relative">
-                        <video
-                          src={videoPreview}
-                          controls
-                          className="rounded-md w-full h-40"
-                        />
-                        <button
-                          type="button"
-                          onClick={removeVideo}
-                          className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                        >
-                          <FiX className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  {imagePreview && (
+                    <div className="relative">
+                      <img
+                        src={imagePreview}
+                        alt="Preview"
+                        className="h-20 w-20 object-cover rounded-md"
+                      />
+                      <button
+                        type="button"
+                        onClick={removeImage}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                      >
+                        <FiX className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="flex justify-end space-x-4">
-                <button
-                  type="button"
-                  onClick={() => navigate("/forum")}
-                  className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className={`px-6 py-2 rounded-md text-white font-semibold transition ${
-                    isSubmitting
-                      ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-[#0d522c] hover:bg-[#0a3f22]"
-                  }`}
-                >
-                  {isSubmitting ? "Creating..." : "Create Post"}
-                </button>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Add Video (Optional)
+                </label>
+                <div className="flex items-center space-x-4">
+                  <label className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50">
+                    <FiVideo className="w-5 h-5 text-[#0d522c]" />
+                    <span>Choose Video</span>
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={handleVideoChange}
+                      className="hidden"
+                    />
+                  </label>
+                  {videoPreview && (
+                    <div className="relative">
+                      <video
+                        src={videoPreview}
+                        className="h-20 w-20 object-cover rounded-md"
+                      />
+                      <button
+                        type="button"
+                        onClick={removeVideo}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                      >
+                        <FiX className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </form>
-          </div>
+            </div>
+
+            <div className="flex justify-end space-x-4">
+              <button
+                type="button"
+                onClick={() => navigate("/forum")}
+                className="px-6 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-6 py-2 bg-[#0d522c] text-white rounded-md hover:bg-[#0a3f22] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? "Creating..." : "Create Post"}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>

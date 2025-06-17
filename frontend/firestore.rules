@@ -1,144 +1,200 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
     // Helper functions
     function isAuthenticated() {
       return request.auth != null;
     }
-
+    
     function getUserRole() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
-
+    
     function isAdmin() {
-      return isAuthenticated() && 
-        (getUserRole().lower() == 'admin' || getUserRole() == 'ADMIN');
+      return isAuthenticated() && request.auth.token.role == 'admin';
     }
-
+    
     function isResponder() {
       return isAuthenticated() && 
-        (getUserRole().lower() == 'responder' || getUserRole() == 'RESPONDER');
+        getUserRole().lower() == 'responder';
     }
-
+    
     function isApprovedResponder() {
-      return isResponder() && exists(/databases/$(database)/documents/responders/$(request.auth.uid)) &&
+      return isResponder() && 
         get(/databases/$(database)/documents/responders/$(request.auth.uid)).data.status.lower() == 'approved';
     }
-
+    
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Users Collection
+    function isValidResponderType(type) {
+      return type in ['Medical', 'Police', 'Fire', 'Traffic'];
+    }
+
+    function isValidFileType() {
+      return request.resource.contentType.matches('image/.*') ||
+             request.resource.contentType.matches('application/pdf');
+    }
+
+    function isValidFileSize() {
+      return request.resource.size < 10 * 1024 * 1024; // 10MB
+    }
+
+    // Users collection
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAdmin() || isOwner(userId);
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
     }
 
-    // Responders Collection
+    // Responder Applications collection
+    match /responderApplications/{applicationId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAdmin() || isOwner(applicationId);
+      allow delete: if isAdmin();
+    }
+
+    // Responders collection
     match /responders/{responderId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAdmin() || isOwner(responderId);
-      allow delete: if isAdmin();
+      allow write: if isOwner(responderId) || isAdmin();
     }
 
-    // Incidents Collection
+    // Incidents collection
     match /incidents/{incidentId} {
-      allow read: if isAuthenticated();
       allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && (
-        isAdmin() || 
-        isApprovedResponder() || 
-        resource.data.assignedTo == request.auth.uid
+      allow read, update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin() ||
+        (isApprovedResponder() && resource.data.responderType == get(/databases/$(database)/documents/responders/$(request.auth.uid)).data.responderType)
       );
       allow delete: if isAdmin();
     }
 
-    // Forum Posts Collection
-    match /forum_posts/{postId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && (
-        isAdmin() || 
-        resource.data.authorId == request.auth.uid
-      );
-      allow delete: if isAdmin();
-    }
-
-    // Statistics Collection
-    match /statistics/{statId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-
-    // Dashboard Stats Collection
-    match /dashboardStats/{statId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-
-    // Analytics Collection
-    match /analytics/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-
-    // Settings Collection
-    match /settings/{settingId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-
-    // Anonymous Reports Collection
-    match /anonymous_reports/{reportId} {
-      allow create: if true;
-      allow read: if isAuthenticated();
-      allow update: if isAuthenticated() && (
-        isAdmin() || 
-        isApprovedResponder()
-      );
-      allow delete: if isAdmin();
-    }
-
-    // Safety Tips Collection
+    // Safety tips collection
     match /safety_tips/{tipId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && (
-        isAdmin() || 
-        isApprovedResponder()
-      );
-      allow update: if isAuthenticated() && (
-        isAdmin() || 
-        (isApprovedResponder() && resource.data.authorId == request.auth.uid)
-      );
-      allow delete: if isAdmin() || 
-        (isApprovedResponder() && resource.data.authorId == request.auth.uid);
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && 
+        (isAdmin() || resource.data.authorId == request.auth.uid);
+    }
+
+    // Comments collection
+    match /comments/{commentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && 
+        request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && 
+        resource.data.authorId == request.auth.uid;
     }
 
     // Notifications Collection
     match /notifications/{notificationId} {
       allow read: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid ||
+        (resource.data.forRole == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role) ||
+        (resource.data.userId == request.auth.uid) ||
         isAdmin()
       );
+      allow create: if isAdmin();
+      allow update, delete: if isAdmin();
+    }
+
+    // Forum posts collection - Consolidated rules
+    match /forum_posts/{postId} {
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated();
-      allow update: if isAdmin();
+      // Allow any authenticated user to update posts (for commenting)
+      allow update: if isAuthenticated();
+      // Only allow admins or post owners to delete
+      allow delete: if isAdmin() || isOwner(resource.data.userId);
+    }
+
+    // Post likes collection
+    match /post_likes/{likeId} {
+      allow read: if isAuthenticated();
+      allow create, delete: if isAuthenticated() && 
+        request.auth.uid == request.resource.data.userId;
+    }
+
+    // Reports Collection
+    match /reports/{reportId} {
+      allow read: if isAuthenticated() && (isAdmin() || isApprovedResponder() || isOwner(resource.data.userId));
+      allow create: if isAuthenticated();
+      allow update: if isAdmin() || isApprovedResponder();
       allow delete: if isAdmin();
     }
 
-    // Comments Collection
-    match /comments/{commentId} {
+    // Statistics Collection
+    match /statistics/{statId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Dashboard Stats Collection
+    match /dashboardStats/{statId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Analytics Collection
+    match /analytics/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // System Settings
+    match /settings/{settingId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Anonymous Reports
+    match /anonymous_reports/{reportId} {
+      allow create: if true;
+      allow read: if isAuthenticated() && (isAdmin() || isApprovedResponder());
+      allow update, delete: if isAdmin();
+    }
+
+    // Admin access
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
+
+// Storage rules
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isValidFileType(contentType) {
+      return contentType.matches('image/.*') ||
+             contentType.matches('video/.*') ||
+             contentType.matches('application/pdf');
+    }
+
+    function isValidFileSize(size) {
+      return size < 10 * 1024 * 1024; // 10MB
+    }
+
+    // License files
+    match /licenses/{userId}/{fileName} {
+      allow read: if isAuthenticated() && (isAdmin() || isOwner(userId));
+      allow write: if isAuthenticated() && isOwner(userId) && 
+                   isValidFileType(request.resource.contentType) && 
+                   isValidFileSize(request.resource.size);
+    }
+
+    // Incident files
+    match /incidents/{type}/{fileName} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && (
-        isAdmin() || 
-        resource.data.authorId == request.auth.uid
-      );
-      allow delete: if isAdmin() || 
-        resource.data.authorId == request.auth.uid;
+      allow write: if isAuthenticated() && 
+                   isValidFileType(request.resource.contentType) && 
+                   isValidFileSize(request.resource.size);
+    }
+    
+    // Default deny
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 } 

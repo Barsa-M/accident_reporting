@@ -21,6 +21,17 @@ const CreateAccount = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  const generateEmployeeId = () => {
+    // Get the current year
+    const currentYear = new Date().getFullYear().toString().slice(-2);
+    
+    // Generate a random 4-digit number
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    
+    // Format: USRYY#### (e.g., USR240001)
+    return `USR${currentYear}${randomNum}`;
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -50,6 +61,9 @@ const CreateAccount = () => {
     setLoading(true);
 
     try {
+      // Generate employee ID
+      const employeeId = generateEmployeeId();
+
       // Create user account
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
@@ -61,6 +75,7 @@ const CreateAccount = () => {
         name: name,
         phone: phone,
         role: role,
+        employeeId: employeeId,
         createdAt: new Date().toISOString(),
         lastUpdated: new Date().toISOString()
       });

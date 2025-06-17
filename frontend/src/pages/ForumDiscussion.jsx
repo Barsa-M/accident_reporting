@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth, db } from "../firebase/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, onSnapshot, addDoc, deleteDoc, updateDoc, serverTimestamp, arrayUnion } from "firebase/firestore";
 import UserSidebar from "../components/UserSidebar";
 import { format } from "date-fns";
-import { FiHeart, FiMessageSquare, FiTrash2, FiMoreVertical, FiUser, FiClock, FiCornerDownRight, FiChevronDown, FiChevronUp } from "react-icons/fi";
+import { FiHeart, FiMessageSquare, FiTrash2, FiMoreVertical, FiUser, FiClock, FiCornerDownRight, FiChevronDown, FiChevronUp, FiAlertCircle } from "react-icons/fi";
+import { toast } from "react-toastify";
 
 export default function ForumDiscussion() {
   const [user] = useAuthState(auth);
@@ -15,11 +16,13 @@ export default function ForumDiscussion() {
   const [error, setError] = useState(null);
   const [newComment, setNewComment] = useState("");
   const [commentingPostId, setCommentingPostId] = useState(null);
+  const [showOptions, setShowOptions] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [showCommentOptions, setShowCommentOptions] = useState(null);
   const [replyingTo, setReplyingTo] = useState(null);
   const [expandedPosts, setExpandedPosts] = useState({});
   const [expandedReplies, setExpandedReplies] = useState({});
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const navigate = useNavigate();
 
@@ -47,50 +50,59 @@ export default function ForumDiscussion() {
   const loadPosts = () => {
     try {
       setLoading(true);
-      const storedPosts = JSON.parse(localStorage.getItem('forum_posts') || '[]');
-      setPosts(storedPosts);
+      const postsQuery = query(collection(db, 'forum_posts'));
+      
+      const unsubscribe = onSnapshot(postsQuery, (snapshot) => {
+        const postsList = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate()
+        })).sort((a, b) => b.createdAt - a.createdAt);
+        
+        setPosts(postsList);
+        setLoading(false);
+      }, (error) => {
+        console.error("Error loading posts:", error);
+        setError("Failed to load posts. Please try again.");
+        setLoading(false);
+      });
+
+      return () => unsubscribe();
     } catch (error) {
-      console.error("Error loading posts:", error);
+      console.error("Error setting up posts listener:", error);
       setError("Failed to load posts. Please try again.");
-    } finally {
       setLoading(false);
     }
   };
 
-  const handleLike = (postId) => {
+  const handleLike = async (postId) => {
     if (!user) {
       navigate("/login");
       return;
     }
 
     try {
-      const updatedPosts = posts.map(post => {
-        if (post.id === postId) {
-          // Initialize likedBy array if it doesn't exist
-          const likedBy = post.likedBy || [];
-          
-          // Check if user has already liked the post
-          if (likedBy.includes(user.uid)) {
-            // Unlike: remove user from likedBy array
-            return {
-              ...post,
-              likedBy: likedBy.filter(id => id !== user.uid),
-              likes: (post.likes || 0) - 1
-            };
-          } else {
-            // Like: add user to likedBy array
-            return {
-              ...post,
-              likedBy: [...likedBy, user.uid],
-              likes: (post.likes || 0) + 1
-            };
-          }
-        }
-        return post;
-      });
+      const postRef = doc(db, 'forum_posts', postId);
+      const postDoc = await getDoc(postRef);
       
-      setPosts(updatedPosts);
-      localStorage.setItem('forum_posts', JSON.stringify(updatedPosts));
+      if (postDoc.exists()) {
+        const post = postDoc.data();
+        const likedBy = post.likedBy || [];
+        
+        if (likedBy.includes(user.uid)) {
+          // Unlike
+          await updateDoc(postRef, {
+            likedBy: likedBy.filter(id => id !== user.uid),
+            likes: (post.likes || 0) - 1
+          });
+        } else {
+          // Like
+          await updateDoc(postRef, {
+            likedBy: [...likedBy, user.uid],
+            likes: (post.likes || 0) + 1
+          });
+        }
+      }
     } catch (error) {
       console.error("Error liking post:", error);
       setError("Failed to like post. Please try again.");
@@ -105,7 +117,7 @@ export default function ForumDiscussion() {
     }));
   };
 
-  const handleComment = (postId) => {
+  const handleComment = async (postId) => {
     if (!user) {
       navigate("/login");
       return;
@@ -114,72 +126,104 @@ export default function ForumDiscussion() {
     if (!newComment.trim()) return;
 
     try {
-      const updatedPosts = posts.map(post => {
-        if (post.id === postId) {
-          const newCommentObj = {
-            id: Date.now().toString(),
-        text: newComment,
-        userId: user.uid,
-            userName: userData?.name || user.displayName || user.email?.split('@')[0] || 'User',
-            createdAt: new Date().toISOString()
-          };
-          return {
-            ...post,
-            comments: [...(post.comments || []), newCommentObj]
-          };
-        }
-        return post;
-      });
+      // First verify the user's authentication status
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        console.error("No authenticated user found");
+        setError("You must be logged in to comment");
+        return;
+      }
+
+      // Get the post document
+      const postRef = doc(db, 'forum_posts', postId);
+      const postDoc = await getDoc(postRef);
       
-      setPosts(updatedPosts);
-      localStorage.setItem('forum_posts', JSON.stringify(updatedPosts));
+      if (!postDoc.exists()) {
+        console.error("Post not found");
+        setError("Post not found");
+        return;
+      }
+
+      const post = postDoc.data();
+      console.log("Current post data:", post);
+
+      // Get user data from Firestore
+      const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+      const userData = userDoc.exists() ? userDoc.data() : null;
+
+      const newCommentObj = {
+        id: Date.now().toString(),
+        text: newComment,
+        userId: currentUser.uid,
+        userName: userData?.name || currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+        createdAt: new Date().toISOString()
+      };
+
+      console.log("New comment object:", newCommentObj);
+
+      // Get current comments array
+      const currentComments = post.comments || [];
+      const updatedComments = [...currentComments, newCommentObj];
+
+      // Update only the comments field
+      await updateDoc(postRef, {
+        comments: updatedComments,
+        lastUpdated: new Date().toISOString()
+      });
+
+      console.log("Comment added successfully");
+
       setNewComment("");
       setCommentingPostId(null);
-      // Expand comments after posting
       setExpandedPosts(prev => ({
         ...prev,
         [postId]: true
       }));
     } catch (error) {
       console.error("Error adding comment:", error);
+      console.error("Error details:", {
+        code: error.code,
+        message: error.message,
+        stack: error.stack
+      });
       setError("Failed to add comment. Please try again.");
     }
   };
 
-  const handleDeletePost = (postIndex) => {
+  const handleDeletePost = async (postId) => {
+    setDeleteLoading(true);
     try {
-      const updatedPosts = posts.filter((_, index) => index !== postIndex);
-      setPosts(updatedPosts);
-      localStorage.setItem('forum_posts', JSON.stringify(updatedPosts));
+      await deleteDoc(doc(db, 'forum_posts', postId));
+      setShowOptions(null);
       setShowDeleteConfirm(null);
+      toast.success("Post deleted successfully");
     } catch (error) {
       console.error("Error deleting post:", error);
-      setError("Failed to delete post. Please try again.");
+      toast.error("Failed to delete post. Please try again.");
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
-  const handleDeleteComment = (postId, commentId) => {
+  const handleDeleteComment = async (postId, commentId) => {
     try {
-      const updatedPosts = posts.map(post => {
-        if (post.id === postId) {
-          return {
-            ...post,
-            comments: post.comments.filter(comment => comment.id !== commentId)
-          };
-        }
-        return post;
-      });
+      const postRef = doc(db, 'forum_posts', postId);
+      const postDoc = await getDoc(postRef);
       
-      setPosts(updatedPosts);
-      localStorage.setItem('forum_posts', JSON.stringify(updatedPosts));
-      setShowCommentOptions(null);
+      if (postDoc.exists()) {
+        const post = postDoc.data();
+        await updateDoc(postRef, {
+          comments: post.comments.filter(comment => comment.id !== commentId)
+        });
+        setShowCommentOptions(null);
+      }
     } catch (error) {
       console.error("Error deleting comment:", error);
       setError("Failed to delete comment. Please try again.");
     }
   };
 
-  const handleReply = (postId, parentCommentId) => {
+  const handleReply = async (postId, parentCommentId) => {
     if (!user) {
       navigate("/login");
       return;
@@ -188,159 +232,159 @@ export default function ForumDiscussion() {
     if (!newComment.trim()) return;
 
     try {
-      const updatedPosts = posts.map(post => {
-        if (post.id === postId) {
-          const newReply = {
-            id: Date.now().toString(),
-            text: newComment,
-            userId: user.uid,
-            userName: userData?.name || user.displayName || user.email?.split('@')[0] || 'User',
-            createdAt: new Date().toISOString(),
-            parentId: parentCommentId
-          };
-
-          // Find the parent comment and add the reply
-          const updatedComments = post.comments.map(comment => {
-            if (comment.id === parentCommentId) {
-              return {
-                ...comment,
-                replies: [...(comment.replies || []), newReply]
-              };
-            }
-            return comment;
-          });
-
-          return {
-            ...post,
-            comments: updatedComments
-          };
-        }
-        return post;
-      });
+      const postRef = doc(db, 'forum_posts', postId);
+      const postDoc = await getDoc(postRef);
       
-      setPosts(updatedPosts);
-      localStorage.setItem('forum_posts', JSON.stringify(updatedPosts));
-      setNewComment("");
-      setReplyingTo(null);
+      if (postDoc.exists()) {
+        const post = postDoc.data();
+        const newReply = {
+          id: Date.now().toString(),
+          text: newComment,
+          userId: user.uid,
+          userName: userData?.name || user.displayName || user.email?.split('@')[0] || 'User',
+          createdAt: new Date().toISOString(),
+          parentId: parentCommentId
+        };
+
+        const updatedComments = post.comments.map(comment => {
+          if (comment.id === parentCommentId) {
+            return {
+              ...comment,
+              replies: [...(comment.replies || []), newReply]
+            };
+          }
+          return comment;
+        });
+
+        await updateDoc(postRef, {
+          comments: updatedComments
+        });
+
+        setNewComment("");
+        setReplyingTo(null);
+      }
     } catch (error) {
       console.error("Error adding reply:", error);
       setError("Failed to add reply. Please try again.");
     }
   };
 
-  const handleDeleteReply = (postId, commentId, replyId) => {
+  const handleDeleteReply = async (postId, commentId, replyId) => {
     try {
-      const updatedPosts = posts.map(post => {
-        if (post.id === postId) {
-          const updatedComments = post.comments.map(comment => {
-            if (comment.id === commentId) {
-              return {
-                ...comment,
-                replies: comment.replies.filter(reply => reply.id !== replyId)
-              };
-            }
-            return comment;
-          });
-          return { ...post, comments: updatedComments };
-        }
-        return post;
-      });
+      const postRef = doc(db, 'forum_posts', postId);
+      const postDoc = await getDoc(postRef);
       
-      setPosts(updatedPosts);
-      localStorage.setItem('forum_posts', JSON.stringify(updatedPosts));
-      setShowCommentOptions(null);
+      if (postDoc.exists()) {
+        const post = postDoc.data();
+        const updatedComments = post.comments.map(comment => {
+          if (comment.id === commentId) {
+            return {
+              ...comment,
+              replies: comment.replies.filter(reply => reply.id !== replyId)
+            };
+          }
+          return comment;
+        });
+
+        await updateDoc(postRef, {
+          comments: updatedComments
+        });
+        setShowCommentOptions(null);
+      }
     } catch (error) {
       console.error("Error deleting reply:", error);
       setError("Failed to delete reply. Please try again.");
     }
   };
 
-  const handleReplyLike = (postId, commentId, replyId) => {
+  const handleReplyLike = async (postId, commentId, replyId) => {
     if (!user) {
       navigate("/login");
       return;
     }
 
     try {
-      const updatedPosts = posts.map(post => {
-        if (post.id === postId) {
-          const updatedComments = post.comments.map(comment => {
-            if (comment.id === commentId) {
-              const updatedReplies = comment.replies.map(reply => {
-                if (reply.id === replyId) {
-                  const likedBy = reply.likedBy || [];
-                  if (likedBy.includes(user.uid)) {
-                    // Unlike
-                    return {
-                      ...reply,
-                      likedBy: likedBy.filter(id => id !== user.uid),
-                      likes: (reply.likes || 0) - 1
-                    };
-                  } else {
-                    // Like
-                    return {
-                      ...reply,
-                      likedBy: [...likedBy, user.uid],
-                      likes: (reply.likes || 0) + 1
-                    };
-                  }
-                }
-                return reply;
-              });
-              return { ...comment, replies: updatedReplies };
-            }
-            return comment;
-          });
-          return { ...post, comments: updatedComments };
-        }
-        return post;
-      });
+      const postRef = doc(db, 'forum_posts', postId);
+      const postDoc = await getDoc(postRef);
       
-      setPosts(updatedPosts);
-      localStorage.setItem('forum_posts', JSON.stringify(updatedPosts));
+      if (postDoc.exists()) {
+        const post = postDoc.data();
+        const updatedComments = post.comments.map(comment => {
+          if (comment.id === commentId) {
+            const updatedReplies = comment.replies.map(reply => {
+              if (reply.id === replyId) {
+                const likedBy = reply.likedBy || [];
+                if (likedBy.includes(user.uid)) {
+                  // Unlike
+                  return {
+                    ...reply,
+                    likedBy: likedBy.filter(id => id !== user.uid),
+                    likes: (reply.likes || 0) - 1
+                  };
+                } else {
+                  // Like
+                  return {
+                    ...reply,
+                    likedBy: [...likedBy, user.uid],
+                    likes: (reply.likes || 0) + 1
+                  };
+                }
+              }
+              return reply;
+            });
+            return { ...comment, replies: updatedReplies };
+          }
+          return comment;
+        });
+
+        await updateDoc(postRef, {
+          comments: updatedComments
+        });
+      }
     } catch (error) {
       console.error("Error liking reply:", error);
       setError("Failed to like reply. Please try again.");
     }
   };
 
-  const handleCommentLike = (postId, commentId) => {
+  const handleCommentLike = async (postId, commentId) => {
     if (!user) {
       navigate("/login");
       return;
     }
 
     try {
-      const updatedPosts = posts.map(post => {
-        if (post.id === postId) {
-          const updatedComments = post.comments.map(comment => {
-            if (comment.id === commentId) {
-              const likedBy = comment.likedBy || [];
-              if (likedBy.includes(user.uid)) {
-                // Unlike
-                return {
-                  ...comment,
-                  likedBy: likedBy.filter(id => id !== user.uid),
-                  likes: (comment.likes || 0) - 1
-                };
-              } else {
-                // Like
-                return {
-                  ...comment,
-                  likedBy: [...likedBy, user.uid],
-                  likes: (comment.likes || 0) + 1
-                };
-              }
-            }
-            return comment;
-          });
-          return { ...post, comments: updatedComments };
-        }
-        return post;
-      });
+      const postRef = doc(db, 'forum_posts', postId);
+      const postDoc = await getDoc(postRef);
       
-      setPosts(updatedPosts);
-      localStorage.setItem('forum_posts', JSON.stringify(updatedPosts));
+      if (postDoc.exists()) {
+        const post = postDoc.data();
+        const updatedComments = post.comments.map(comment => {
+          if (comment.id === commentId) {
+            const likedBy = comment.likedBy || [];
+            if (likedBy.includes(user.uid)) {
+              // Unlike
+              return {
+                ...comment,
+                likedBy: likedBy.filter(id => id !== user.uid),
+                likes: (comment.likes || 0) - 1
+              };
+            } else {
+              // Like
+              return {
+                ...comment,
+                likedBy: [...likedBy, user.uid],
+                likes: (comment.likes || 0) + 1
+              };
+            }
+          }
+          return comment;
+        });
+
+        await updateDoc(postRef, {
+          comments: updatedComments
+        });
+      }
     } catch (error) {
       console.error("Error liking comment:", error);
       setError("Failed to like comment. Please try again.");
@@ -425,16 +469,19 @@ export default function ForumDiscussion() {
                     {user && post.userId === user.uid && (
                       <div className="relative">
                         <button
-                          onClick={() => setShowDeleteConfirm(showDeleteConfirm === index ? null : index)}
+                          onClick={() => setShowOptions(showOptions === index ? null : index)}
                           className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
                         >
                           <FiMoreVertical className="w-5 h-5" />
                         </button>
                         
-                        {showDeleteConfirm === index && (
+                        {showOptions === index && (
                           <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 border border-gray-200">
                             <button
-                              onClick={() => handleDeletePost(index)}
+                              onClick={() => {
+                                setShowOptions(null);
+                                setShowDeleteConfirm(index);
+                              }}
                               className="w-full px-4 py-2 text-left text-red-600 hover:bg-red-50 flex items-center"
                             >
                               <FiTrash2 className="w-4 h-4 mr-2" />
@@ -727,6 +774,52 @@ export default function ForumDiscussion() {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm !== null && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-center mb-4">
+              <FiAlertCircle className="w-12 h-12 text-red-500" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
+              Delete Post
+            </h3>
+            <p className="text-gray-600 text-center mb-6">
+              Are you sure you want to delete this post? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-4">
+              <button
+                onClick={() => setShowDeleteConfirm(null)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                disabled={deleteLoading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeletePost(posts[showDeleteConfirm].id)}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                disabled={deleteLoading}
+              >
+                {deleteLoading ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <FiTrash2 className="w-4 h-4 mr-2" />
+                    Delete
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

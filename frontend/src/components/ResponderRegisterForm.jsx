@@ -57,7 +57,7 @@ const ResponderRegisterForm = () => {
   useEffect(() => {
     let mapInstance = null;
     try {
-      if (!mapRef.current) {
+    if (!mapRef.current) {
         const mapContainer = document.getElementById("map");
         if (!mapContainer) {
           console.error("Map container not found");
@@ -66,43 +66,43 @@ const ResponderRegisterForm = () => {
         }
 
         mapInstance = L.map("map", {
-          center: formData.mapLocation,
-          zoom: ZOOM_LEVEL,
-          minZoom: 8,
-          maxZoom: 16,
-        });
+        center: formData.mapLocation,
+        zoom: ZOOM_LEVEL,
+        minZoom: 8,
+        maxZoom: 16,
+      });
 
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         }).addTo(mapInstance);
 
         markerRef.current = L.marker(formData.mapLocation, { draggable: true }).addTo(mapInstance);
 
-        markerRef.current.on("dragend", (event) => {
-          const newLocation = event.target.getLatLng();
-          setFormData((prev) => ({
-            ...prev,
-            mapLocation: [newLocation.lat, newLocation.lng],
-          }));
-        });
+      markerRef.current.on("dragend", (event) => {
+        const newLocation = event.target.getLatLng();
+        setFormData((prev) => ({
+          ...prev,
+          mapLocation: [newLocation.lat, newLocation.lng],
+        }));
+      });
 
-        // Set bounds for Ethiopia
-        const bounds = [
-          [3.4, 33.0], // South-West
-          [15.0, 48.0], // North-East
-        ];
+      // Set bounds for Ethiopia
+      const bounds = [
+        [3.4, 33.0], // South-West
+        [15.0, 48.0], // North-East
+      ];
         mapInstance.setMaxBounds(bounds);
         mapInstance.on("drag", () => {
           mapInstance.panInsideBounds(bounds, { animate: false });
-        });
+      });
 
         mapRef.current = mapInstance;
-      }
+    }
 
-      if (markerRef.current) {
-        markerRef.current.setLatLng(formData.mapLocation);
-        mapRef.current.panTo(formData.mapLocation);
+    if (markerRef.current) {
+      markerRef.current.setLatLng(formData.mapLocation);
+      mapRef.current.panTo(formData.mapLocation);
       }
     } catch (error) {
       console.error("Error initializing map:", error);
@@ -305,44 +305,44 @@ const ResponderRegisterForm = () => {
       };
 
       try {
-        // Save responder data
-        await setDoc(doc(db, 'responders', user.uid), responderData);
+      // Save responder data
+      await setDoc(doc(db, 'responders', user.uid), responderData);
 
-        // Create user document
-        await setDoc(doc(db, 'users', user.uid), {
-          uid: user.uid,
-          email: formData.email,
-          name: formData.instituteName,
-          phone: formData.phoneNumber,
-          role: ROLES.RESPONDER,
-          createdAt: new Date().toISOString(),
-          lastUpdated: new Date().toISOString()
-        });
+      // Create user document
+      await setDoc(doc(db, 'users', user.uid), {
+        uid: user.uid,
+        email: formData.email,
+        name: formData.instituteName,
+        phone: formData.phoneNumber,
+        role: ROLES.RESPONDER,
+        createdAt: new Date().toISOString(),
+        lastUpdated: new Date().toISOString()
+      });
 
-        toast.success('Application submitted successfully!');
-        setIsSubmitting(false);
+      toast.success('Application submitted successfully!');
+      setIsSubmitting(false);
 
-        // Clear form data
-        setFormData({
-          instituteName: '',
-          email: '',
-          phoneNumber: '',
-          responderType: '',
-          operatingHours: '',
-          capacity: '',
-          additionalDetails: '',
-          password: '',
-          confirmPassword: '',
-          mapLocation: DEFAULT_LOCATION,
-          yearsOfExperience: '',
-          licenseFile: null,
-          licensePreview: null
-        });
+      // Clear form data
+      setFormData({
+        instituteName: '',
+        email: '',
+        phoneNumber: '',
+        responderType: '',
+        operatingHours: '',
+        capacity: '',
+        additionalDetails: '',
+        password: '',
+        confirmPassword: '',
+        mapLocation: DEFAULT_LOCATION,
+        yearsOfExperience: '',
+        licenseFile: null,
+        licensePreview: null
+      });
 
-        // Redirect to login page after a delay
-        setTimeout(() => {
-          navigate('/responder/login');
-        }, 2000);
+      // Redirect to login page after a delay
+      setTimeout(() => {
+        navigate('/responder/login');
+      }, 2000);
       } catch (error) {
         console.error('Error saving responder data:', error);
         // Clean up the created user account
