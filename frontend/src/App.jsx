@@ -21,6 +21,7 @@ import ResponderRegister from './pages/ResponderRegister';
 import AnonymousReport from './pages/AnonymousReport';
 import PendingApproval from './pages/PendingApproval';
 import RejectedApplication from './pages/RejectedApplication';
+import EmergencyCall from './pages/EmergencyCall';
 
 // User Pages
 import UserDashboard from './pages/UserDashboard';
@@ -150,6 +151,7 @@ function App() {
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/responder-register" element={<ResponderRegister />} />
                 <Route path="/anonymous-report" element={<AnonymousReport />} />
+                <Route path="/emergency-call" element={<EmergencyCall />} />
 
                 {/* User Routes */}
                 <Route

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { FiUpload, FiX, FiFileText, FiImage } from 'react-icons/fi';
+import { FiUpload, FiX, FiFileText, FiImage, FiVideo } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 
 const FILE_TYPES = {
@@ -31,46 +31,56 @@ const FileUpload = ({
   error, 
   type = 'INCIDENT',
   required = false,
-  className = ''
+  className = '',
+  files,
+  setFiles,
+  maxFiles = 5,
+  maxSizeMB = 10
 }) => {
   const [isDragging, setIsDragging] = useState(false);
-  const [preview, setPreview] = useState(null);
+  const [previews, setPreviews] = useState([]);
   const fileInputRef = useRef(null);
   const config = FILE_TYPES[type];
 
+  const validateFile = (file) => {
+    // Check file size (convert MB to bytes)
+    if (file.size > maxSizeMB * 1024 * 1024) {
+      toast.error(`File size should be less than ${maxSizeMB}MB`);
+      return false;
+    }
+
+    // Check file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'video/mp4', 'video/quicktime'];
+    if (!validTypes.includes(file.type)) {
+      toast.error('Invalid file type. Please upload images (JPEG, PNG, GIF) or videos (MP4, MOV)');
+      return false;
+    }
+
+    return true;
+  };
+
   const handleFileChange = (e) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    const file = files[0];
+    const newFiles = Array.from(e.target.files);
     
-    // Validate file size
-    if (file.size > config.maxSize) {
-      toast.error(`File size must be less than ${config.maxSize / (1024 * 1024)}MB`);
+    // Check if adding new files would exceed maxFiles limit
+    if (files.length + newFiles.length > maxFiles) {
+      toast.error(`You can only upload up to ${maxFiles} files`);
       return;
     }
 
-    // Validate file type
-    const fileExtension = file.name.split('.').pop().toLowerCase();
-    const allowedExtensions = config.accept.replace(/\./g, '').split(',');
-    if (!allowedExtensions.includes(fileExtension)) {
-      toast.error(`Invalid file type. Allowed types: ${config.accept}`);
-      return;
-    }
+    // Validate each file
+    const validFiles = newFiles.filter(validateFile);
+    
+    if (validFiles.length > 0) {
+      // Create previews for valid files
+      const newPreviews = validFiles.map(file => ({
+        file,
+        preview: URL.createObjectURL(file)
+      }));
 
-    // Create preview for images
-    if (file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setPreview(e.target.result);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setPreview(null);
+      setFiles(prev => [...prev, ...validFiles]);
+      setPreviews(prev => [...prev, ...newPreviews]);
     }
-
-    // Call onChange with the file
-    onChange(e);
   };
 
   const handleDragOver = (e) => {
@@ -110,29 +120,25 @@ const FileUpload = ({
     if (file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onload = (e) => {
-        setPreview(e.target.result);
+        setPreviews([{ file, preview: e.target.result }]);
       };
       reader.readAsDataURL(file);
     } else {
-      setPreview(null);
+      setPreviews([]);
     }
 
-    // Create a synthetic event
-    const syntheticEvent = {
-      target: {
-        name,
-        files: [file],
-        value: file
-      }
-    };
-    onChange(syntheticEvent);
+    // Call onChange with the file
+    onChange({ target: { name, value: file, files: [file] } });
   };
 
-  const handleRemove = () => {
-    setPreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+  const removeFile = (index) => {
+    setFiles(prev => prev.filter((_, i) => i !== index));
+    setPreviews(prev => {
+      const newPreviews = prev.filter((_, i) => i !== index);
+      // Revoke the object URL to avoid memory leaks
+      URL.revokeObjectURL(prev[index].preview);
+      return newPreviews;
+    });
     onChange({ target: { name, value: null, files: [] } });
   };
 
@@ -175,12 +181,33 @@ const FileUpload = ({
         ) : (
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              {preview ? (
-                <img
-                  src={preview}
-                  alt="Preview"
-                  className="h-12 w-12 object-cover rounded"
-                />
+              {previews.length > 0 ? (
+                previews.map((preview, index) => (
+                  <div key={index} className="relative group">
+                    {preview.file.type.startsWith('image/') ? (
+                      <img
+                        src={preview.preview}
+                        alt={`Preview ${index + 1}`}
+                        className="h-12 w-12 object-cover rounded"
+                      />
+                    ) : (
+                      <video
+                        src={preview.preview}
+                        className="h-12 w-12 object-cover rounded"
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFile(index);
+                      }}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <FiX className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))
               ) : (
                 <FiFileText className="h-12 w-12 text-gray-400" />
               )}
@@ -192,7 +219,7 @@ const FileUpload = ({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                handleRemove();
+                removeFile(0);
               }}
               className="text-gray-400 hover:text-red-500"
             >

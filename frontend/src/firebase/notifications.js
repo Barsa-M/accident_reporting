@@ -1,4 +1,4 @@
-import { collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
 import { sendNotification } from '../services/notificationService';
 
@@ -75,11 +75,17 @@ export const getUserNotifications = async (userId, options = {}) => {
 
 // Mark notification as read
 export const markNotificationAsRead = async (notificationId) => {
-  const notificationRef = doc(db, 'notifications', notificationId);
-  await updateDoc(notificationRef, {
-    read: true,
-    readAt: new Date()
-  });
+  try {
+    const notificationRef = doc(db, 'notifications', notificationId);
+    await updateDoc(notificationRef, {
+      read: true,
+      readAt: serverTimestamp()
+    });
+    return true;
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+    throw error;
+  }
 };
 
 // Mark all notifications as read for a user
@@ -186,6 +192,83 @@ export const sendNotificationEmail = async (to, subject, message) => {
     await createNotification(notification);
   } catch (error) {
     console.error('Error sending notification email:', error);
+    throw error;
+  }
+};
+
+// Send notification to a responder
+export const notifyResponder = async (responderId, notification) => {
+  try {
+    const notificationsRef = collection(db, 'notifications');
+    await addDoc(notificationsRef, {
+      recipientId: responderId,
+      type: notification.type,
+      message: notification.message,
+      data: notification.data || {},
+      read: false,
+      createdAt: serverTimestamp()
+    });
+    return true;
+  } catch (error) {
+    console.error('Error sending notification:', error);
+    throw error;
+  }
+};
+
+// Send notification to a user
+export const notifyUser = async (userId, notification) => {
+  try {
+    const notificationsRef = collection(db, 'notifications');
+    await addDoc(notificationsRef, {
+      recipientId: userId,
+      type: notification.type,
+      message: notification.message,
+      data: notification.data || {},
+      read: false,
+      createdAt: serverTimestamp()
+    });
+    return true;
+  } catch (error) {
+    console.error('Error sending notification:', error);
+    throw error;
+  }
+};
+
+// Get unread notifications for a user
+export const getUnreadNotifications = async (userId) => {
+  try {
+    const notificationsRef = collection(db, 'notifications');
+    const q = query(
+      notificationsRef,
+      where('recipientId', '==', userId),
+      where('read', '==', false)
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error('Error getting unread notifications:', error);
+    throw error;
+  }
+};
+
+// Get all notifications for a user
+export const getAllNotifications = async (userId) => {
+  try {
+    const notificationsRef = collection(db, 'notifications');
+    const q = query(
+      notificationsRef,
+      where('recipientId', '==', userId)
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error('Error getting all notifications:', error);
     throw error;
   }
 }; 

@@ -12,6 +12,7 @@ import { createChatRoom } from "../services/chatService";
 
 export default function MedicalIncidentForm() {
   const navigate = useNavigate();
+  const [files, setFiles] = useState([]);
   const [formData, setFormData] = useState({
     // Common fields
     fullName: "",
@@ -20,7 +21,6 @@ export default function MedicalIncidentForm() {
     location: [9.03, 38.74], // Default to Addis Ababa
     locationDescription: "",
     description: "",
-    files: [],
     incidentDateTime: new Date().toISOString().slice(0, 16),
     // Medical-specific fields
     emergencyType: "",
@@ -32,6 +32,12 @@ export default function MedicalIncidentForm() {
     isConscious: "",
     isBreathing: "",
     bloodLoss: "",
+    patientAge: "",
+    patientGender: "",
+    medicalHistory: "",
+    allergies: "",
+    medications: "",
+    vitalSigns: ""
   });
 
   const [errors, setErrors] = useState({});
@@ -40,6 +46,8 @@ export default function MedicalIncidentForm() {
   const validateForm = () => {
     const newErrors = {};
     // Common field validations
+    if (!formData.fullName) newErrors.fullName = "Full name is required";
+    if (!formData.phoneNumber) newErrors.phoneNumber = "Phone number is required";
     if (!formData.severityLevel) newErrors.severityLevel = "Please select a severity level";
     if (!formData.location) newErrors.location = "Please select a location";
     if (!formData.description) newErrors.description = "Please provide a description";
@@ -52,6 +60,8 @@ export default function MedicalIncidentForm() {
     if (!formData.numberOfAffected) newErrors.numberOfAffected = "Number of affected persons is required";
     if (!formData.isConscious) newErrors.isConscious = "Please specify if the person is conscious";
     if (!formData.isBreathing) newErrors.isBreathing = "Please specify if the person is breathing";
+    if (!formData.patientAge) newErrors.patientAge = "Patient age is required";
+    if (!formData.patientGender) newErrors.patientGender = "Patient gender is required";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -81,11 +91,27 @@ export default function MedicalIncidentForm() {
         type: 'Medical',
         status: 'pending',
         createdAt: new Date().toISOString(),
-        userId: auth.currentUser.uid
+        userId: auth.currentUser.uid,
+        location: {
+          latitude: formData.location[0],
+          longitude: formData.location[1]
+        },
+        files: files.map(file => ({
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          url: file.url
+        }))
       };
 
-      // Route the incident
-      const routingResult = await routeIncident(incidentData);
+      // Add the incident to Firestore
+      const docRef = await addDoc(collection(db, 'incidents'), incidentData);
+
+      // Now route the incident with the document ID
+      const routingResult = await routeIncident({
+        ...incidentData,
+        id: docRef.id
+      });
 
       if (routingResult.success) {
         const successMessage = routingResult.responder 
@@ -101,7 +127,6 @@ export default function MedicalIncidentForm() {
         navigate('/user-dashboard');
       } else {
         // If no responder is available, queue the incident
-        incidentData.status = 'queued';
         toast.info('Your report has been submitted and is queued for assignment.');
         
         // Wait for 2 seconds to show the message
@@ -135,6 +160,8 @@ export default function MedicalIncidentForm() {
                 incidentType="Medical"
                 onLocationSelect={handleLocationSelect}
                 isSubmitting={isSubmitting}
+                files={files}
+                setFiles={setFiles}
               />
 
               {/* Medical-specific Fields */}
@@ -158,6 +185,40 @@ export default function MedicalIncidentForm() {
                     <option value="other">Other</option>
                   </select>
                   {errors.emergencyType && <p className="mt-1 text-sm text-red-600">{errors.emergencyType}</p>}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-[#0d522c] mb-1">Patient Age *</label>
+                    <input
+                      type="number"
+                      name="patientAge"
+                      value={formData.patientAge}
+                      onChange={e => setFormData(prev => ({ ...prev, patientAge: e.target.value }))}
+                      min="0"
+                      max="120"
+                      className={`w-full px-4 py-2 rounded-lg border ${errors.patientAge ? 'border-red-500' : 'border-[#0d522c]/20'} focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
+                      required
+                    />
+                    {errors.patientAge && <p className="mt-1 text-sm text-red-600">{errors.patientAge}</p>}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#0d522c] mb-1">Patient Gender *</label>
+                    <select
+                      name="patientGender"
+                      value={formData.patientGender}
+                      onChange={e => setFormData(prev => ({ ...prev, patientGender: e.target.value }))}
+                      className={`w-full px-4 py-2 rounded-lg border ${errors.patientGender ? 'border-red-500' : 'border-[#0d522c]/20'} focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
+                      required
+                    >
+                      <option value="">Select gender</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
+                    {errors.patientGender && <p className="mt-1 text-sm text-red-600">{errors.patientGender}</p>}
+                  </div>
                 </div>
 
                 <div>
@@ -208,57 +269,95 @@ export default function MedicalIncidentForm() {
                   {errors.numberOfAffected && <p className="mt-1 text-sm text-red-600">{errors.numberOfAffected}</p>}
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-[#0d522c] mb-1">Consciousness Status *</label>
-                  <div className="flex space-x-6">
-                    {["Yes", "No", "Unknown"].map(option => (
-                      <label key={option} className="inline-flex items-center">
-                        <input
-                          type="radio"
-                          name="isConscious"
-                          value={option}
-                          checked={formData.isConscious === option}
-                          onChange={e => setFormData(prev => ({ ...prev, isConscious: e.target.value }))}
-                          className="w-4 h-4 text-[#0d522c] border-[#0d522c]/20 focus:ring-[#0d522c]"
-                          required
-                        />
-                        <span className="ml-2 text-[#0d522c]">{option}</span>
-                      </label>
-                    ))}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-[#0d522c] mb-1">Consciousness Status *</label>
+                    <div className="flex space-x-6">
+                      {["Yes", "No", "Unknown"].map(option => (
+                        <label key={option} className="inline-flex items-center">
+                          <input
+                            type="radio"
+                            name="isConscious"
+                            value={option}
+                            checked={formData.isConscious === option}
+                            onChange={e => setFormData(prev => ({ ...prev, isConscious: e.target.value }))}
+                            className="w-4 h-4 text-[#0d522c] border-[#0d522c]/20 focus:ring-[#0d522c]"
+                            required
+                          />
+                          <span className="ml-2 text-[#0d522c]">{option}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {errors.isConscious && <p className="mt-1 text-sm text-red-600">{errors.isConscious}</p>}
                   </div>
-                  {errors.isConscious && <p className="mt-1 text-sm text-red-600">{errors.isConscious}</p>}
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#0d522c] mb-1">Breathing Status *</label>
+                    <div className="flex space-x-6">
+                      {["Yes", "No", "Labored"].map(option => (
+                        <label key={option} className="inline-flex items-center">
+                          <input
+                            type="radio"
+                            name="isBreathing"
+                            value={option}
+                            checked={formData.isBreathing === option}
+                            onChange={e => setFormData(prev => ({ ...prev, isBreathing: e.target.value }))}
+                            className="w-4 h-4 text-[#0d522c] border-[#0d522c]/20 focus:ring-[#0d522c]"
+                            required
+                          />
+                          <span className="ml-2 text-[#0d522c]">{option}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {errors.isBreathing && <p className="mt-1 text-sm text-red-600">{errors.isBreathing}</p>}
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-[#0d522c] mb-1">Breathing Status *</label>
-                  <div className="flex space-x-6">
-                    {["Yes", "No", "Labored"].map(option => (
-                      <label key={option} className="inline-flex items-center">
-                        <input
-                          type="radio"
-                          name="isBreathing"
-                          value={option}
-                          checked={formData.isBreathing === option}
-                          onChange={e => setFormData(prev => ({ ...prev, isBreathing: e.target.value }))}
-                          className="w-4 h-4 text-[#0d522c] border-[#0d522c]/20 focus:ring-[#0d522c]"
-                          required
-                        />
-                        <span className="ml-2 text-[#0d522c]">{option}</span>
-                      </label>
-                    ))}
-                  </div>
-                  {errors.isBreathing && <p className="mt-1 text-sm text-red-600">{errors.isBreathing}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-[#0d522c] mb-1">Past Medical History</label>
+                  <label className="block text-sm font-medium text-[#0d522c] mb-1">Medical History</label>
                   <textarea
-                    name="pastIllness"
-                    value={formData.pastIllness}
-                    onChange={e => setFormData(prev => ({ ...prev, pastIllness: e.target.value }))}
+                    name="medicalHistory"
+                    value={formData.medicalHistory}
+                    onChange={e => setFormData(prev => ({ ...prev, medicalHistory: e.target.value }))}
                     rows="3"
                     className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50"
                     placeholder="Any relevant medical history"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-[#0d522c] mb-1">Allergies</label>
+                  <textarea
+                    name="allergies"
+                    value={formData.allergies}
+                    onChange={e => setFormData(prev => ({ ...prev, allergies: e.target.value }))}
+                    rows="3"
+                    className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50"
+                    placeholder="List any known allergies"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-[#0d522c] mb-1">Current Medications</label>
+                  <textarea
+                    name="medications"
+                    value={formData.medications}
+                    onChange={e => setFormData(prev => ({ ...prev, medications: e.target.value }))}
+                    rows="3"
+                    className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50"
+                    placeholder="List any current medications"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-[#0d522c] mb-1">Vital Signs</label>
+                  <textarea
+                    name="vitalSigns"
+                    value={formData.vitalSigns}
+                    onChange={e => setFormData(prev => ({ ...prev, vitalSigns: e.target.value }))}
+                    rows="3"
+                    className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50"
+                    placeholder="Record any vital signs if available (pulse, blood pressure, temperature, etc.)"
                   />
                 </div>
 
@@ -276,22 +375,27 @@ export default function MedicalIncidentForm() {
               </div>
 
               {/* Form Buttons */}
-              <div className="flex justify-end space-x-4">
-                <button
-                  type="button"
-                  onClick={() => window.history.back()}
-                  className="px-6 py-2 border border-[#0d522c] text-[#0d522c] rounded-lg hover:bg-[#0d522c]/5 transition-colors"
-                >
-                  Cancel
-                </button>
+              <div className="flex justify-end">
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className={`px-6 py-2 bg-[#0d522c] text-white rounded-lg hover:bg-[#347752] transition-colors ${
-                    isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
+                  className={`px-6 py-3 rounded-lg text-white font-medium ${
+                    isSubmitting 
+                      ? 'bg-[#0d522c]/50 cursor-not-allowed' 
+                      : 'bg-[#0d522c] hover:bg-[#347752]'
+                  } transition-colors duration-200 flex items-center space-x-2`}
                 >
-                  {isSubmitting ? 'Submitting...' : 'Submit Report'}
+                  {isSubmitting ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Submitting...</span>
+                    </>
+                  ) : (
+                    <span>Submit Report</span>
+                  )}
                 </button>
               </div>
             </form>

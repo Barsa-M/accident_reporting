@@ -1,0 +1,78 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role.lower() == 'admin';
+    }
+
+    function isResponder() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role.lower() == 'responder';
+    }
+
+    function isApprovedResponder() {
+      return isResponder() && 
+        get(/databases/$(database)/documents/responders/$(request.auth.uid)).data.status.lower() == 'approved';
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isOwner(userId);
+    }
+
+    // Responders collection
+    match /responders/{responderId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isOwner(responderId);
+    }
+
+    // Incidents collection
+    match /incidents/{incidentId} {
+      allow create: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        isAdmin() || 
+        isApprovedResponder() || 
+        resource.data.reporterId == request.auth.uid
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Notifications collection
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && (
+        resource.data.recipientId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        resource.data.recipientId == request.auth.uid ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Anonymous reports collection
+    match /anonymous_reports/{reportId} {
+      allow create: if true;
+      allow read: if isAuthenticated() && (isAdmin() || isApprovedResponder());
+      allow update: if isAuthenticated() && (isAdmin() || isApprovedResponder());
+      allow delete: if isAdmin();
+    }
+  }
+} 

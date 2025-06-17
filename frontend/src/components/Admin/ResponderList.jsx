@@ -5,10 +5,12 @@ import { collection, query, where, orderBy, getDocs, doc, updateDoc, getDoc } fr
 import { db } from '../../firebase/firebase';
 import { toast } from 'react-hot-toast';
 import { FiLoader, FiMapPin, FiFileText, FiCheck, FiX, FiSearch, FiFilter } from 'react-icons/fi';
-import { RESPONDER_STATUS } from '../../firebase/roles';
+import { RESPONDER_STATUS } from '../../firebase/responderStatus';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import { getLocalFile } from '../../services/fileStorage';
+import { useResponderAuth } from '../../contexts/ResponderAuthContext';
 
 // Fix for default marker icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -19,6 +21,7 @@ L.Icon.Default.mergeOptions({
 });
 
 const ResponderList = () => {
+  const { loading: authLoading } = useResponderAuth();
   const [responders, setResponders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -42,7 +45,7 @@ const ResponderList = () => {
       let q = query(collection(db, 'responders'), orderBy('createdAt', 'desc'));
       
       if (statusFilter !== 'all') {
-        q = query(q, where('status', '==', statusFilter));
+        q = query(q, where('applicationStatus', '==', statusFilter));
       }
 
       const querySnapshot = await getDocs(q);
@@ -72,21 +75,24 @@ const ResponderList = () => {
       }
 
       const responderRef = doc(db, 'responders', responderId);
-      await updateDoc(responderRef, {
-        status: newStatus,
-        rejectionReason: newStatus === RESPONDER_STATUS.REJECTED ? rejectionReason : '',
-        lastUpdated: new Date().toISOString(),
-        applicationDetails: {
-          status: newStatus,
-          lastUpdated: new Date().toISOString(),
-          rejectionReason: newStatus === RESPONDER_STATUS.REJECTED ? rejectionReason : ''
-        }
-      });
+      const updateData = {
+        applicationStatus: newStatus,
+        lastUpdated: new Date().toISOString()
+      };
+
+      if (newStatus === RESPONDER_STATUS.REJECTED) {
+        updateData.rejectionReason = rejectionReason;
+      } else if (newStatus === RESPONDER_STATUS.APPROVED) {
+        // Set initial availability status when approved
+        updateData.availabilityStatus = 'available';
+      }
+
+      await updateDoc(responderRef, updateData);
 
       // Also update the user's status
       const userRef = doc(db, 'users', responderId);
       await updateDoc(userRef, {
-        status: newStatus,
+        applicationStatus: newStatus,
         lastUpdated: new Date().toISOString()
       });
 
@@ -105,38 +111,30 @@ const ResponderList = () => {
   const getLicenseData = async (responder) => {
     if (!responder) return null;
     
-    // First try to get from the responder document
-    if (responder.licenseData) {
-      return responder.licenseData;
-    }
-    
-    // If not in responder document, try localStorage
-    if (responder.licenseUrl && responder.licenseUrl.startsWith('local://')) {
-      const match = responder.licenseUrl.match(/local:\/\/licenses\/([^/]+)\/(.+)/);
-      if (match) {
-        const [, userId, filename] = match;
-        const key = `license_${userId}_${filename}`;
-        const licenseData = localStorage.getItem(key);
-        if (licenseData) {
-          return licenseData;
-        }
-      }
-    }
-    
-    // If not found, try to get from Firestore backup
     try {
-      const responderDoc = await getDoc(doc(db, 'responders', responder.uid));
-      if (responderDoc.exists()) {
-        const data = responderDoc.data();
-        if (data.licenseBackup) {
-          return data.licenseBackup.data;
+      // Check for license files in the responder document
+      if (responder.licenseFiles && responder.licenseFiles.length > 0) {
+        const licenseFile = responder.licenseFiles[0];
+        console.log('License file found:', licenseFile);
+        
+        // If the file data is already a data URL, return it directly
+        if (licenseFile.path && typeof licenseFile.path === 'string') {
+          return {
+            url: licenseFile.path,
+            name: licenseFile.name || 'License Document',
+            type: licenseFile.type || 'application/octet-stream',
+            size: licenseFile.size || 0,
+            uploadedAt: licenseFile.uploadedAt || new Date().toISOString()
+          };
         }
       }
+      
+      console.log('No valid license file found for responder:', responder.uid);
+      return null;
     } catch (error) {
-      console.error('Error retrieving license backup:', error);
+      console.error('Error retrieving license file:', error);
+      return null;
     }
-    
-    return null;
   };
 
   useEffect(() => {
@@ -200,7 +198,7 @@ const ResponderList = () => {
     );
   });
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <FiLoader className="w-8 h-8 animate-spin text-[#0D522C]" />
@@ -294,10 +292,10 @@ const ResponderList = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full
-                      ${responder.status === RESPONDER_STATUS.APPROVED ? 'bg-green-100 text-green-800' :
-                        responder.status === RESPONDER_STATUS.REJECTED ? 'bg-red-100 text-red-800' :
+                      ${responder.applicationStatus === RESPONDER_STATUS.APPROVED ? 'bg-green-100 text-green-800' :
+                        responder.applicationStatus === RESPONDER_STATUS.REJECTED ? 'bg-red-100 text-red-800' :
                         'bg-yellow-100 text-yellow-800'}`}>
-                      {responder.status}
+                      {responder.applicationStatus}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -376,12 +374,12 @@ const ResponderList = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-gray-600">Status</p>
-                      <p className="font-medium capitalize">{selectedResponder.status}</p>
+                      <p className="font-medium capitalize">{selectedResponder.applicationStatus}</p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-600">Applied</p>
                       <p className="font-medium">
-                        {new Date(selectedResponder.applicationDate).toLocaleString()}
+                        {new Date(selectedResponder.createdAt).toLocaleString()}
                       </p>
                     </div>
                     <div>
@@ -397,26 +395,35 @@ const ResponderList = () => {
                 {selectedResponder.location && (
                   <div className="md:col-span-2">
                     <h3 className="text-lg font-semibold mb-4">Location</h3>
-                    <div className="p-4 border rounded-lg bg-gray-50">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <FiMapPin className="text-[#0D522C]" />
-                        <span className="font-medium">Coordinates:</span>
-                        <span>{selectedResponder.location.latitude}, {selectedResponder.location.longitude}</span>
+                    <div className="border rounded-lg p-4">
+                      <div className="space-y-4">
+                        <div className="flex items-center space-x-2">
+                          <FiMapPin className="text-[#0D522C]" />
+                          <span className="font-medium">Location Coordinates</span>
+                        </div>
+                        <div className="mt-2">
+                          <p className="text-sm text-gray-600">
+                            Latitude: {selectedResponder.location.latitude}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            Longitude: {selectedResponder.location.longitude}
+                          </p>
+                          <a
+                            href={`https://www.google.com/maps?q=${selectedResponder.location.latitude},${selectedResponder.location.longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[#0D522C] hover:underline"
+                          >
+                            View on Google Maps
+                          </a>
+                        </div>
                       </div>
-                      <a
-                        href={`https://www.google.com/maps?q=${selectedResponder.location.latitude},${selectedResponder.location.longitude}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[#0D522C] hover:underline"
-                      >
-                        View on Google Maps
-                      </a>
                     </div>
                   </div>
                 )}
 
                 {/* License Document */}
-                {selectedResponder.licenseUrl && (
+                {selectedResponder && (
                   <div className="md:col-span-2">
                     <h3 className="text-lg font-semibold mb-4">License Document</h3>
                     <div className="border rounded-lg p-4">
@@ -432,21 +439,43 @@ const ResponderList = () => {
                               <span className="ml-2">Loading license document...</span>
                             </div>
                           ) : licenseData ? (
-                            <>
-                              <img
-                                src={licenseData}
-                                alt="License Document"
-                                className="max-w-full h-auto rounded-lg border"
-                              />
+                            <div className="space-y-4">
+                              {licenseData.type?.includes('image') ? (
+                                <div className="relative">
+                                  <img
+                                    src={licenseData.url}
+                                    alt="License Document"
+                                    className="max-w-full h-auto rounded-lg border"
+                                  />
+                                  <div className="mt-2 text-sm text-gray-600">
+                                    <p>File: {licenseData.name}</p>
+                                    <p>Size: {(licenseData.size / 1024 / 1024).toFixed(2)} MB</p>
+                                    <p>Uploaded: {new Date(licenseData.uploadedAt).toLocaleString()}</p>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center space-x-2 p-4 bg-gray-50 rounded-lg">
+                                  <FiFileText className="h-8 w-8 text-[#0D522C]" />
+                                  <div>
+                                    <p className="font-medium">{licenseData.name}</p>
+                                    <p className="text-sm text-gray-500">
+                                      {licenseData.type} • {(licenseData.size / 1024 / 1024).toFixed(2)} MB
+                                    </p>
+                                    <p className="text-sm text-gray-500">
+                                      Uploaded: {new Date(licenseData.uploadedAt).toLocaleString()}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
                               <a
-                                href={licenseData}
+                                href={licenseData.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-block mt-2 text-[#0D522C] hover:underline"
                               >
                                 Open in new tab
                               </a>
-                            </>
+                            </div>
                           ) : (
                             <div className="space-y-4">
                               <div className="text-red-500">
@@ -464,7 +493,7 @@ const ResponderList = () => {
                 )}
 
                 {/* Admin Actions */}
-                {selectedResponder.status === RESPONDER_STATUS.PENDING && (
+                {selectedResponder.applicationStatus === RESPONDER_STATUS.PENDING && (
                   <div className="md:col-span-2 border-t pt-6">
                     <h3 className="text-lg font-semibold mb-4">Admin Actions</h3>
                     <div className="space-y-4">

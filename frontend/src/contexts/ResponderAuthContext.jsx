@@ -38,7 +38,7 @@ export function ResponderAuthProvider({ children }) {
           setError('Responder data not found');
           setResponderStatus(null);
         } else {
-          setResponderStatus(responderDoc.data().status);
+          setResponderStatus(responderDoc.data().applicationStatus);
         }
       } catch (err) {
         console.error('Error checking responder status:', err);

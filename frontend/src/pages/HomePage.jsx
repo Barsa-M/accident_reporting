@@ -26,21 +26,28 @@ const HomePage = () => {
           />
           <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-transparent md:from-black/60 md:via-black/40 md:to-transparent"></div>
         </div>
-        <div className="relative container mx-auto px-4 sm:px-6 h-full flex items-center">
-          <div className="max-w-2xl text-white">
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 md:mb-6 drop-shadow-lg leading-tight">Fast Emergency Response When Every Second Counts</h1>
-            <p className="text-lg sm:text-xl mb-6 md:mb-8 drop-shadow text-white/90 leading-relaxed">Report accidents quickly and securely. Connect with emergency responders in real-time. Save lives with SAFE.</p>
+        
+        {/* Hero Content */}
+        <div className="relative container mx-auto px-4 h-full flex flex-col justify-center">
+          <div className="max-w-2xl">
+            <h1 className="text-4xl md:text-6xl font-bold text-white mb-6">
+              Emergency Response at Your Fingertips
+            </h1>
+            <p className="text-lg md:text-xl text-white/90 mb-8">
+              Quick access to emergency services and incident reporting. Stay safe, stay connected.
+            </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <button
                 onClick={handleReportIncident}
-                className="w-full sm:w-auto px-6 sm:px-8 py-3 bg-white text-[#0d522c] rounded-lg font-medium hover:bg-[#B9E4C9] transition-all duration-300 transform hover:scale-[1.02]"
+                className="px-8 py-3 bg-[#0d522c] text-white rounded-lg font-medium hover:bg-[#0b421f] transition-colors"
               >
                 Report Incident
               </button>
-              <Link to="/responder-register" className="w-full sm:w-auto">
-                <button className="w-full px-6 sm:px-8 py-3 border-2 border-white text-white rounded-lg font-medium hover:bg-white hover:text-[#0d522c] transition-all duration-300 transform hover:scale-[1.02]">
-                  Join as Responder
-                </button>
+              <Link
+                to="/emergency-call"
+                className="px-8 py-3 bg-[#0d522c] text-white rounded-lg font-medium hover:bg-[#0b421f] transition-colors text-center"
+              >
+                Call Responders
               </Link>
             </div>
           </div>

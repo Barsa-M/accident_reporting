@@ -3,7 +3,21 @@ import L from 'leaflet';
 import { format } from 'date-fns';
 import { toast } from 'react-toastify';
 import FileUpload from './FileUpload';
-import { MapContainer, TileLayer, Marker } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import imageCompression from 'browser-image-compression';
+import { openDB } from 'idb';
+import { FiUpload, FiX, FiFileText } from 'react-icons/fi';
+
+// Initialize IndexedDB
+const initDB = async () => {
+  return openDB('incidentFiles', 1, {
+    upgrade(db) {
+      if (!db.objectStoreNames.contains('files')) {
+        db.createObjectStore('files');
+      }
+    },
+  });
+};
 
 const IncidentFormFields = ({ 
   formData, 
@@ -11,11 +25,16 @@ const IncidentFormFields = ({
   errors, 
   incidentType,
   onLocationSelect,
-  isSubmitting
+  isSubmitting,
+  files,
+  setFiles
 }) => {
   const [currentLocation, setCurrentLocation] = useState([9.03, 38.74]); // Default to Addis Ababa
   const mapRef = useRef(null);
   const markerRef = useRef(null);
+  const [db, setDB] = useState(null);
+  const fileInputRef = useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     if (!mapRef.current) {
@@ -56,6 +75,24 @@ const IncidentFormFields = ({
     }
   }, [currentLocation, onLocationSelect]);
 
+  useEffect(() => {
+    // Initialize IndexedDB
+    initDB().then(database => {
+      setDB(database);
+    }).catch(error => {
+      console.error('Error initializing database:', error);
+    });
+
+    // Cleanup function to revoke object URLs
+    return () => {
+      files.forEach(file => {
+        if (file.url && file.url.startsWith('blob:')) {
+          URL.revokeObjectURL(file.url);
+        }
+      });
+    };
+  }, []);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -64,54 +101,115 @@ const IncidentFormFields = ({
     }));
   };
 
-  const handleFileChange = async (e) => {
-    const files = Array.from(e.target.files);
-    if (!files || files.length === 0) return;
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    await handleFiles(droppedFiles);
+  };
+
+  const handleFiles = async (selectedFiles) => {
+    if (selectedFiles.length === 0) return;
+
+    // Check if adding new files would exceed the limit
+    if (files.length + selectedFiles.length > 5) {
+      toast.error('Maximum 5 files allowed');
+      return;
+    }
+
+    // Validate each file
+    for (const file of selectedFiles) {
+      // Check file size (50MB limit)
+      if (file.size > 50 * 1024 * 1024) {
+        toast.error(`${file.name} is too large. Maximum size is 50MB`);
+        return;
+      }
+
+      // Check file type
+      if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+        toast.error(`${file.name} is not a valid image or video file`);
+        return;
+      }
+    }
 
     try {
-      // Process each file
-      const processedFiles = await Promise.all(files.map(async (file) => {
-        // Check file size (max 10MB)
-        const maxSize = 10 * 1024 * 1024;
-        if (file.size > maxSize) {
-          throw new Error(`File ${file.name} is too large. Maximum size is 10MB.`);
-        }
+      const newFiles = await Promise.all(
+        selectedFiles.map(async (file) => {
+          // Create a URL for the file
+          const url = URL.createObjectURL(file);
+          return {
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            url: url,
+            file: file
+          };
+        })
+      );
 
-        // Create a unique filename
-        const timestamp = Date.now();
-        const filename = `${timestamp}_${file.name}`;
-        
-        // Read file as base64
-        const fileData = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = () => reject(new Error('Failed to read file'));
-          reader.readAsDataURL(file);
-        });
-
-        // Store in localStorage
-        const localStorageKey = `incident_${filename}`;
-        localStorage.setItem(localStorageKey, fileData);
-
-        return {
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          data: fileData,
-          url: `local://incidents/${filename}`
-        };
-      }));
-
-      // Update form data with processed files
+      // Update both states with the new files
+      setFiles(prev => [...prev, ...newFiles]);
       setFormData(prev => ({
         ...prev,
-        files: [...(prev.files || []), ...processedFiles]
+        files: Array.isArray(prev.files) ? [...prev.files, ...newFiles] : newFiles
       }));
 
-      toast.success('Files uploaded successfully');
+      // Clear the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+
+      toast.success('Files added successfully');
     } catch (error) {
-      console.error('Error uploading files:', error);
-      toast.error(error.message);
+      console.error('Error processing files:', error);
+      toast.error('Failed to process files');
+    }
+  };
+
+  const handleFileChange = async (e) => {
+    const selectedFiles = Array.from(e.target.files);
+    await handleFiles(selectedFiles);
+  };
+
+  const handleRemoveFile = async (index) => {
+    try {
+      const fileToRemove = files[index];
+      if (!fileToRemove) return;
+
+      // Revoke the object URL to free up memory
+      if (fileToRemove.url && fileToRemove.url.startsWith('blob:')) {
+        URL.revokeObjectURL(fileToRemove.url);
+      }
+
+      // Create a new array without the removed file
+      const updatedFiles = files.filter((_, i) => i !== index);
+      
+      // Update both files state and formData
+      setFiles(updatedFiles);
+      setFormData(prev => ({
+        ...prev,
+        files: updatedFiles
+      }));
+
+      // Reset the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
+      toast.success('File removed successfully');
+    } catch (error) {
+      console.error('Error removing file:', error);
+      toast.error('Failed to remove file');
     }
   };
 
@@ -119,21 +217,6 @@ const IncidentFormFields = ({
     const latlng = e.latlng;
     setCurrentLocation([latlng.lat, latlng.lng]);
     onLocationSelect([latlng.lat, latlng.lng]);
-  };
-
-  const handleRemoveFile = (index) => {
-    const file = formData.files[index];
-    if (file) {
-      // Remove from localStorage
-      const filename = file.url.split('/').pop();
-      localStorage.removeItem(`incident_${filename}`);
-    }
-
-    // Update form data
-    setFormData(prev => ({
-      ...prev,
-      files: prev.files.filter((_, i) => i !== index)
-    }));
   };
 
   return (
@@ -242,76 +325,80 @@ const IncidentFormFields = ({
       </div>
 
       {/* File Upload */}
-      <div>
-        <label className="block text-sm font-medium text-[#0d522c] mb-1">Upload Files (Optional)</label>
-        <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-[#0d522c]/20 border-dashed rounded-lg">
-          <div className="space-y-1 text-center">
-            <svg
-              className="mx-auto h-12 w-12 text-[#0d522c]/40"
-              stroke="currentColor"
-              fill="none"
-              viewBox="0 0 48 48"
-              aria-hidden="true"
-            >
-              <path
-                d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <div className="flex text-sm text-[#0d522c]/60">
-              <label
-                htmlFor="file-upload"
-                className="relative cursor-pointer rounded-md font-medium text-[#0d522c] hover:text-[#347752] focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-[#0d522c]"
+      <div className="mt-4">
+        <label className="block text-sm font-medium text-[#0d522c] mb-2">
+          Upload Files (Images/Videos)
+        </label>
+        <div
+          className={`border-2 border-dashed rounded-lg p-6 text-center ${
+            isDragging ? 'border-[#0d522c] bg-[#0d522c]/5' : 'border-[#0d522c]/20'
+          }`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            multiple
+            accept="image/*,video/*"
+            className="hidden"
+          />
+          <div className="space-y-4">
+            <FiUpload className="mx-auto h-12 w-12 text-[#0d522c]/40" />
+            <div className="text-sm text-[#0d522c]/60">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="text-[#0d522c] hover:text-[#347752] font-medium"
               >
-                <span>Upload files</span>
-                <input
-                  id="file-upload"
-                  name="file-upload"
-                  type="file"
-                  multiple
-                  className="sr-only"
-                  onChange={handleFileChange}
-                />
-              </label>
-              <p className="pl-1">or drag and drop</p>
+                Click to upload
+              </button>
+              {' or drag and drop'}
             </div>
-            <p className="text-xs text-[#0d522c]/60">PNG, JPG, GIF up to 10MB</p>
+            <p className="text-xs text-[#0d522c]/40">
+              PNG, JPG, GIF up to 50MB
+            </p>
           </div>
         </div>
-        {formData.files && formData.files.length > 0 && (
-          <div className="mt-4">
-            <h4 className="text-sm font-medium text-[#0d522c] mb-2">Selected Files:</h4>
-            <div className="grid grid-cols-2 gap-4">
-              {formData.files.map((file, index) => (
-                <div key={index} className="relative group">
-                  {file.type.startsWith('image/') ? (
-                    <img
-                      src={file.data}
-                      alt={file.name}
-                      className="w-full h-32 object-cover rounded-lg"
-                    />
-                  ) : (
-                    <div className="w-full h-32 flex items-center justify-center bg-gray-100 rounded-lg">
-                      <span className="text-sm text-gray-500">{file.name}</span>
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveFile(index)}
-                    className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* File Previews */}
+      {files.length > 0 && (
+        <div className="mt-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {files.map((file, index) => (
+              <div key={index} className="relative group">
+                {file.type.startsWith('image/') ? (
+                  <img
+                    src={file.url}
+                    alt={file.name}
+                    className="w-full h-32 object-cover rounded-lg"
+                  />
+                ) : file.type.startsWith('video/') ? (
+                  <video
+                    src={file.url}
+                    className="w-full h-32 object-cover rounded-lg"
+                    controls
+                  />
+                ) : (
+                  <div className="w-full h-32 flex items-center justify-center bg-gray-100 rounded-lg">
+                    <FiFileText className="h-8 w-8 text-gray-400" />
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleRemoveFile(index)}
+                  className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <FiX className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

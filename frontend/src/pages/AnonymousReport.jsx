@@ -1,141 +1,129 @@
-import { useState, useEffect, useRef } from 'react';
-import L from 'leaflet';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../firebase/firebase';
-import Navigation from '../components/Navigation';
-import Footer from '../components/Footer';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db, storage } from "../firebase/firebase";
+import IncidentFormFields from "../components/Common/IncidentFormFields";
+import Navigation from "../components/Navigation";
+import Footer from "../components/Footer";
+import { toast } from "react-toastify";
+import { routeIncident } from "../services/enhancedRouting";
 
-const AnonymousReport = () => {
-  const [position, setPosition] = useState([9.03, 38.74]); // Addis Ababa coordinates
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitStatus, setSubmitStatus] = useState(null);
-  const [selectedFiles, setSelectedFiles] = useState([]);
-  const mapRef = useRef(null);
-  const markerRef = useRef(null);
-
+export default function AnonymousReport() {
+  const navigate = useNavigate();
+  const [files, setFiles] = useState([]);
   const [formData, setFormData] = useState({
-    incidentType: '',
-    description: '',
-    locationDescription: '',
+    // Common fields
+    severityLevel: "",
+    description: "",
+    location: [9.03, 38.74], // Default to Addis Ababa
+    locationDescription: "",
+    incidentDateTime: new Date().toISOString().slice(0, 16),
+    incidentType: "",
+    // Additional fields for anonymous reports
+    preferredContactMethod: "",
+    contactDetails: "",
+    additionalInformation: "",
+    urgencyLevel: "",
+    isWitness: "",
+    canBeContacted: ""
   });
 
-  useEffect(() => {
-    if (!mapRef.current) {
-      mapRef.current = L.map('map', {
-        center: position,
-        zoom: 13,
-        minZoom: 8,
-        maxZoom: 16,
-      });
+  const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-      }).addTo(mapRef.current);
-
-      markerRef.current = L.marker(position, { draggable: true }).addTo(mapRef.current);
-
-      markerRef.current.on('dragend', (event) => {
-        const newLocation = event.target.getLatLng();
-        setPosition([newLocation.lat, newLocation.lng]);
-      });
-
-      // Add click handler to map
-      mapRef.current.on('click', (e) => {
-        setPosition([e.latlng.lat, e.latlng.lng]);
-      });
-
-      // Set Ethiopia bounds
-      const ethiopiaBounds = [
-        [3.4, 33.0], // South-West
-        [14.8, 48.0] // North-East
-      ];
-      mapRef.current.setMaxBounds(ethiopiaBounds);
-      mapRef.current.on('drag', () => {
-        mapRef.current.panInsideBounds(ethiopiaBounds, { animate: false });
-      });
+  const validateForm = () => {
+    const newErrors = {};
+    // Common field validations
+    if (!formData.severityLevel) newErrors.severityLevel = "Please select a severity level";
+    if (!formData.description) newErrors.description = "Please provide a description";
+    if (!formData.location) newErrors.location = "Please select a location";
+    if (!formData.incidentType) newErrors.incidentType = "Please select an incident type";
+    if (!formData.urgencyLevel) newErrors.urgencyLevel = "Please specify the urgency level";
+    if (!formData.isWitness) newErrors.isWitness = "Please specify if you are a witness";
+    if (!formData.canBeContacted) newErrors.canBeContacted = "Please specify if you can be contacted";
+    if (formData.canBeContacted === "yes" && !formData.preferredContactMethod) {
+      newErrors.preferredContactMethod = "Please specify your preferred contact method";
+    }
+    if (formData.canBeContacted === "yes" && !formData.contactDetails) {
+      newErrors.contactDetails = "Please provide contact details";
     }
 
-    // Update marker position when position state changes
-    if (markerRef.current) {
-      markerRef.current.setLatLng(position);
-      mapRef.current.panTo(position);
-    }
-  }, [position]);
-
-  const incidentTypes = [
-    { value: 'medical', label: 'Medical Emergency', phone: '907', description: 'For medical emergencies, ambulance services, or immediate health concerns' },
-    { value: 'police', label: 'Police Emergency', phone: '911', description: 'For crime, security threats, or immediate police assistance' },
-    { value: 'fire', label: 'Fire Emergency', phone: '939', description: 'For fire incidents, rescue operations, or fire hazards' },
-    { value: 'traffic', label: 'Traffic Emergency', phone: '945', description: 'For traffic accidents, road emergencies, or vehicle incidents' }
-  ];
-
-  const handleEmergencyCall = (phoneNumber) => {
-    window.location.href = `tel:${phoneNumber}`;
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
+  const handleLocationSelect = (location) => {
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      location
     }));
-  };
-
-  const handleFileChange = (e) => {
-    const files = Array.from(e.target.files);
-    setSelectedFiles(files);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
     setIsSubmitting(true);
-    setSubmitStatus(null);
 
     try {
-      // Upload media files
-      const mediaUrls = [];
-      for (const file of selectedFiles) {
-        const storageRef = ref(storage, `incidents/${Date.now()}_${file.name}`);
-        const snapshot = await uploadBytes(storageRef, file);
-        const url = await getDownloadURL(snapshot.ref);
-        mediaUrls.push(url);
-      }
-
-      // Create incident document
+      // Prepare incident data
       const incidentData = {
-        incidentType: formData.incidentType,
-        description: formData.description,
-        location: { 
-          lat: position[0], 
-          lng: position[1],
-          description: formData.locationDescription 
-        },
-        mediaUrls,
-        isAnonymous: true,
+        ...formData,
+        type: formData.incidentType,
         status: 'pending',
-        createdAt: serverTimestamp(),
-        responderType: formData.incidentType, // This will help in routing to correct responder type
-        assignedTo: null,
-        urgency: 'medium', // Default urgency for anonymous reports
-        reportedBy: 'anonymous',
-        lastUpdated: serverTimestamp()
+        createdAt: new Date().toISOString(),
+        isAnonymous: true,
+        location: {
+          latitude: formData.location[0],
+          longitude: formData.location[1]
+        },
+        files: files.map(file => ({
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          url: file.url
+        }))
       };
 
-      await addDoc(collection(db, 'incidents'), incidentData);
+      // Add the incident to Firestore
+      const docRef = await addDoc(collection(db, 'incidents'), incidentData);
 
-      setSubmitStatus('success');
-      // Reset form
-      setFormData({
-        incidentType: '',
-        description: '',
-        locationDescription: '',
+      // Now route the incident with the document ID
+      const routingResult = await routeIncident({
+        ...incidentData,
+        id: docRef.id
       });
-      setPosition([9.03, 38.74]);
-      setSelectedFiles([]);
+
+      if (routingResult.success) {
+        const successMessage = routingResult.responder 
+          ? `Your anonymous report has been submitted successfully and assigned to ${routingResult.responder.name}.`
+          : 'Your anonymous report has been submitted successfully.';
+        
+        toast.success(successMessage);
+        
+        // Wait for 2 seconds to show the success message
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Navigate to home
+        navigate('/');
+      } else {
+        // If no responder is available, queue the incident
+        toast.info('Your report has been submitted and is queued for assignment.');
+        
+        // Wait for 2 seconds to show the message
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Navigate to home
+        navigate('/');
+      }
     } catch (error) {
-      console.error('Error submitting report:', error);
-      setSubmitStatus('error');
+      console.error('Error submitting incident:', error);
+      toast.error('Failed to submit report. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -145,152 +133,164 @@ const AnonymousReport = () => {
     <div className="min-h-screen bg-gray-50">
       <Navigation />
       <div className="container mx-auto px-4 py-24">
-        <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-md overflow-hidden">
-          <div className="p-8">
-            <h1 className="text-3xl font-bold text-[#0d522c] mb-2">Anonymous Report</h1>
-            <p className="text-gray-600 mb-4">
-              Report incidents anonymously. No personal information is collected or stored.
-            </p>
-
-            {/* Emergency Contact Cards */}
-            <div className="mb-8">
-              <h2 className="text-xl font-semibold text-[#0d522c] mb-4">Emergency Contacts</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {incidentTypes.map(type => (
-                  <div key={type.value} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
-                    <h3 className="text-lg font-semibold mb-2">{type.label}</h3>
-                    <p className="text-gray-600 text-sm mb-3">{type.description}</p>
-                    <button
-                      onClick={() => handleEmergencyCall(type.phone)}
-                      className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md flex items-center gap-2"
-                    >
-                      <span className="material-icons-outlined">phone</span>
-                      Call {type.phone}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="border-t pt-8">
-              <h2 className="text-xl font-semibold text-[#0d522c] mb-4">Report an Incident</h2>
-              {submitStatus === 'success' && (
-                <div className="mb-6 p-4 bg-green-100 text-green-700 rounded-lg">
-                  Report submitted successfully. Thank you for contributing to community safety.
-                </div>
-              )}
-
-              {submitStatus === 'error' && (
-                <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-lg">
-                  Error submitting report. Please try again.
-                </div>
-              )}
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div className="p-8">
+              <h1 className="text-3xl font-bold text-[#0d522c] mb-2">Anonymous Report</h1>
+              <p className="text-gray-600 mb-8">
+                Report incidents anonymously. No personal information is required unless you choose to provide it.
+              </p>
 
               <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Incident Type */}
+                {/* Common Fields */}
+                <IncidentFormFields
+                  formData={formData}
+                  setFormData={setFormData}
+                  errors={errors}
+                  incidentType="Anonymous"
+                  onLocationSelect={handleLocationSelect}
+                  isSubmitting={isSubmitting}
+                  files={files}
+                  setFiles={setFiles}
+                />
+
+                {/* Incident Type Selection */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Incident Type *
-                  </label>
+                  <label className="block text-sm font-medium text-[#0d522c] mb-1">Type of Incident *</label>
                   <select
                     name="incidentType"
                     value={formData.incidentType}
-                    onChange={handleInputChange}
+                    onChange={e => setFormData(prev => ({ ...prev, incidentType: e.target.value }))}
+                    className={`w-full px-4 py-2 rounded-lg border ${errors.incidentType ? 'border-red-500' : 'border-[#0d522c]/20'} focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0d522c] focus:border-transparent"
                   >
                     <option value="">Select incident type</option>
-                    {incidentTypes.map(type => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
-                      </option>
-                    ))}
+                    <option value="Medical">Medical Emergency</option>
+                    <option value="Fire">Fire Emergency</option>
+                    <option value="Police">Police Emergency</option>
+                    <option value="Traffic">Traffic Accident</option>
                   </select>
+                  {errors.incidentType && <p className="mt-1 text-sm text-red-600">{errors.incidentType}</p>}
                 </div>
 
-                {/* Description */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Description *
-                  </label>
-                  <textarea
-                    name="description"
-                    value={formData.description}
-                    onChange={handleInputChange}
-                    required
-                    rows="4"
-                    placeholder="Please provide detailed information about the incident. Include:
-- What happened?
-- How many people are involved/affected?
-- Are there any immediate dangers?
-- What kind of help is needed?
-- Any other relevant details"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0d522c] focus:border-transparent"
-                  ></textarea>
-                </div>
+                {/* Anonymous-specific Fields */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-[#0d522c] mb-1">Urgency Level *</label>
+                    <select
+                      value={formData.urgencyLevel}
+                      onChange={(e) => setFormData(prev => ({ ...prev, urgencyLevel: e.target.value }))}
+                      className={`w-full px-4 py-2 rounded-lg border ${errors.urgencyLevel ? 'border-red-500' : 'border-[#0d522c]/20'} focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
+                      required
+                    >
+                      <option value="">Select</option>
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                      <option value="critical">Critical</option>
+                    </select>
+                    {errors.urgencyLevel && <p className="mt-1 text-sm text-red-600">{errors.urgencyLevel}</p>}
+                  </div>
 
-                {/* Map */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Location (Click on map to set location)
-                  </label>
-                  <div id="map" className="w-full h-[400px] rounded-lg border border-gray-300"></div>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Map is restricted to Ethiopia's boundaries
-                  </p>
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#0d522c] mb-1">Are you a witness? *</label>
+                    <select
+                      value={formData.isWitness}
+                      onChange={(e) => setFormData(prev => ({ ...prev, isWitness: e.target.value }))}
+                      className={`w-full px-4 py-2 rounded-lg border ${errors.isWitness ? 'border-red-500' : 'border-[#0d522c]/20'} focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
+                      required
+                    >
+                      <option value="">Select</option>
+                      <option value="yes">Yes</option>
+                      <option value="no">No</option>
+                    </select>
+                    {errors.isWitness && <p className="mt-1 text-sm text-red-600">{errors.isWitness}</p>}
+                  </div>
 
-                {/* Location Description */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Location Description
-                  </label>
-                  <input
-                    type="text"
-                    name="locationDescription"
-                    value={formData.locationDescription}
-                    onChange={handleInputChange}
-                    placeholder="E.g., Near Bole Medhanialem Church, opposite to Edna Mall..."
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0d522c] focus:border-transparent"
-                  />
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#0d522c] mb-1">Can you be contacted? *</label>
+                    <select
+                      value={formData.canBeContacted}
+                      onChange={(e) => setFormData(prev => ({ ...prev, canBeContacted: e.target.value }))}
+                      className={`w-full px-4 py-2 rounded-lg border ${errors.canBeContacted ? 'border-red-500' : 'border-[#0d522c]/20'} focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
+                      required
+                    >
+                      <option value="">Select</option>
+                      <option value="yes">Yes</option>
+                      <option value="no">No</option>
+                    </select>
+                    {errors.canBeContacted && <p className="mt-1 text-sm text-red-600">{errors.canBeContacted}</p>}
+                  </div>
 
-                {/* Media Upload */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Upload Media (Optional)
-                  </label>
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*,video/*"
-                    onChange={handleFileChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0d522c] focus:border-transparent"
-                  />
-                  <p className="text-sm text-gray-500 mt-1">
-                    You can upload images or videos related to the incident
-                  </p>
-                </div>
+                  {formData.canBeContacted === "yes" && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-[#0d522c] mb-1">Preferred Contact Method *</label>
+                        <select
+                          value={formData.preferredContactMethod}
+                          onChange={(e) => setFormData(prev => ({ ...prev, preferredContactMethod: e.target.value }))}
+                          className={`w-full px-4 py-2 rounded-lg border ${errors.preferredContactMethod ? 'border-red-500' : 'border-[#0d522c]/20'} focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
+                          required
+                        >
+                          <option value="">Select</option>
+                          <option value="phone">Phone</option>
+                          <option value="email">Email</option>
+                          <option value="sms">SMS</option>
+                        </select>
+                        {errors.preferredContactMethod && <p className="mt-1 text-sm text-red-600">{errors.preferredContactMethod}</p>}
+                      </div>
 
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className={`w-full py-3 rounded-md font-medium transition-colors ${
-                    isSubmitting 
-                      ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-[#0d522c] hover:bg-[#0b421f] text-white"
-                  }`}
-                >
-                  {isSubmitting ? (
-                    <div className="flex items-center justify-center">
-                      <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin mr-2"></div>
-                      Submitting...
-                    </div>
-                  ) : (
-                    "Submit Report"
+                      <div>
+                        <label className="block text-sm font-medium text-[#0d522c] mb-1">Contact Details *</label>
+                        <input
+                          type="text"
+                          value={formData.contactDetails}
+                          onChange={(e) => setFormData(prev => ({ ...prev, contactDetails: e.target.value }))}
+                          className={`w-full px-4 py-2 rounded-lg border ${errors.contactDetails ? 'border-red-500' : 'border-[#0d522c]/20'} focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
+                          placeholder="Enter your contact details"
+                          required
+                        />
+                        {errors.contactDetails && <p className="mt-1 text-sm text-red-600">{errors.contactDetails}</p>}
+                      </div>
+                    </>
                   )}
-                </button>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-[#0d522c] mb-1">Additional Information</label>
+                  <textarea
+                    value={formData.additionalInformation}
+                    onChange={(e) => setFormData(prev => ({ ...prev, additionalInformation: e.target.value }))}
+                    rows="4"
+                    className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50"
+                    placeholder="Any additional information you'd like to provide"
+                  />
+                </div>
+
+                {/* Form Buttons */}
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className={`px-6 py-3 rounded-lg text-white font-medium ${
+                      isSubmitting 
+                        ? 'bg-[#0d522c]/50 cursor-not-allowed' 
+                        : 'bg-[#0d522c] hover:bg-[#347752]'
+                    } transition-colors duration-200 flex items-center space-x-2`}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Submitting...</span>
+                      </>
+                    ) : (
+                      <span>Submit Report</span>
+                    )}
+                  </button>
+                </div>
               </form>
             </div>
           </div>
@@ -299,6 +299,4 @@ const AnonymousReport = () => {
       <Footer />
     </div>
   );
-};
-
-export default AnonymousReport; 
+} 

@@ -1,11 +1,34 @@
 import { useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "../firebase/firebase";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { auth, db, functions } from "../firebase/firebase";
 import { ROLES, normalizeRole, isValidRole } from "../firebase/roles";
+import { RESPONDER_STATUS } from "../firebase/responderStatus";
 import { FiMail, FiLock, FiArrowLeft, FiAlertCircle, FiEye, FiEyeOff } from "react-icons/fi";
 import { toast } from "react-hot-toast";
+import { httpsCallable } from "firebase/functions";
+
+// Helper function to ensure responder has correct status
+const ensureResponderStatus = async (responderId, responderData) => {
+  try {
+    const responderRef = doc(db, 'responders', responderId);
+    const updateData = {};
+
+    // If status is missing or incorrect, set it to approved
+    if (!responderData.applicationStatus && !responderData.status) {
+      updateData.applicationStatus = RESPONDER_STATUS.APPROVED;
+      updateData.status = RESPONDER_STATUS.APPROVED;
+      await updateDoc(responderRef, updateData);
+      return RESPONDER_STATUS.APPROVED;
+    }
+
+    return responderData.applicationStatus || responderData.status;
+  } catch (error) {
+    console.error('Error updating responder status:', error);
+    return null;
+  }
+};
 
 function Login() {
   const [email, setEmail] = useState("");
@@ -62,6 +85,18 @@ function Login() {
       // Update user data with normalized role
       userData.role = normalizedRole;
 
+      // If user is an admin, set admin role as custom claim
+      if (normalizedRole === ROLES.ADMIN) {
+        try {
+          const setAdminRole = httpsCallable(functions, 'setAdminRole');
+          await setAdminRole({ userId: user.uid });
+          // Force token refresh to get new custom claims
+          await user.getIdToken(true);
+        } catch (error) {
+          console.error('Error setting admin role:', error);
+        }
+      }
+
       // Handle routing based on normalized role
       switch (normalizedRole) {
         case ROLES.ADMIN:
@@ -77,22 +112,29 @@ function Login() {
           
           if (responderSnap.exists()) {
             const responderData = responderSnap.data();
-            console.log("Responder status:", responderData.status);
-            // Route based on responder status
-            switch (responderData.status.toLowerCase()) {
-              case 'pending':
-                navigate("/responder/pending", { replace: true });
-                return;
-              case 'approved':
-                navigate("/responder/dashboard", { replace: true });
-                return;
-              case 'rejected':
-                navigate("/responder/rejected", { replace: true });
-                return;
-              default:
-                navigate("/responder/pending", { replace: true });
-                return;
+            console.log("Complete Responder data:", JSON.stringify(responderData, null, 2));
+            
+            // Ensure responder has correct status
+            const applicationStatus = await ensureResponderStatus(user.uid, responderData);
+            console.log("Application status after ensure:", applicationStatus);
+            
+            if (applicationStatus === RESPONDER_STATUS.APPROVED) {
+              console.log("Status matches APPROVED, routing to dashboard");
+              navigate("/responder/dashboard", { replace: true });
+              return;
             }
+            
+            // If not approved, check other statuses
+            if (applicationStatus === RESPONDER_STATUS.REJECTED) {
+              console.log("Status matches REJECTED, routing to rejected page");
+              navigate("/responder/rejected", { replace: true });
+              return;
+            }
+            
+            // For pending or any other status
+            console.log("Status is neither APPROVED nor REJECTED, routing to pending page");
+            navigate("/responder/pending", { replace: true });
+            return;
           } else {
             console.log("New responder - routing to registration");
             navigate("/responder/register", { replace: true });

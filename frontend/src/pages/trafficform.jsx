@@ -9,6 +9,8 @@ import { toast } from "react-toastify";
 import { auth } from "../firebase/firebase";
 import { routeIncident } from "../services/enhancedRouting";
 import { createChatRoom } from "../services/chatService";
+import FileUpload from '../components/Common/FileUpload';
+import { saveIncidentFilesLocally } from '../services/localFileService';
 
 export default function TrafficIncidentForm() {
   const navigate = useNavigate();
@@ -23,16 +25,21 @@ export default function TrafficIncidentForm() {
     files: [],
     incidentDateTime: new Date().toISOString().slice(0, 16),
     // Traffic-specific fields
-    vehiclePlateNumber: "",
+    vehiclePlateNumbers: [""], // Array to store multiple plate numbers
     accidentType: "",
     numberOfVehicles: "",
     numberOfInjured: "",
     isSelfReport: "",
     witnessDetails: "",
+    vehicleDetails: "",
+    injuries: "",
+    roadConditions: "",
+    weatherConditions: ""
   });
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [files, setFiles] = useState([]);
 
   const validateForm = () => {
     const newErrors = {};
@@ -59,6 +66,26 @@ export default function TrafficIncidentForm() {
     }));
   };
 
+  // Handle changes to number of vehicles
+  const handleNumberOfVehiclesChange = (e) => {
+    const count = parseInt(e.target.value) || 0;
+    setFormData(prev => ({
+      ...prev,
+      numberOfVehicles: count,
+      vehiclePlateNumbers: Array(count).fill("") // Reset plate numbers array
+    }));
+  };
+
+  // Handle changes to individual plate numbers
+  const handlePlateNumberChange = (index, value) => {
+    setFormData(prev => ({
+      ...prev,
+      vehiclePlateNumbers: prev.vehiclePlateNumbers.map((plate, i) => 
+        i === index ? value : plate
+      )
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log('Submit button clicked');
@@ -79,9 +106,14 @@ export default function TrafficIncidentForm() {
     console.log('Starting submission process');
 
     try {
-      // First, create the incident document
+      // Save files locally and get their paths
+      const localFilePaths = await saveIncidentFilesLocally(files);
+      console.log('Files saved locally:', localFilePaths);
+
+      // Prepare incident data
       const incidentData = {
         ...formData,
+        files: localFilePaths,
         type: 'Traffic',
         status: 'pending',
         createdAt: new Date().toISOString(),
@@ -94,15 +126,8 @@ export default function TrafficIncidentForm() {
 
       console.log('Creating incident document:', incidentData);
 
-      // Add the incident to Firestore
-      const docRef = await addDoc(collection(db, 'incidents'), incidentData);
-      console.log('Incident document created with ID:', docRef.id);
-
-      // Now route the incident with the document ID
-      const routingResult = await routeIncident({
-        ...incidentData,
-        id: docRef.id
-      });
+      // Route the incident (this will create the document if needed)
+      const routingResult = await routeIncident(incidentData);
       console.log('Routing result:', routingResult);
 
       if (routingResult.success) {
@@ -152,6 +177,8 @@ export default function TrafficIncidentForm() {
                 incidentType="Traffic Accident"
                 onLocationSelect={handleLocationSelect}
                 isSubmitting={isSubmitting}
+                files={files}
+                setFiles={setFiles}
               />
 
               {/* Traffic-specific Fields */}
@@ -177,31 +204,37 @@ export default function TrafficIncidentForm() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-[#0d522c] mb-1">Vehicle Plate Number *</label>
-                  <input
-                    type="text"
-                    name="vehiclePlateNumber"
-                    value={formData.vehiclePlateNumber}
-                    onChange={e => setFormData(prev => ({ ...prev, vehiclePlateNumber: e.target.value }))}
-                    className={`w-full px-4 py-2 rounded-lg border ${errors.vehiclePlateNumber ? 'border-red-500' : 'border-[#0d522c]/20'} focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
-                    required
-                  />
-                  {errors.vehiclePlateNumber && <p className="mt-1 text-sm text-red-600">{errors.vehiclePlateNumber}</p>}
-                </div>
-
-                <div>
                   <label className="block text-sm font-medium text-[#0d522c] mb-1">Number of Vehicles Involved *</label>
                   <input
                     type="number"
                     name="numberOfVehicles"
                     value={formData.numberOfVehicles}
-                    onChange={e => setFormData(prev => ({ ...prev, numberOfVehicles: e.target.value }))}
+                    onChange={handleNumberOfVehiclesChange}
                     min="1"
                     className={`w-full px-4 py-2 rounded-lg border ${errors.numberOfVehicles ? 'border-red-500' : 'border-[#0d522c]/20'} focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
                     required
                   />
                   {errors.numberOfVehicles && <p className="mt-1 text-sm text-red-600">{errors.numberOfVehicles}</p>}
                 </div>
+
+                {formData.numberOfVehicles > 0 && (
+                  <div className="space-y-4">
+                    {Array.from({ length: formData.numberOfVehicles }).map((_, index) => (
+                      <div key={index}>
+                        <label className="block text-sm font-medium text-[#0d522c] mb-1">
+                          Vehicle {index + 1} Plate Number
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.vehiclePlateNumbers[index] || ""}
+                          onChange={(e) => handlePlateNumberChange(index, e.target.value)}
+                          className="w-full px-4 py-2 rounded-lg border border-[#0d522c]/20 focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50"
+                          placeholder={`Enter plate number for vehicle ${index + 1}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-[#0d522c] mb-1">Self Report *</label>

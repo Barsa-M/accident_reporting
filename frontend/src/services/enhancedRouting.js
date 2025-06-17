@@ -1,35 +1,33 @@
-import { collection, query, where, getDocs, updateDoc, doc, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, getDoc, addDoc, writeBatch, increment, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
-import { notifyResponderIncidentAssigned } from '../firebase/notifications';
+import { notifyResponder } from '../firebase/notifications';
 
-// Constants for routing configuration
-const ROUTING_CONFIG = {
-  MAX_DISTANCE_KM: 10,
-  MAX_ACTIVE_INCIDENTS: 3,
-  PRIORITY_LEVELS: {
-    HIGH: 3,
-    MEDIUM: 2,
-    LOW: 1
-  },
-  RESPONSE_TIME_THRESHOLDS: {
-    HIGH: 5, // minutes
-    MEDIUM: 15,
-    LOW: 30
-  },
-  // Scoring weights for different factors
-  SCORING_WEIGHTS: {
-    DISTANCE: 0.5,      // Distance is now the most important factor
-    LOAD: 0.3,          // Current load of the responder
-    RESPONSE_TIME: 0.2  // Time since last active
-  },
-  // Responder status configuration
-  RESPONDER_STATUS: {
-    AVAILABLE: 'available',
-    BUSY: 'busy',
-    OFF_DUTY: 'off_duty',
-    ON_BREAK: 'on_break',
-    UNAVAILABLE: 'unavailable'
-  }
+// Map incident types to responder specializations
+const getResponderType = (incidentType) => {
+  const typeMap = {
+    // Medical incidents
+    'Medical': 'Medical',
+    'Medical Emergency': 'Medical',
+    'medical': 'Medical',
+    'medical emergency': 'Medical',
+    
+    // Fire incidents
+    'Fire': 'Fire',
+    'fire': 'Fire',
+    
+    // Police incidents
+    'Police': 'Police',
+    'Crime/Harassment': 'Police',
+    'police': 'Police',
+    'crime/harassment': 'Police',
+    
+    // Traffic incidents
+    'Traffic': 'Traffic',
+    'Traffic Accident': 'Traffic',
+    'traffic': 'Traffic',
+    'traffic accident': 'Traffic'
+  };
+  return typeMap[incidentType] || incidentType;
 };
 
 // Calculate distance between two points using Haversine formula
@@ -45,169 +43,165 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return R * c;
 };
 
-// Get responder's current load and status with enhanced status tracking
-const getResponderStatus = async (responderId) => {
-  try {
-    // Get active incidents
-    const incidentsQuery = query(
-      collection(db, 'incidents'),
-      where('assignedResponderId', '==', responderId),
-      where('status', 'in', ['assigned', 'in_progress'])
-    );
-    const incidentsSnap = await getDocs(incidentsQuery);
-    
-    // Get responder's current status and location
-    const responderDoc = await getDoc(doc(db, 'responders', responderId));
-    const responderData = responderDoc.data();
-    
-    // Calculate availability score based on current status
-    let availabilityScore = 1.0;
-    switch (responderData.status) {
-      case ROUTING_CONFIG.RESPONDER_STATUS.AVAILABLE:
-        availabilityScore = 1.0;
-        break;
-      case ROUTING_CONFIG.RESPONDER_STATUS.BUSY:
-        availabilityScore = 0.5;
-        break;
-      case ROUTING_CONFIG.RESPONDER_STATUS.ON_BREAK:
-        availabilityScore = 0.3;
-        break;
-      case ROUTING_CONFIG.RESPONDER_STATUS.OFF_DUTY:
-      case ROUTING_CONFIG.RESPONDER_STATUS.UNAVAILABLE:
-        availabilityScore = 0;
-        break;
-    }
-    
-    return {
-      currentLoad: incidentsSnap.size,
-      status: responderData.status,
-      lastActive: responderData.lastActive,
-      specialization: responderData.specialization,
-      location: responderData.location,
-      availabilityScore,
-      isAvailable: availabilityScore > 0
-    };
-  } catch (error) {
-    console.error('Error getting responder status:', error);
-    throw error;
-  }
-};
-
-// Calculate responder score based on multiple factors with emphasis on location and availability
-const calculateResponderScore = (responder, incident, distance) => {
-  let score = 0;
-  
-  // Distance factor (closer is better)
-  // Exponential decay for distance score to heavily favor closer responders
-  const distanceScore = Math.exp(-distance / (ROUTING_CONFIG.MAX_DISTANCE_KM / 2));
-  score += distanceScore * ROUTING_CONFIG.SCORING_WEIGHTS.DISTANCE;
-  
-  // Load factor (less load is better)
-  const loadScore = Math.max(0, 1 - (responder.currentLoad / ROUTING_CONFIG.MAX_ACTIVE_INCIDENTS));
-  score += loadScore * ROUTING_CONFIG.SCORING_WEIGHTS.LOAD;
-  
-  // Response time factor (faster response is better)
-  const lastActive = new Date(responder.lastActive);
-  const timeSinceLastActive = (Date.now() - lastActive.getTime()) / (1000 * 60); // in minutes
-  const responseTimeScore = Math.max(0, 1 - (timeSinceLastActive / 60)); // 1 hour max
-  score += responseTimeScore * ROUTING_CONFIG.SCORING_WEIGHTS.RESPONSE_TIME;
-  
-  // Apply availability score
-  score *= responder.availabilityScore;
-  
-  return score;
+// Get responder's current load (number of active incidents)
+const getResponderLoad = async (responderId) => {
+  const incidentsRef = collection(db, 'incidents');
+  const q = query(
+    incidentsRef,
+    where('assignedResponderId', '==', responderId),
+    where('status', 'in', ['assigned', 'in_progress'])
+  );
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.size;
 };
 
 // Find the best available responder for an incident
-export const findBestResponder = async (incidentData) => {
+const findBestResponder = async (incidentType, location) => {
   try {
-    const { type, location, severityLevel } = incidentData;
+    console.log('Finding best responder for:', { incidentType, location });
     
-    // Get all available responders of the required type
-    const respondersQuery = query(
-      collection(db, 'responders'),
-      where('specialization', '==', type),
-      where('status', '==', ROUTING_CONFIG.RESPONDER_STATUS.AVAILABLE)
+    // Get responder type based on incident type
+    const responderType = getResponderType(incidentType);
+    console.log('Looking for responder type:', responderType);
+    
+    // Query for available responders of the required type
+    const respondersRef = collection(db, 'responders');
+    const q = query(
+      respondersRef,
+      where('responderType', '==', responderType),
+      where('availabilityStatus', '==', 'available'),
+      where('status', '==', 'approved')
     );
     
-    const respondersSnap = await getDocs(respondersQuery);
-    const availableResponders = [];
+    const querySnapshot = await getDocs(q);
+    console.log('Found available responders:', querySnapshot.docs.length);
     
-    // Process each responder
-    for (const doc of respondersSnap.docs) {
-      const responder = doc.data();
-      const responderStatus = await getResponderStatus(doc.id);
-      
-      // Skip if responder is unavailable or at max capacity
-      if (!responderStatus.isAvailable || 
-          responderStatus.currentLoad >= ROUTING_CONFIG.MAX_ACTIVE_INCIDENTS) continue;
-      
-      // Calculate distance to incident
-      const distance = calculateDistance(
-        location.latitude,
-        location.longitude,
-        responderStatus.location.latitude,
-        responderStatus.location.longitude
-      );
-      
-      // Skip if too far
-      if (distance > ROUTING_CONFIG.MAX_DISTANCE_KM) continue;
-      
-      // Calculate responder score
-      const score = calculateResponderScore(responderStatus, incidentData, distance);
-      
-      availableResponders.push({
-        id: doc.id,
-        ...responderStatus,
-        distance,
-        score
-      });
+    if (querySnapshot.empty) {
+      console.log('No available responders found');
+      return null;
     }
     
-    // Sort by score (highest first)
-    availableResponders.sort((a, b) => b.score - a.score);
+    // Get all available responders and sort by current load
+    const responders = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
     
-    // Log routing decision for debugging
-    if (availableResponders.length > 0) {
-      console.log('Routing decision:', {
-        incidentId: incidentData.id,
-        selectedResponder: availableResponders[0].id,
-        distance: availableResponders[0].distance,
-        score: availableResponders[0].score,
-        availabilityScore: availableResponders[0].availabilityScore,
-        totalAvailable: availableResponders.length
-      });
-    }
+    console.log('Available responders:', responders);
     
-    return availableResponders[0] || null;
+    // Sort by current load (prefer responders with lower load)
+    responders.sort((a, b) => (a.currentLoad || 0) - (b.currentLoad || 0));
+    
+    const selectedResponder = responders[0];
+    console.log('Selected responder:', {
+      id: selectedResponder.id,
+      data: selectedResponder
+    });
+    
+    return selectedResponder;
   } catch (error) {
     console.error('Error finding best responder:', error);
     throw error;
   }
 };
 
-// Assign incident to responder with fallback mechanism
+const findAvailableResponder = async (incidentType, severityLevel) => {
+  console.log('Finding available responder for:', { incidentType, severityLevel });
+  
+  try {
+    // Get the standardized responder type
+    const responderType = getResponderType(incidentType);
+    console.log('Looking for responder type:', responderType);
+
+    // First, try to find responders who are explicitly marked as available
+    const availableRespondersQuery = query(
+      collection(db, 'responders'),
+      where('status', '==', 'approved'),
+      where('availabilityStatus', '==', 'available'),
+      where('responderType', '==', responderType)
+    );
+
+    const availableRespondersSnapshot = await getDocs(availableRespondersQuery);
+    const availableResponders = availableRespondersSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    console.log('Available responders found:', availableResponders.length);
+
+    if (availableResponders.length > 0) {
+      // Sort by current load (ascending) and experience level (descending)
+      const sortedResponders = availableResponders.sort((a, b) => {
+        if (a.currentLoad !== b.currentLoad) {
+          return a.currentLoad - b.currentLoad;
+        }
+        return b.experienceLevel - a.experienceLevel;
+      });
+
+      console.log('Selected available responder:', sortedResponders[0].id);
+      return sortedResponders[0];
+    }
+
+    // If no available responders found, fall back to checking all approved responders
+    const allRespondersQuery = query(
+      collection(db, 'responders'),
+      where('status', '==', 'approved'),
+      where('responderType', '==', responderType)
+    );
+
+    const allRespondersSnapshot = await getDocs(allRespondersQuery);
+    const allResponders = allRespondersSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    console.log('All approved responders found:', allResponders.length);
+
+    if (allResponders.length === 0) {
+      console.log('No responders found for incident type:', responderType);
+      return null;
+    }
+
+    // Sort by current load and experience level
+    const sortedResponders = allResponders.sort((a, b) => {
+      if (a.currentLoad !== b.currentLoad) {
+        return a.currentLoad - b.currentLoad;
+      }
+      return b.experienceLevel - a.experienceLevel;
+    });
+
+    console.log('Selected responder from all approved:', sortedResponders[0].id);
+    return sortedResponders[0];
+  } catch (error) {
+    console.error('Error finding available responder:', error);
+    return null;
+  }
+};
+
+// Assign an incident to a responder
 export const assignIncidentToResponder = async (incidentId, responderId) => {
   try {
+    // Update incident first
     const incidentRef = doc(db, 'incidents', incidentId);
-    const responderRef = doc(db, 'responders', responderId);
-    
-    // Update incident
     await updateDoc(incidentRef, {
       assignedResponderId: responderId,
       status: 'assigned',
-      assignedAt: new Date().toISOString()
+      assignedAt: serverTimestamp()
     });
     
-    // Update responder status
+    // Then update responder
+    const responderRef = doc(db, 'responders', responderId);
     await updateDoc(responderRef, {
-      status: 'busy',
-      lastActive: new Date().toISOString()
+      currentLoad: increment(1),
+      availabilityStatus: 'busy'
     });
     
     // Send notification to responder
-    const incidentDoc = await getDoc(incidentRef);
-    await notifyResponderIncidentAssigned(responderId, incidentDoc.data());
+    await notifyResponder(responderId, {
+      type: 'incident_assigned',
+      incidentId,
+      message: 'New incident assigned to you'
+    });
     
     return true;
   } catch (error) {
@@ -216,53 +210,84 @@ export const assignIncidentToResponder = async (incidentId, responderId) => {
   }
 };
 
-// Handle incident routing with priority and fallback
+// Route an incident to the best available responder
 export const routeIncident = async (incidentData) => {
   try {
-    // Find best responder
-    const bestResponder = await findBestResponder(incidentData);
+    console.log('Starting incident routing with data:', incidentData);
     
-    if (!bestResponder) {
-      // No suitable responder found - implement fallback
-      return handleNoResponderFound(incidentData);
+    // Find the best available responder
+    const closestResponder = await findBestResponder(incidentData.type, incidentData.location);
+    console.log('Found closest responder:', closestResponder);
+    
+    if (!closestResponder) {
+      console.log('No available responders found, queuing incident');
+      // Queue the incident for manual assignment
+      const incidentRef = doc(collection(db, 'incidents'));
+      await setDoc(incidentRef, {
+        ...incidentData,
+        status: 'queued',
+        createdAt: serverTimestamp()
+      });
+      return {
+        success: false,
+        message: 'No available responders found. Incident has been queued.',
+        incidentId: incidentRef.id
+      };
     }
     
-    // Assign incident to the best responder
-    await assignIncidentToResponder(incidentData.id, bestResponder.id);
+    // Create the incident document with all fields in one operation
+    const incidentRef = doc(collection(db, 'incidents'));
+    const incidentDoc = {
+      ...incidentData,
+      status: 'assigned',
+      assignedResponderId: closestResponder.id,
+      assignedAt: serverTimestamp(),
+      createdAt: serverTimestamp(),
+      reporterId: incidentData.reporterId || null,
+      severityLevel: incidentData.severityLevel || 'Medium',
+      location: {
+        lat: incidentData.location.lat || incidentData.location.latitude,
+        lng: incidentData.location.lng || incidentData.location.longitude,
+        address: incidentData.location.address || ''
+      }
+    };
+    
+    console.log('Creating incident document:', {
+      id: incidentRef.id,
+      data: incidentDoc,
+      responderId: closestResponder.id
+    });
+    
+    await setDoc(incidentRef, incidentDoc);
+    
+    // Update responder's status
+    const responderRef = doc(db, 'responders', closestResponder.id);
+    await updateDoc(responderRef, {
+      currentLoad: increment(1),
+      availabilityStatus: 'busy'
+    });
+    
+    console.log('Incident created and assigned successfully:', {
+      incidentId: incidentRef.id,
+      responderId: closestResponder.id,
+      status: 'assigned'
+    });
+
+    // Send notification to responder
+    await notifyResponder(closestResponder.id, {
+      type: 'incident_assigned',
+      incidentId: incidentRef.id,
+      message: 'New incident assigned to you'
+    });
     
     return {
       success: true,
       message: 'Incident assigned successfully',
-      responderId: bestResponder.id,
-      incidentId: incidentData.id
+      responderId: closestResponder.id,
+      incidentId: incidentRef.id
     };
   } catch (error) {
     console.error('Error routing incident:', error);
-    throw error;
-  }
-};
-
-// Handle cases where no suitable responder is found
-const handleNoResponderFound = async (incidentData) => {
-  try {
-    // Update incident status to queued
-    const incidentRef = doc(db, 'incidents', incidentData.id);
-    await updateDoc(incidentRef, {
-      status: 'queued',
-      queuedAt: new Date().toISOString(),
-      priority: incidentData.severityLevel || 'medium'
-    });
-    
-    // Notify admins about queued incident
-    // TODO: Implement admin notification
-    
-    return {
-      success: false,
-      message: 'No available responders in the area. Incident has been queued.',
-      incidentId: incidentData.id
-    };
-  } catch (error) {
-    console.error('Error handling no responder found:', error);
     throw error;
   }
 }; 

@@ -60,18 +60,19 @@ export default function AuthRoute({ children, allowedRoles = [] }) {
 
   // Handle responder status routing
   if (userRole === ROLES.RESPONDER) {
-    switch (responderStatus?.toLowerCase()) {
-      case 'pending':
-        return <Navigate to="/responder/pending" />;
-      case 'rejected':
-        return <Navigate to="/responder/rejected" />;
-      case 'approved':
-        // Continue with normal flow for approved responders
-        break;
-      default:
-        // If status is undefined or invalid, redirect to pending
-        return <Navigate to="/responder/pending" />;
+    // Check if responder is approved
+    if (responderStatus?.isApproved === true) {
+      // If approved, always allow access regardless of availability status
+      return children;
     }
+    
+    // If not approved, check other statuses
+    if (responderStatus?.isRejected === true) {
+      return <Navigate to="/responder/rejected" />;
+    }
+    
+    // For pending or any other status
+    return <Navigate to="/responder/pending" />;
   }
 
   // Check role-based access

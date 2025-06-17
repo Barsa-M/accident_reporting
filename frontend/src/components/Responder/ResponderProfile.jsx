@@ -1,269 +1,243 @@
-import { useState } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db, auth } from '../../firebase/firebase';
-import { updatePassword } from 'firebase/auth';
-import { FiUser, FiMail, FiPhone, FiShield, FiLock } from 'react-icons/fi';
-import PropTypes from 'prop-types';
-import { toast } from 'react-hot-toast';
+import React, { useState, useEffect } from 'react';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { db } from '../../firebase/firebase';
+import { useAuth } from '../../contexts/AuthContext';
+import { FiUser, FiPhone, FiMail, FiMapPin, FiAward, FiClock, FiEdit2 } from 'react-icons/fi';
 
-const ResponderProfile = ({ responderData }) => {
+const ResponderProfile = () => {
+  const { currentUser } = useAuth();
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [formData, setFormData] = useState({
-    name: responderData.name || '',
-    email: responderData.email || '',
-    phone: responderData.phone || '',
-    photoURL: responderData.photoURL || ''
-  });
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
+    name: '',
+    phone: '',
+    specialization: '',
+    yearsOfExperience: '',
+    capacity: '',
+    location: {
+      address: '',
+      lat: '',
+      lng: ''
+    }
   });
 
-  const handleProfileUpdate = async (e) => {
+  useEffect(() => {
+    fetchProfile();
+  }, [currentUser]);
+
+  const fetchProfile = async () => {
+    try {
+      if (!currentUser) return;
+
+      const docRef = doc(db, 'responders', currentUser.uid);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setProfile(data);
+        setFormData({
+          name: data.name || '',
+          phone: data.phone || '',
+          specialization: data.specialization || '',
+          yearsOfExperience: data.yearsOfExperience || '',
+          capacity: data.capacity || '',
+          location: {
+            address: data.location?.address || '',
+            lat: data.location?.lat || '',
+            lng: data.location?.lng || ''
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    if (name.includes('.')) {
+      const [parent, child] = name.split('.');
+      setFormData(prev => ({
+        ...prev,
+        [parent]: {
+          ...prev[parent],
+          [child]: value
+        }
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const userRef = doc(db, 'users', responderData.uid);
-      const responderRef = doc(db, 'responders', responderData.uid);
-
-      await Promise.all([
-        updateDoc(userRef, {
-          name: formData.name,
-          phone: formData.phone,
-          photoURL: formData.photoURL
-        }),
-        updateDoc(responderRef, {
-          name: formData.name,
-          phone: formData.phone,
-          photoURL: formData.photoURL
-        })
-      ]);
-
-      toast.success('Profile updated successfully');
+      const docRef = doc(db, 'responders', currentUser.uid);
+      await updateDoc(docRef, {
+        ...formData,
+        updatedAt: new Date().toISOString()
+      });
       setIsEditing(false);
+      fetchProfile();
     } catch (error) {
       console.error('Error updating profile:', error);
-      toast.error('Failed to update profile');
     }
   };
 
-  const handlePasswordChange = async (e) => {
-    e.preventDefault();
-    
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      toast.error('New passwords do not match');
-      return;
-    }
-
-    try {
-      const user = auth.currentUser;
-      await updatePassword(user, passwordData.newPassword);
-      
-      toast.success('Password updated successfully');
-      setIsChangingPassword(false);
-      setPasswordData({
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: ''
-      });
-    } catch (error) {
-      console.error('Error updating password:', error);
-      toast.error('Failed to update password');
-    }
-  };
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0d522c]"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-800">Profile Settings</h1>
+    <div className="max-w-4xl mx-auto p-6">
+      <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-900">Profile Information</h2>
+            <button
+              onClick={() => setIsEditing(!isEditing)}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-[#0d522c] hover:bg-[#094023] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0d522c]"
+            >
+              <FiEdit2 className="h-4 w-4 mr-2" />
+              {isEditing ? 'Cancel' : 'Edit Profile'}
+            </button>
+          </div>
 
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6 space-y-6">
-          {/* Profile Information */}
-          <div className="space-y-6">
-            <div className="flex items-center space-x-4">
-              <img
-                src={formData.photoURL || '/default-avatar.png'}
-                alt="Profile"
-                className="h-20 w-20 rounded-full object-cover"
-              />
-              <div>
-                <h2 className="text-xl font-semibold text-gray-800">{formData.name}</h2>
-                <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                  {responderData.specialization} Responder
-                </span>
-              </div>
-            </div>
-
-            {!isEditing ? (
-              <div className="space-y-4">
-                <div className="flex items-center space-x-2 text-gray-600">
-                  <FiMail className="h-5 w-5" />
-                  <span>{formData.email}</span>
-                </div>
-                <div className="flex items-center space-x-2 text-gray-600">
-                  <FiPhone className="h-5 w-5" />
-                  <span>{formData.phone}</span>
-                </div>
-                <div className="flex items-center space-x-2 text-gray-600">
-                  <FiShield className="h-5 w-5" />
-                  <span>Status: {responderData.status}</span>
-                </div>
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="px-4 py-2 bg-[#0d522c] text-white rounded-lg hover:bg-[#347752]"
-                >
-                  Edit Profile
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handleProfileUpdate} className="space-y-4">
+          {isEditing ? (
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Name</label>
                   <input
                     type="text"
+                    name="name"
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    onChange={handleInputChange}
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#0d522c] focus:ring-[#0d522c]"
-                    required
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Phone</label>
                   <input
                     type="tel"
+                    name="phone"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={handleInputChange}
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#0d522c] focus:ring-[#0d522c]"
-                    required
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Photo URL</label>
+                  <label className="block text-sm font-medium text-gray-700">Specialization</label>
                   <input
-                    type="url"
-                    value={formData.photoURL}
-                    onChange={(e) => setFormData({ ...formData, photoURL: e.target.value })}
+                    type="text"
+                    name="specialization"
+                    value={formData.specialization}
+                    onChange={handleInputChange}
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#0d522c] focus:ring-[#0d522c]"
                   />
                 </div>
-
-                <div className="flex space-x-3">
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-[#0d522c] text-white rounded-lg hover:bg-[#347752]"
-                  >
-                    Save Changes
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsEditing(false);
-                      setFormData({
-                        name: responderData.name || '',
-                        email: responderData.email || '',
-                        phone: responderData.phone || '',
-                        photoURL: responderData.photoURL || ''
-                      });
-                    }}
-                    className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-
-          {/* Password Change Section */}
-          <div className="border-t pt-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Change Password</h3>
-            {!isChangingPassword ? (
-              <button
-                onClick={() => setIsChangingPassword(true)}
-                className="flex items-center space-x-2 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
-              >
-                <FiLock className="h-5 w-5" />
-                <span>Change Password</span>
-              </button>
-            ) : (
-              <form onSubmit={handlePasswordChange} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Current Password</label>
+                  <label className="block text-sm font-medium text-gray-700">Years of Experience</label>
                   <input
-                    type="password"
-                    value={passwordData.currentPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                    type="number"
+                    name="yearsOfExperience"
+                    value={formData.yearsOfExperience}
+                    onChange={handleInputChange}
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#0d522c] focus:ring-[#0d522c]"
-                    required
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">New Password</label>
+                  <label className="block text-sm font-medium text-gray-700">Capacity</label>
                   <input
-                    type="password"
-                    value={passwordData.newPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                    type="number"
+                    name="capacity"
+                    value={formData.capacity}
+                    onChange={handleInputChange}
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#0d522c] focus:ring-[#0d522c]"
-                    required
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Confirm New Password</label>
+                  <label className="block text-sm font-medium text-gray-700">Address</label>
                   <input
-                    type="password"
-                    value={passwordData.confirmPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                    type="text"
+                    name="location.address"
+                    value={formData.location.address}
+                    onChange={handleInputChange}
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#0d522c] focus:ring-[#0d522c]"
-                    required
                   />
                 </div>
-
-                <div className="flex space-x-3">
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-[#0d522c] text-white rounded-lg hover:bg-[#347752]"
-                  >
-                    Update Password
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsChangingPassword(false);
-                      setPasswordData({
-                        currentPassword: '',
-                        newPassword: '',
-                        confirmPassword: ''
-                      });
-                    }}
-                    className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
-                  >
-                    Cancel
-                  </button>
+              </div>
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-[#0d522c] hover:bg-[#094023] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0d522c]"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="flex items-center space-x-3">
+                  <FiUser className="h-5 w-5 text-gray-400" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Name</p>
+                    <p className="text-base text-gray-900">{profile?.name}</p>
+                  </div>
                 </div>
-              </form>
-            )}
-          </div>
+                <div className="flex items-center space-x-3">
+                  <FiPhone className="h-5 w-5 text-gray-400" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Phone</p>
+                    <p className="text-base text-gray-900">{profile?.phone}</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <FiMail className="h-5 w-5 text-gray-400" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Email</p>
+                    <p className="text-base text-gray-900">{profile?.email}</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <FiAward className="h-5 w-5 text-gray-400" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Specialization</p>
+                    <p className="text-base text-gray-900">{profile?.specialization}</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <FiClock className="h-5 w-5 text-gray-400" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Years of Experience</p>
+                    <p className="text-base text-gray-900">{profile?.yearsOfExperience}</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <FiMapPin className="h-5 w-5 text-gray-400" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Location</p>
+                    <p className="text-base text-gray-900">{profile?.location?.address}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
-};
-
-ResponderProfile.propTypes = {
-  responderData: PropTypes.shape({
-    uid: PropTypes.string.isRequired,
-    name: PropTypes.string,
-    email: PropTypes.string,
-    phone: PropTypes.string,
-    photoURL: PropTypes.string,
-    specialization: PropTypes.string.isRequired,
-    status: PropTypes.string.isRequired,
-  }).isRequired,
 };
 
 export default ResponderProfile; 

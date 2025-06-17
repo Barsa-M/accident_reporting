@@ -16,6 +16,38 @@ const {
 } = require("./email/emailFunctions");
 const { testEmail } = require("./email/testEmail");
 
+// Set admin role as custom claim
+exports.setAdminRole = functions.https.onRequest((req, res) => {
+  cors(req, res, async () => {
+    try {
+      // Ensure user is authenticated and is an admin
+      if (!req.auth) {
+        res.status(401).json({ error: 'User must be authenticated' });
+        return;
+      }
+
+      const adminDoc = await admin.firestore().collection('users').doc(req.auth.uid).get();
+      if (!adminDoc.exists || adminDoc.data().role !== 'admin') {
+        res.status(403).json({ error: 'User must be an admin' });
+        return;
+      }
+
+      const { userId } = req.body;
+      if (!userId) {
+        res.status(400).json({ error: 'User ID is required' });
+        return;
+      }
+
+      // Set admin role as custom claim
+      await admin.auth().setCustomUserClaims(userId, { role: 'admin' });
+      res.status(200).json({ success: true });
+    } catch (error) {
+      console.error('Error setting admin role:', error);
+      res.status(500).json({ error: 'Error setting admin role' });
+    }
+  });
+});
+
 // Export auth functions
 exports.onUserCreate = functions.auth.user().onCreate(onUserCreate);
 
@@ -52,7 +84,7 @@ exports.approveResponder = functions.https.onCall(async (data, context) => {
     }
 
     const updateData = {
-      status: action,
+      applicationStatus: action,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedBy: context.auth.uid
     };
@@ -66,7 +98,7 @@ exports.approveResponder = functions.https.onCall(async (data, context) => {
     // Update user document status
     const userRef = admin.firestore().collection('users').doc(responderId);
     await userRef.update({
-      status: action
+      applicationStatus: action
     });
 
     return { success: true };

@@ -12,13 +12,17 @@ export const approveResponder = async (responderId, action, adminId, rejectionRe
       throw new Error('Responder not found');
     }
 
+    const responderData = responderDoc.data();
+
     // Update data
     const updateData = {
-      status: action,
+      applicationStatus: action,
       updatedAt: serverTimestamp(),
       updatedBy: adminId,
-      specialization: responderDoc.data().responderType || 'general',
-      currentStatus: 'available'
+      specialization: responderData.responderType || responderData.specialization || 'general',
+      responderType: responderData.responderType || responderData.specialization || 'general',
+      availabilityStatus: action === 'approved' ? 'available' : 'unavailable',
+      lastUpdated: serverTimestamp()
     };
 
     if (action === 'rejected' && rejectionReason) {
@@ -31,12 +35,15 @@ export const approveResponder = async (responderId, action, adminId, rejectionRe
     // Update user document status
     const userRef = doc(db, 'users', responderId);
     await updateDoc(userRef, {
-      status: action
+      applicationStatus: action,
+      role: action === 'approved' ? 'responder' : 'user',
+      lastUpdated: serverTimestamp()
     });
 
     // Send notification
     await notifyResponderStatusUpdate(responderId, action, {
-      ...responderDoc.data(),
+      ...responderData,
+      ...updateData,
       rejectionReason
     });
 

@@ -11,12 +11,13 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() && request.auth.token.role == 'admin';
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role.lower() == 'admin';
     }
 
     function isResponder() {
       return isAuthenticated() && 
-        getUserRole().lower() == 'responder';
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role.lower() == 'responder';
     }
 
     function isApprovedResponder() {
@@ -28,8 +29,12 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    function isValidResponderType(type) {
-      return type in ['Medical', 'Police', 'Fire', 'Traffic'];
+    function isValidIncidentType(type) {
+      return type in ['Medical', 'Police', 'Fire', 'Traffic', 'Medical Emergency', 'Traffic Accident', 'Crime/Harassment', 'Fire Emergency', 'Natural Disaster'];
+    }
+
+    function isValidIncidentStatus(status) {
+      return status in ['pending', 'assigned', 'in_progress', 'resolved', 'cancelled', 'queued'];
     }
 
     function isValidFileType() {
@@ -44,13 +49,17 @@ service cloud.firestore {
     // Users collection
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow write: if isOwner(userId);
+      allow write: if isAdmin() || isOwner(userId);
     }
 
     // Responders collection
     match /responders/{responderId} {
       allow read: if isAuthenticated();
-      allow write: if isOwner(responderId);
+      allow write: if isAdmin() || isOwner(responderId) || (
+        isAuthenticated() && 
+        (request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['currentLoad', 'availabilityStatus']))
+      );
     }
 
     // Safety tips collection
@@ -84,10 +93,12 @@ service cloud.firestore {
     // 🚨 INCIDENTS Collection
     match /incidents/{incidentId} {
       allow create: if isAuthenticated();
-      allow read, update: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid ||
-        isAdmin() ||
-        (isApprovedResponder() && resource.data.responderType == get(/databases/$(database)/documents/responders/$(request.auth.uid)).data.responderType)
+      allow read: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        isAdmin() || 
+        isApprovedResponder() || 
+        resource.data.reporterId == request.auth.uid ||
+        resource.data.assignedTo == request.auth.uid
       );
       allow delete: if isAdmin();
     }
@@ -118,33 +129,30 @@ service cloud.firestore {
 
     // Statistics Collection
     match /statistics/{statId} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
     // Dashboard Stats Collection
     match /dashboardStats/{statId} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
     // Analytics Collection
     match /analytics/{docId} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
     // System Settings
     match /settings/{settingId} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
-    // Anonymous Reports
+    // Anonymous Reports collection
     match /anonymous_reports/{reportId} {
       allow create: if true;
       allow read: if isAuthenticated() && (isAdmin() || isApprovedResponder());
-      allow update, delete: if isAdmin();
+      allow update: if isAuthenticated() && (isAdmin() || isApprovedResponder());
+      allow delete: if isAdmin();
     }
 
     // Forum Posts
@@ -157,13 +165,92 @@ service cloud.firestore {
 
     // Notifications
     match /notifications/{notificationId} {
-      allow read: if isAuthenticated() && (isAdmin() || isOwner(resource.data.userId));
-      allow create: if isAdmin();
-      allow update: if isAdmin();
+      allow read: if isAuthenticated() && (
+        resource.data.recipientId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        resource.data.recipientId == request.auth.uid ||
+        isAdmin()
+      );
       allow delete: if isAdmin();
     }
 
-    // Admin access
+    // Responder Availability collection
+    match /responder_availability/{responderId} {
+      allow read: if isAuthenticated();
+      allow write: if isApprovedResponder() && responderId == request.auth.uid;
+    }
+
+    // Chat Messages collection
+    match /chat_messages/{messageId} {
+      allow read: if isAuthenticated() && (
+        resource.data.senderId == request.auth.uid ||
+        resource.data.recipientId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      allow create: if isAuthenticated() && (
+        request.resource.data.senderId == request.auth.uid ||
+        (isApprovedResponder() && request.resource.data.recipientId == request.auth.uid)
+      );
+      
+      allow update, delete: if isAdmin();
+    }
+
+    // Chat rooms collection
+    match /chat_rooms/{roomId} {
+      allow read: if isAuthenticated() && (
+        resource.data.participants.hasAny([request.auth.uid]) ||
+        isAdmin()
+      );
+      
+      allow create: if isAuthenticated() && 
+        request.resource.data.participants.hasAny([request.auth.uid]);
+      
+      allow update: if isAuthenticated() && 
+        resource.data.participants.hasAny([request.auth.uid]);
+      
+      allow delete: if isAdmin();
+    }
+
+    // Messages collection
+    match /messages/{messageId} {
+      allow read: if isAuthenticated() && (
+        resource.data.senderId == request.auth.uid ||
+        resource.data.recipientId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      allow create: if isAuthenticated() && 
+        request.resource.data.senderId == request.auth.uid;
+      
+      allow update: if isAuthenticated() && 
+        resource.data.senderId == request.auth.uid;
+      
+      allow delete: if isAdmin();
+    }
+
+    // Notifications collection
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.responderId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.responderId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      allow delete: if isAdmin();
+    }
+
+    // Admin access for all other collections
     match /{document=**} {
       allow read, write: if isAdmin();
     }

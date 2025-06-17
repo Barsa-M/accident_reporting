@@ -43,9 +43,17 @@ export const getRedirectPath = (userData, responderData) => {
     case ROLES.ADMIN:
       return '/admin/dashboard';
     case ROLES.RESPONDER:
-      return responderData?.status === RESPONDER_STATUS.PENDING
-        ? '/responder/pending'
-        : '/responder/dashboard';
+      // Check if responder is approved
+      if (responderData?.isApproved === true) {
+        // If approved, always go to dashboard regardless of availability status
+        return '/responder/dashboard';
+      }
+      // If not approved, check other statuses
+      if (responderData?.isRejected === true) {
+        return '/responder/rejected';
+      }
+      // For pending or any other status
+      return '/responder/pending';
     case ROLES.USER:
       return '/dashboard';
     default:
