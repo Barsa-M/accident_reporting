@@ -1,4 +1,4 @@
-import { collection, query, where, getDocs, updateDoc, doc, increment, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, increment, serverTimestamp, addDoc } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 
 // Calculate distance between two points using Haversine formula
@@ -23,6 +23,66 @@ const getResponderType = (incidentType) => {
     'Traffic': 'Traffic'
   };
   return typeMap[incidentType] || incidentType;
+};
+
+// Create notification for incident assignment
+const createIncidentNotification = async (incidentData, responder, notificationType) => {
+  try {
+    let notification = {
+      type: 'incident_updates',
+      title: '',
+      message: '',
+      read: false,
+      createdAt: new Date(),
+      priority: 'high',
+      data: {
+        incidentId: incidentData.id,
+        incidentType: incidentData.type,
+        location: incidentData.location
+      }
+    };
+
+    if (notificationType === 'assigned') {
+      // Notification for the reporter
+      notification = {
+        ...notification,
+        userId: incidentData.userId,
+        title: 'Incident Assigned to Responder',
+        message: `Your ${incidentData.type} incident has been assigned to ${responder.name || responder.fullName}. They are ${Math.round(responder.distance)}km away and will respond shortly.`,
+        data: {
+          ...notification.data,
+          responderId: responder.id,
+          responderName: responder.name || responder.fullName,
+          distance: responder.distance
+        }
+      };
+
+      // Also create notification for the responder
+      const responderNotification = {
+        type: 'incident_updates',
+        title: 'New Incident Assigned',
+        message: `You have been assigned a ${incidentData.type} incident at ${incidentData.location.address || 'the reported location'}.`,
+        userId: responder.id,
+        read: false,
+        createdAt: new Date(),
+        priority: 'high',
+        data: {
+          incidentId: incidentData.id,
+          incidentType: incidentData.type,
+          location: incidentData.location,
+          reporterId: incidentData.userId
+        }
+      };
+
+      // Add both notifications
+      await addDoc(collection(db, 'notifications'), notification);
+      await addDoc(collection(db, 'notifications'), responderNotification);
+    }
+
+    console.log('Notifications created successfully');
+  } catch (error) {
+    console.error('Error creating notifications:', error);
+  }
 };
 
 // Find the best available responder for an incident
@@ -97,6 +157,31 @@ export const routeIncident = async (incidentData) => {
     
     if (!bestResponder) {
       console.log('No available responders found - incident will be queued');
+      
+      // Create notification for queued incident
+      if (incidentData.userId) {
+        const queuedNotification = {
+          userId: incidentData.userId,
+          type: 'incident_updates',
+          title: 'Incident Submitted - Awaiting Responder',
+          message: `Your ${incidentData.type} incident has been submitted successfully. No responders are currently available, but your report will be assigned as soon as one becomes available.`,
+          read: false,
+          createdAt: new Date(),
+          priority: 'medium',
+          data: {
+            incidentId: incidentData.id,
+            incidentType: incidentData.type,
+            status: 'queued'
+          }
+        };
+        
+        try {
+          await addDoc(collection(db, 'notifications'), queuedNotification);
+        } catch (error) {
+          console.error('Error creating queued notification:', error);
+        }
+      }
+      
       return {
         success: false,
         message: 'No available responders found. Your report has been submitted and will be assigned when a responder becomes available.',
@@ -148,6 +233,9 @@ export const routeIncident = async (incidentData) => {
       // Even if responder update fails, the incident was assigned successfully
       console.log('Responder update failed, but incident was assigned');
     }
+    
+    // Create notifications for both reporter and responder
+    await createIncidentNotification(incidentData, bestResponder, 'assigned');
     
     console.log('Incident successfully assigned to:', bestResponder.name || bestResponder.fullName);
     

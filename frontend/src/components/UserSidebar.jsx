@@ -40,11 +40,11 @@ const UserSidebar = () => {
   const fetchUnreadCounts = () => {
     if (!currentUser) return;
 
-    // Fetch unread notifications only (simplified approach)
+    // Fetch unread notifications
     const notificationsRef = collection(db, 'notifications');
     const notificationsQuery = query(
       notificationsRef,
-      where('recipientId', '==', currentUser.uid),
+      where('userId', '==', currentUser.uid),
       where('read', '==', false)
     );
     

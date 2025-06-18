@@ -82,12 +82,18 @@ service cloud.firestore {
     // 📢 NOTIFICATIONS Collection
     match /notifications/{notificationId} {
       allow read: if isAuthenticated() && (
-        (resource.data.forRole == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role) ||
-        (resource.data.userId == request.auth.uid) ||
+        resource.data.userId == request.auth.uid ||
+        resource.data.recipientId == request.auth.uid ||
+        resource.data.forRole == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role ||
         isAdmin()
       );
       allow create: if isAuthenticated();
-      allow update, delete: if isAdmin();
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.recipientId == request.auth.uid ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
     }
 
     // 🚨 INCIDENTS Collection
@@ -135,9 +141,8 @@ service cloud.firestore {
     match /forum_posts/{postId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
-      allow update: if isAdmin() || 
-        (isAuthenticated() && resource.data.authorId == request.auth.uid);
-      allow delete: if isAdmin();
+      allow update: if isAuthenticated() && (isAdmin() || isOwner(resource.data.userId));
+      allow delete: if isAdmin() || isOwner(resource.data.userId);
     }
 
     // Post likes collection
@@ -180,28 +185,6 @@ service cloud.firestore {
       allow create: if true;
       allow read: if isAuthenticated() && (isAdmin() || isApprovedResponder());
       allow update: if isAuthenticated() && (isAdmin() || isApprovedResponder());
-      allow delete: if isAdmin();
-    }
-
-    // Forum Posts
-    match /forum_posts/{postId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && (isAdmin() || isOwner(resource.data.userId));
-      allow delete: if isAdmin() || isOwner(resource.data.userId);
-    }
-
-    // Notifications
-    match /notifications/{notificationId} {
-      allow read: if isAuthenticated() && (
-        resource.data.recipientId == request.auth.uid ||
-        isAdmin()
-      );
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && (
-        resource.data.recipientId == request.auth.uid ||
-        isAdmin()
-      );
       allow delete: if isAdmin();
     }
 
@@ -256,24 +239,6 @@ service cloud.firestore {
       
       allow update: if isAuthenticated() && 
         resource.data.senderId == request.auth.uid;
-      
-      allow delete: if isAdmin();
-    }
-
-    // Notifications collection
-    match /notifications/{notificationId} {
-      allow read: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid ||
-        resource.data.responderId == request.auth.uid ||
-        isAdmin()
-      );
-      
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid ||
-        resource.data.responderId == request.auth.uid ||
-        isAdmin()
-      );
       
       allow delete: if isAdmin();
     }

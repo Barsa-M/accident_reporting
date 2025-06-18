@@ -147,6 +147,32 @@ export default function AnonymousReport() {
       const docRef = await addDoc(collection(db, 'incidents'), incidentData);
       console.log('Incident created with ID:', docRef.id);
 
+      // Create initial submission notification (only if user is authenticated)
+      if (auth.currentUser) {
+        try {
+          const submissionNotification = {
+            userId: auth.currentUser.uid,
+            type: 'incident_updates',
+            title: 'Anonymous Incident Report Submitted',
+            message: `Your anonymous ${incidentData.type} incident report has been submitted successfully. We're finding the best responder for you.`,
+            read: false,
+            createdAt: new Date(),
+            priority: 'medium',
+            data: {
+              incidentId: docRef.id,
+              incidentType: incidentData.type,
+              status: 'submitted',
+              isAnonymous: true
+            }
+          };
+          
+          await addDoc(collection(db, 'notifications'), submissionNotification);
+          console.log('Anonymous submission notification created');
+        } catch (error) {
+          console.error('Error creating anonymous submission notification:', error);
+        }
+      }
+
       // Route the incident to find the best responder
       console.log('Starting incident routing...');
       const routingResult = await routeIncident({

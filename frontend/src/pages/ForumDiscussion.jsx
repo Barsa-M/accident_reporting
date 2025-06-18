@@ -171,6 +171,34 @@ export default function ForumDiscussion() {
         lastUpdated: new Date().toISOString()
       });
 
+      // Create notification for the post author about new comment
+      try {
+        if (post.userId && post.userId !== currentUser.uid) {
+          const commentNotification = {
+            userId: post.userId,
+            type: 'forum_activity',
+            title: 'New Comment on Your Post',
+            message: `${userData?.name || currentUser.displayName || 'A user'} commented on your post: "${post.title}"`,
+            read: false,
+            createdAt: new Date(),
+            priority: 'medium',
+            data: {
+              postId: postId,
+              commentId: newCommentObj.id,
+              commentAuthorId: currentUser.uid,
+              commentAuthorName: userData?.name || currentUser.displayName || 'Anonymous',
+              postTitle: post.title
+            }
+          };
+
+          await addDoc(collection(db, 'notifications'), commentNotification);
+          console.log('Comment notification created successfully');
+        }
+      } catch (error) {
+        console.error('Error creating comment notification:', error);
+        // Don't fail the comment if notification fails
+      }
+
       console.log("Comment added successfully");
 
       setNewComment("");

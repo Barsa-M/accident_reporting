@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth, db } from "../firebase/firebase";
-import { collection, addDoc, serverTimestamp, doc, getDoc } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, doc, getDoc, query, where, getDocs } from "firebase/firestore";
 import UserSidebar from "../components/UserSidebar";
 import { FiImage, FiVideo, FiX } from "react-icons/fi";
 import { toast } from "react-toastify";
@@ -165,6 +165,44 @@ export default function CreatePost() {
       }
 
       await addDoc(collection(db, 'forum_posts'), postData);
+      
+      // Create notification for new forum post
+      try {
+        const forumNotification = {
+          type: 'forum_activity',
+          title: 'New Forum Post',
+          message: `${userData?.name || user.displayName || 'A user'} created a new post: "${title.trim()}"`,
+          read: false,
+          createdAt: new Date(),
+          priority: 'medium',
+          data: {
+            postId: postData.id,
+            authorId: user.uid,
+            authorName: userData?.name || user.displayName || 'Anonymous',
+            postTitle: title.trim()
+          }
+        };
+
+        // Send notification to all users (except the author)
+        const usersQuery = query(
+          collection(db, 'users'),
+          where('uid', '!=', user.uid)
+        );
+        
+        const usersSnapshot = await getDocs(usersQuery);
+        const notificationPromises = usersSnapshot.docs.map(userDoc => 
+          addDoc(collection(db, 'notifications'), {
+            ...forumNotification,
+            userId: userDoc.id
+          })
+        );
+        
+        await Promise.all(notificationPromises);
+        console.log('Forum notifications created successfully');
+      } catch (error) {
+        console.error('Error creating forum notifications:', error);
+        // Don't fail the post creation if notification fails
+      }
       
       toast.success("Post created successfully!");
       navigate("/forum");
