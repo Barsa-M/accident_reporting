@@ -87,20 +87,51 @@ const SafetyTipsManagement = () => {
   };
 
   const handleDelete = async (tipId) => {
-    if (window.confirm('Are you sure you want to delete this safety tip? This action cannot be undone.')) {
-      try {
-        // Instead of deleting, mark as deleted with reason
-        await updateDoc(doc(db, 'safety_tips', tipId), {
-          status: 'deleted',
-          deletedAt: serverTimestamp(),
-          adminReason: 'Post removed by admin for violating community guidelines.'
-        });
-        toast.success('Safety tip deleted successfully');
-        fetchSafetyTips();
-      } catch (error) {
-        console.error('Error deleting tip:', error);
-        toast.error('Failed to delete tip');
+    const tip = tips.find(t => t.id === tipId);
+    if (!tip) {
+      toast.error('Tip not found');
+      return;
+    }
+
+    const customReason = prompt('Please provide a reason for deleting this safety tip:');
+    if (!customReason || customReason.trim() === '') {
+      toast.error('Please provide a reason for deletion');
+      return;
+    }
+
+    try {
+      // Mark the tip as deleted with custom reason
+      await updateDoc(doc(db, 'safety_tips', tipId), {
+        status: 'deleted',
+        deletedAt: serverTimestamp(),
+        adminReason: customReason.trim()
+      });
+
+      // Send notification to tip author if authorId exists
+      if (tip.authorId && tip.authorId.trim() !== '' && tip.authorId !== 'undefined') {
+        try {
+          const notificationData = {
+            userId: tip.authorId,
+            title: 'Safety Tip Removed',
+            message: `Your safety tip "${tip.title}" has been removed for the following reason: ${customReason.trim()}`,
+            type: 'tip_removed',
+            createdAt: serverTimestamp(),
+            read: false
+          };
+          
+          await addDoc(collection(db, 'notifications'), notificationData);
+          console.log('Notification sent to author:', tip.authorId);
+        } catch (notificationError) {
+          console.error('Error sending notification:', notificationError);
+          // Don't fail the entire operation if notification fails
+        }
       }
+
+      toast.success('Safety tip deleted successfully');
+      fetchSafetyTips();
+    } catch (error) {
+      console.error('Error deleting tip:', error);
+      toast.error('Failed to delete tip');
     }
   };
 

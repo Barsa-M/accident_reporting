@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -25,12 +25,14 @@ const SidebarResponder = () => {
   const [notifications, setNotifications] = useState({
     unopenedIncidents: 0,
     priorityIncidents: 0,
-    criticalIncidents: 0
+    criticalIncidents: 0,
+    tipRemovals: 0
   });
 
   useEffect(() => {
     if (currentUser) {
       fetchNotifications();
+      fetchTipRemovalNotifications();
     }
   }, [currentUser]);
 
@@ -90,14 +92,38 @@ const SidebarResponder = () => {
         inc.status !== 'resolved'
       ).length;
 
-      setNotifications({
+      setNotifications(prev => ({
+        ...prev,
         unopenedIncidents,
         priorityIncidents,
         criticalIncidents
-      });
+      }));
     } catch (error) {
       console.error('Error fetching notifications:', error);
     }
+  };
+
+  const fetchTipRemovalNotifications = () => {
+    if (!currentUser) return;
+
+    // Listen for tip removal notifications
+    const notificationsQuery = query(
+      collection(db, 'notifications'),
+      where('userId', '==', currentUser.uid),
+      where('type', '==', 'tip_removed'),
+      where('read', '==', false),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
+      const tipRemovalCount = snapshot.docs.length;
+      setNotifications(prev => ({
+        ...prev,
+        tipRemovals: tipRemovalCount
+      }));
+    });
+
+    return unsubscribe;
   };
 
   const isActive = (path) => {
@@ -127,7 +153,7 @@ const SidebarResponder = () => {
       path: '/responder/safety-tips', 
       label: 'Safety Tips', 
       icon: <FiShield className="w-5 h-5" />,
-      badge: null
+      badge: notifications.tipRemovals > 0 ? notifications.tipRemovals : null
     },
     { 
       path: '/responder/stats', 
@@ -165,7 +191,7 @@ const SidebarResponder = () => {
       </div>
 
       {/* Priority Alerts */}
-      {(notifications.criticalIncidents > 0 || notifications.priorityIncidents > 0) && (
+      {(notifications.criticalIncidents > 0 || notifications.priorityIncidents > 0 || notifications.tipRemovals > 0) && (
         <div className="px-4 py-3 border-b border-red-100 bg-red-50">
           <div className="flex items-center space-x-2 mb-2">
             <FiBell className="w-4 h-4 text-red-600" />
@@ -185,6 +211,14 @@ const SidebarResponder = () => {
                 <span className="text-orange-700">High Priority</span>
                 <span className="bg-orange-600 text-white px-2 py-1 rounded-full font-bold">
                   {notifications.priorityIncidents}
+                </span>
+              </div>
+            )}
+            {notifications.tipRemovals > 0 && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-red-700">Tip Removals</span>
+                <span className="bg-red-600 text-white px-2 py-1 rounded-full font-bold">
+                  {notifications.tipRemovals}
                 </span>
               </div>
             )}
@@ -243,6 +277,10 @@ const SidebarResponder = () => {
               <div className="flex items-center justify-between text-xs">
                 <span className="text-gray-600">Critical</span>
                 <span className="font-medium text-red-600">{notifications.criticalIncidents}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-600">Tip Removals</span>
+                <span className="font-medium text-red-600">{notifications.tipRemovals}</span>
               </div>
             </div>
           </div>

@@ -45,6 +45,8 @@ const SafetyTipsManagement = ({ responderData }) => {
         ...doc.data()
       }));
       console.log("Fetched safety tips:", tipsList.length);
+      
+      // Include all tips including deleted ones for transparency
       setTips(tipsList);
     } catch (error) {
       console.error('Error fetching safety tips:', error);
@@ -187,7 +189,7 @@ const SafetyTipsManagement = ({ responderData }) => {
         </div>
         
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
             <div className="flex items-center justify-between">
               <div>
@@ -219,6 +221,17 @@ const SafetyTipsManagement = ({ responderData }) => {
               <FiAlertCircle className="w-8 h-8 text-orange-400" />
             </div>
           </div>
+          <div className="bg-red-50 rounded-lg p-4 border border-red-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-red-600">Removed</p>
+                <p className="text-2xl font-bold text-red-800">
+                  {tips.filter(tip => tip.status === 'deleted').length}
+                </p>
+              </div>
+              <FiTrash2 className="w-8 h-8 text-red-400" />
+            </div>
+          </div>
           <div className="bg-purple-50 rounded-lg p-4 border border-purple-100">
             <div className="flex items-center justify-between">
               <div>
@@ -236,7 +249,9 @@ const SafetyTipsManagement = ({ responderData }) => {
       {/* Safety Tips Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {tips.map((tip) => (
-          <div key={tip.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all duration-200">
+          <div key={tip.id} className={`bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all duration-200 ${
+            tip.status === 'deleted' ? 'opacity-75 border-red-200' : ''
+          }`}>
             {/* Header */}
             <div className="p-6 border-b border-gray-100">
               <div className="flex justify-between items-start mb-3">
@@ -260,23 +275,50 @@ const SafetyTipsManagement = ({ responderData }) => {
                   {tip.status === 'verified' && (
                     <FiCheckCircle className="h-5 w-5 text-blue-500" title="Verified" />
                   )}
-                  <button
-                    onClick={() => handleEdit(tip)}
-                    className="text-gray-500 hover:text-gray-700 p-1 rounded"
-                  >
-                    <FiEdit2 className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(tip.id)}
-                    className="text-red-500 hover:text-red-700 p-1 rounded"
-                  >
-                    <FiTrash2 className="h-4 w-4" />
-                  </button>
+                  {tip.status !== 'deleted' && (
+                    <>
+                      <button
+                        onClick={() => handleEdit(tip)}
+                        className="text-gray-500 hover:text-gray-700 p-1 rounded"
+                      >
+                        <FiEdit2 className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(tip.id)}
+                        className="text-red-500 hover:text-red-700 p-1 rounded"
+                      >
+                        <FiTrash2 className="h-4 w-4" />
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
               
               <h4 className="text-lg font-semibold text-gray-800 mb-2">{tip.title}</h4>
               <p className="text-gray-600 text-sm leading-relaxed">{tip.content}</p>
+              
+              {/* Admin Deletion Notice */}
+              {tip.status === 'deleted' && (
+                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="flex items-start space-x-3">
+                    <FiAlertCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <h5 className="font-semibold text-red-800 mb-1">Post Removed by Admin</h5>
+                      <p className="text-red-700 text-sm">
+                        This post was removed by an admin for the following reason:
+                      </p>
+                      <p className="text-red-600 text-sm mt-2 italic">
+                        "{tip.adminReason || 'Violation of community guidelines'}"
+                      </p>
+                      {tip.deletedAt && (
+                        <p className="text-red-500 text-xs mt-2">
+                          Removed on: {tip.deletedAt.toDate().toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Media */}
@@ -328,13 +370,16 @@ const SafetyTipsManagement = ({ responderData }) => {
                   </span>
                 </div>
                 <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                  tip.status === 'published'
+                  tip.status === 'deleted'
+                    ? 'bg-red-100 text-red-800'
+                    : tip.status === 'published'
                     ? 'bg-green-100 text-green-800'
                     : tip.flagCount && tip.flagCount > 0
                     ? 'bg-orange-100 text-orange-800'
                     : 'bg-gray-100 text-gray-800'
                 }`}>
-                  {tip.status === 'published' ? 'Published' : 
+                  {tip.status === 'deleted' ? 'Removed' : 
+                   tip.status === 'published' ? 'Published' : 
                    tip.flagCount && tip.flagCount > 0 ? 'Flagged' : 'Draft'}
                 </span>
               </div>
