@@ -216,17 +216,18 @@ export const routeIncident = async (incidentData) => {
     }
     
     try {
-      // Update responder status to busy
+      // Update responder load (but don't change availability status)
       const responderRef = doc(db, 'responders', bestResponder.id);
       console.log('Updating responder document:', bestResponder.id);
       
       await updateDoc(responderRef, {
-        availabilityStatus: 'busy',
+        // Don't automatically change availability status - let responders control it manually
+        // availabilityStatus: 'busy', // REMOVED - responders should control this manually
         currentLoad: increment(1),
         lastAssignedAt: serverTimestamp()
       });
       
-      console.log('Responder updated successfully');
+      console.log('Responder load updated successfully');
       
     } catch (responderError) {
       console.error('Error updating responder:', responderError);

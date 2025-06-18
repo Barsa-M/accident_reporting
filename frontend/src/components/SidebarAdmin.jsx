@@ -5,7 +5,8 @@ import {
   FiBell, 
   FiFlag, 
   FiLogOut,
-  FiSettings
+  FiSettings,
+  FiMessageSquare
 } from 'react-icons/fi';
 import { auth } from '../firebase/firebase';
 
@@ -41,6 +42,11 @@ const SidebarAdmin = () => {
       path: '/admin/settings', 
       label: 'Settings', 
       icon: <FiSettings className="w-5 h-5" /> 
+    },
+    { 
+      path: '/safety-tips', 
+      label: 'Safety Tips', 
+      icon: <FiMessageSquare className="w-5 h-5" /> 
     }
   ];
 

@@ -150,13 +150,41 @@ const IncidentDetailModal = ({ incident, isOpen, onClose, onStatusUpdate }) => {
     
     setLoading(true);
     try {
-      await updateDoc(doc(db, 'incidents', incident.id), {
+      // Determine the correct collection based on incident source
+      const collectionName = incident.source === 'anonymous_reports' ? 'anonymous_reports' : 'incidents';
+      
+      console.log(`Updating incident ${incident.id} in collection ${collectionName} to status ${newStatus}`);
+      
+      // Prepare update data
+      const updateData = {
         status: newStatus,
         updatedAt: new Date()
-      });
+      };
+
+      // If status is changing to 'in_progress', set the startedAt timestamp for response time tracking
+      if (newStatus === 'in_progress' && incident.status !== 'in_progress') {
+        updateData.startedAt = new Date();
+        console.log('Setting startedAt timestamp for response time tracking');
+      }
+
+      // If status is changing to 'resolved', set the resolvedAt timestamp
+      if (newStatus === 'resolved' && incident.status !== 'resolved') {
+        updateData.resolvedAt = new Date();
+        console.log('Setting resolvedAt timestamp');
+      }
+      
+      await updateDoc(doc(db, collectionName, incident.id), updateData);
       
       toast.success(`Incident status updated to ${newStatus}`);
       onStatusUpdate?.(newStatus);
+      
+      // Trigger dashboard refresh if status was changed to resolved
+      if (newStatus === 'resolved' && incident.status !== 'resolved') {
+        console.log('Incident resolved, triggering dashboard refresh');
+        if (window.refreshResponderDashboard) {
+          window.refreshResponderDashboard();
+        }
+      }
     } catch (error) {
       console.error('Error updating status:', error);
       toast.error('Failed to update status');
@@ -569,6 +597,7 @@ const IncidentDetailModal = ({ incident, isOpen, onClose, onStatusUpdate }) => {
                       
                       console.log(`File ${index}:`, { fileUrl, fileType, fileName, fileSize });
                       console.log('Full file object:', file);
+                      console.log('File URL starts with data:', fileUrl?.startsWith('data:'));
                       
                       return (
                         <div key={index} className="bg-white rounded-lg border border-[#0d522c]/20 overflow-hidden shadow-sm">
@@ -606,7 +635,7 @@ const IncidentDetailModal = ({ incident, isOpen, onClose, onStatusUpdate }) => {
                           <div 
                             className="w-full h-48 flex items-center justify-center bg-gray-100 text-gray-500"
                             style={{ 
-                              display: (fileType && (fileType.startsWith('image/') || fileType.startsWith('video/'))) ? 'none' : 'flex' 
+                              display: (fileType && (fileType.startsWith('image/') || fileType.startsWith('video/')) && fileUrl) ? 'none' : 'flex' 
                             }}
                           >
                             <div className="text-center">
@@ -617,6 +646,9 @@ const IncidentDetailModal = ({ incident, isOpen, onClose, onStatusUpdate }) => {
                               )}
                               {fileUrl && fileUrl.startsWith('blob:') && (
                                 <p className="text-xs text-orange-500 mt-1">Temporary file (may not display)</p>
+                              )}
+                              {fileUrl && fileUrl.startsWith('data:') && (
+                                <p className="text-xs text-green-500 mt-1">Data URL file</p>
                               )}
                             </div>
                           </div>

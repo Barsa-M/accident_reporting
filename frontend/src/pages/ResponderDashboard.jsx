@@ -10,6 +10,7 @@ import ActiveIncidents from '../components/Responder/ActiveIncidents';
 import ResponderProfile from '../components/Responder/ResponderProfile';
 import ResponderStats from '../components/Responder/ResponderStats';
 import ResponderChat from '../components/Responder/ResponderChat';
+import SafetyTipsManagement from '../components/Responder/SafetyTipsManagement';
 import IncidentHistory from './IncidentHistory';
 import DashboardHome from '../components/Responder/DashboardHome';
 
@@ -38,7 +39,7 @@ const ResponderDashboard = () => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setResponderData(data);
-        setAvailabilityStatus(data.availabilityStatus || AVAILABILITY_STATUS.BUSY);
+        setAvailabilityStatus(data.availabilityStatus || AVAILABILITY_STATUS.AVAILABLE);
         setIsAvailable(data.isAvailable || false);
       }
     } catch (error) {
@@ -90,6 +91,7 @@ const ResponderDashboard = () => {
               <Route path="/chat" element={<ResponderChat />} />
               <Route path="/incident-history" element={<IncidentHistory />} />
               <Route path="/stats" element={<ResponderStats />} />
+              <Route path="/safety-tips" element={<SafetyTipsManagement responderData={responderData} />} />
             </Routes>
           </div>
         </main>

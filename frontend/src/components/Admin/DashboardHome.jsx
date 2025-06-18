@@ -5,7 +5,6 @@ import { FiUsers, FiShield, FiAlertTriangle, FiMessageSquare } from 'react-icons
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
          BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { toast } from 'react-hot-toast';
-import ResponderDebug from '../Debug/ResponderDebug';
 
 const DashboardHome = () => {
   const [loading, setLoading] = useState(true);
@@ -338,8 +337,6 @@ const DashboardHome = () => {
           </div>
         </div>
       </div>
-
-      <ResponderDebug />
     </div>
   );
 };

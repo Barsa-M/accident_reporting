@@ -21,8 +21,10 @@ service cloud.firestore {
     }
 
     function isApprovedResponder() {
-      return isResponder() && 
-        get(/databases/$(database)/documents/responders/$(request.auth.uid)).data.status.lower() == 'approved';
+      return isResponder() && (
+        get(/databases/$(database)/documents/responders/$(request.auth.uid)).data.applicationStatus.lower() == 'approved' ||
+        get(/databases/$(database)/documents/responders/$(request.auth.uid)).data.status.lower() == 'approved'
+      );
     }
 
     function isOwner(userId) {

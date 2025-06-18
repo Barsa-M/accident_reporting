@@ -101,12 +101,14 @@ exports.updateIncidentStatus = functions.https.onCall(async (data, context) => {
       await db.collection('notifications').add(notificationData);
     }
 
-    // If incident is resolved or cancelled, update responder availability
+    // If incident is resolved or cancelled, update responder load (but don't change availability)
     if (status === 'resolved' || status === 'cancelled') {
       if (incident.assignedResponderId) {
         const responderRef = db.collection('responders').doc(incident.assignedResponderId);
         await responderRef.update({
-          isAvailable: true,
+          // Don't automatically change availability - let responders control it manually
+          // isAvailable: true, // REMOVED - responders should control this manually
+          currentLoad: admin.firestore.FieldValue.increment(-1), // Decrease current load
           lastUpdated: admin.firestore.FieldValue.serverTimestamp()
         });
       }
