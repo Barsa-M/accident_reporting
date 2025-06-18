@@ -3,7 +3,7 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/firebase';
 import { useNavigate } from 'react-router-dom';
-import { FiMail, FiPhone, FiUser, FiLock, FiMapPin, FiFileText, FiCalendar, FiLoader, FiCheck } from 'react-icons/fi';
+import { FiMail, FiPhone, FiUser, FiLock, FiMapPin, FiFileText, FiCalendar, FiLoader, FiCheck, FiShield, FiArrowLeft } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 import { RESPONDER_STATUS, AVAILABILITY_STATUS } from '../firebase/responderStatus';
 import { saveIncidentFilesLocally } from '../services/fileStorage';
@@ -268,12 +268,71 @@ const ResponderRegisterForm = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto">
-        <div className="bg-white rounded-lg shadow-lg p-8">
-          <h2 className="text-2xl font-bold text-center text-gray-900 mb-8">
-            Responder Registration
-          </h2>
+    <div className="min-h-screen flex">
+      {/* Left Panel - Branding & Image */}
+      <div className="hidden lg:flex lg:w-1/2 bg-[#0d522c] relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0d522c] to-[#094023] opacity-90"></div>
+        <div className="relative z-10 flex flex-col justify-between h-full p-12 text-white">
+          <div>
+            <img src="/safereport.svg" alt="SAFE Logo" className="w-16 h-16 mb-8 brightness-0 invert" />
+            <h1 className="text-4xl font-bold mb-4">Join as a Responder</h1>
+            <p className="text-lg text-white/80 max-w-md">
+              Register your organization and become part of our emergency response network. Together, we can make our community safer.
+            </p>
+          </div>
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
+                <FiShield className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-semibold">Professional Network</h3>
+                <p className="text-sm text-white/70">Connect with other emergency responders</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-semibold">Community Impact</h3>
+                <p className="text-sm text-white/70">Make a difference in emergency situations</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Panel - Registration Form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
+        <div className="w-full max-w-2xl">
+          {/* Back Button */}
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center text-gray-600 hover:text-[#0d522c] transition-colors mb-6"
+          >
+            <FiArrowLeft className="mr-2" />
+            Back to Home
+          </button>
+
+          <div className="mb-6">
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">Responder Registration</h2>
+            <p className="text-gray-600">Register your organization to join our emergency response network</p>
+          </div>
+
+          {Object.keys(errors).length > 0 && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-3">
+              <FiAlertCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+              <div>
+                {Object.entries(errors).map(([key, value]) => (
+                  <p key={key} className="text-sm text-red-600">{value}</p>
+                ))}
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Contact Information */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -290,15 +349,12 @@ const ResponderRegisterForm = () => {
                     name="email"
                     value={formData.email}
                     onChange={handleChange}
-                    className={`block w-full pl-10 pr-3 py-2 border ${
+                    className={`block w-full pl-10 pr-3 py-2.5 border ${
                       errors.email ? 'border-red-300' : 'border-gray-300'
-                    } rounded-lg shadow-sm focus:ring-[#0d522c] focus:border-[#0d522c]`}
+                    } rounded-lg shadow-sm focus:ring-2 focus:ring-[#0d522c] focus:border-transparent transition-colors`}
                     placeholder="Enter your email"
                   />
                 </div>
-                {errors.email && (
-                  <p className="mt-1 text-sm text-red-600">{errors.email}</p>
-                )}
               </div>
 
               <div>
@@ -314,13 +370,12 @@ const ResponderRegisterForm = () => {
                     name="phoneNumber"
                     value={formData.phoneNumber}
                     onChange={handleChange}
-                    className={`block w-full pl-10 pr-3 py-2 border ${errors.phoneNumber ? 'border-red-300' : 'border-gray-300'} rounded-lg shadow-sm focus:ring-[#0d522c] focus:border-[#0d522c]`}
+                    className={`block w-full pl-10 pr-3 py-2.5 border ${
+                      errors.phoneNumber ? 'border-red-300' : 'border-gray-300'
+                    } rounded-lg shadow-sm focus:ring-2 focus:ring-[#0d522c] focus:border-transparent transition-colors`}
                     placeholder="+251 9XXXXXXXX or 09XXXXXXXX"
                   />
                 </div>
-                {errors.phoneNumber && (
-                  <p className="mt-1 text-sm text-red-600">{errors.phoneNumber}</p>
-                )}
               </div>
             </div>
 
@@ -338,15 +393,12 @@ const ResponderRegisterForm = () => {
                   name="instituteName"
                   value={formData.instituteName}
                   onChange={handleChange}
-                  className={`block w-full pl-10 pr-3 py-2 border ${
+                  className={`block w-full pl-10 pr-3 py-2.5 border ${
                     errors.instituteName ? 'border-red-300' : 'border-gray-300'
-                  } rounded-lg shadow-sm focus:ring-[#0d522c] focus:border-[#0d522c]`}
+                  } rounded-lg shadow-sm focus:ring-2 focus:ring-[#0d522c] focus:border-transparent transition-colors`}
                   placeholder="Enter your institute name"
                 />
               </div>
-              {errors.instituteName && (
-                <p className="mt-1 text-sm text-red-600">{errors.instituteName}</p>
-              )}
             </div>
 
             {/* Responder Type */}
@@ -362,9 +414,9 @@ const ResponderRegisterForm = () => {
                   name="responderType"
                   value={formData.responderType}
                   onChange={handleChange}
-                  className={`block w-full pl-10 pr-3 py-2 border ${
+                  className={`block w-full pl-10 pr-3 py-2.5 border ${
                     errors.responderType ? 'border-red-300' : 'border-gray-300'
-                  } rounded-lg shadow-sm focus:ring-[#0d522c] focus:border-[#0d522c]`}
+                  } rounded-lg shadow-sm focus:ring-2 focus:ring-[#0d522c] focus:border-transparent transition-colors`}
                 >
                   <option value="">Select responder type</option>
                   <option value="Fire">Fire Department</option>
@@ -373,9 +425,6 @@ const ResponderRegisterForm = () => {
                   <option value="Traffic">Traffic Control</option>
                 </select>
               </div>
-              {errors.responderType && (
-                <p className="mt-1 text-sm text-red-600">{errors.responderType}</p>
-              )}
             </div>
 
             {/* Operating Details */}
@@ -393,7 +442,7 @@ const ResponderRegisterForm = () => {
                     name="operatingHours"
                     value={formData.operatingHours}
                     onChange={handleChange}
-                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-[#0d522c] focus:border-[#0d522c]"
+                    className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-[#0d522c] focus:border-transparent transition-colors"
                     placeholder="e.g., 24/7 or 9 AM - 5 PM"
                   />
                 </div>
@@ -414,24 +463,18 @@ const ResponderRegisterForm = () => {
                   placeholder="Enter capacity"
                   min="1"
                 />
-                {errors.capacity && (
-                  <p className="mt-1 text-sm text-red-600">{errors.capacity}</p>
-                )}
               </div>
             </div>
 
             {/* Location */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Location <span className="text-red-500">*</span>
               </label>
               <div id="map" className="w-full h-[300px] rounded-lg border border-gray-300 mb-2"></div>
               <p className="text-sm text-gray-500">
                 Click on the map to set your location or drag the marker
               </p>
-              {mapError && (
-                <p className="mt-1 text-sm text-red-600">{mapError}</p>
-              )}
             </div>
 
             {/* License Upload */}
@@ -446,9 +489,6 @@ const ResponderRegisterForm = () => {
                 maxSizeMB={5}
                 acceptedFileTypes={['.pdf', '.jpg', '.jpeg', '.png']}
               />
-              {errors.licenseFile && (
-                <p className="mt-1 text-sm text-red-600">{errors.licenseFile}</p>
-              )}
               {files.length > 0 && (
                 <div className="mt-2 flex items-center text-sm text-green-600">
                   <FiCheck className="mr-1" />
@@ -459,7 +499,7 @@ const ResponderRegisterForm = () => {
 
             {/* Years of Experience */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Years of Experience <span className="text-red-500">*</span>
               </label>
               <div className="relative">
@@ -472,15 +512,12 @@ const ResponderRegisterForm = () => {
                   value={formData.yearsOfExperience}
                   onChange={handleChange}
                   min="0"
-                  className={`block w-full pl-10 pr-3 py-2 border ${
+                  className={`block w-full pl-10 pr-3 py-2.5 border ${
                     errors.yearsOfExperience ? 'border-red-300' : 'border-gray-300'
-                  } rounded-lg shadow-sm focus:ring-[#0d522c] focus:border-[#0d522c]`}
+                  } rounded-lg shadow-sm focus:ring-2 focus:ring-[#0d522c] focus:border-transparent transition-colors`}
                   placeholder="Enter years of experience"
                 />
               </div>
-              {errors.yearsOfExperience && (
-                <p className="mt-1 text-sm text-red-600">{errors.yearsOfExperience}</p>
-              )}
             </div>
 
             {/* Password */}
@@ -498,15 +535,12 @@ const ResponderRegisterForm = () => {
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
-                    className={`block w-full pl-10 pr-3 py-2 border ${
+                    className={`block w-full pl-10 pr-3 py-2.5 border ${
                       errors.password ? 'border-red-300' : 'border-gray-300'
-                    } rounded-lg shadow-sm focus:ring-[#0d522c] focus:border-[#0d522c]`}
+                    } rounded-lg shadow-sm focus:ring-2 focus:ring-[#0d522c] focus:border-transparent transition-colors`}
                     placeholder="Enter password"
                   />
                 </div>
-                {errors.password && (
-                  <p className="mt-1 text-sm text-red-600">{errors.password}</p>
-                )}
               </div>
 
               <div>
@@ -522,21 +556,18 @@ const ResponderRegisterForm = () => {
                     name="confirmPassword"
                     value={formData.confirmPassword}
                     onChange={handleChange}
-                    className={`block w-full pl-10 pr-3 py-2 border ${
+                    className={`block w-full pl-10 pr-3 py-2.5 border ${
                       errors.confirmPassword ? 'border-red-300' : 'border-gray-300'
-                    } rounded-lg shadow-sm focus:ring-[#0d522c] focus:border-[#0d522c]`}
+                    } rounded-lg shadow-sm focus:ring-2 focus:ring-[#0d522c] focus:border-transparent transition-colors`}
                     placeholder="Confirm password"
                   />
                 </div>
-                {errors.confirmPassword && (
-                  <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
-                )}
               </div>
             </div>
 
             {/* Additional Details */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Additional Details
               </label>
               <div className="relative">
@@ -548,7 +579,7 @@ const ResponderRegisterForm = () => {
                   value={formData.additionalDetails}
                   onChange={handleChange}
                   rows="3"
-                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-[#0d522c] focus:border-[#0d522c]"
+                  className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-[#0d522c] focus:border-transparent transition-colors"
                   placeholder="Enter any additional information about your organization"
                 ></textarea>
               </div>
@@ -558,15 +589,15 @@ const ResponderRegisterForm = () => {
             <button
               type="submit"
               disabled={submissionStatus.isSubmitting}
-              className={`w-full py-3 rounded-lg font-medium transition-colors ${
+              className={`w-full flex items-center justify-center px-4 py-2.5 border border-transparent rounded-lg shadow-sm text-base font-medium text-white ${
                 submissionStatus.isSubmitting
                   ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-[#0d522c] hover:bg-[#347752] text-white"
-              }`}
+                  : "bg-[#0d522c] hover:bg-[#347752] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0d522c]"
+              } transition-colors`}
             >
               {submissionStatus.isSubmitting ? (
-                <div className="flex items-center justify-center">
-                  <FiLoader className="w-5 h-5 animate-spin mr-2" />
+                <div className="flex items-center">
+                  <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin mr-2"></div>
                   {submissionStatus.message}
                 </div>
               ) : (
@@ -574,6 +605,34 @@ const ResponderRegisterForm = () => {
               )}
             </button>
           </form>
+
+          <div className="mt-8 space-y-4">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">Or continue with</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => navigate('/login')}
+                className="w-full flex items-center justify-center px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0d522c] transition-colors"
+              >
+                Login
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/create-account')}
+                className="w-full flex items-center justify-center px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0d522c] transition-colors"
+              >
+                Create Account
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
