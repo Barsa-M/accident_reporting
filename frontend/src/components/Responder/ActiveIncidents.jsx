@@ -17,29 +17,47 @@ const ActiveIncidents = () => {
 
     console.log('Fetching active incidents for user:', currentUser.uid);
     
-    const q = query(
-      collection(db, 'incidents'),
-      where('assignedResponderId', '==', currentUser.uid),
-      where('status', 'in', ['assigned', 'in_progress', 'pending'])
-    );
+    // Set up listeners for both collections
+    const collections = ['incidents', 'anonymous_reports'];
+    const unsubscribers = [];
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const incidentList = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      console.log('Active incidents query result:', {
-        total: snapshot.docs.length,
-        incidents: incidentList
+    collections.forEach(collectionName => {
+      const q = query(
+        collection(db, collectionName),
+        where('assignedResponderId', '==', currentUser.uid),
+        where('status', 'in', ['assigned', 'in_progress', 'pending'])
+      );
+
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const incidentList = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          source: collectionName
+        }));
+        
+        console.log(`Active incidents from ${collectionName}:`, {
+          total: snapshot.docs.length,
+          incidents: incidentList
+        });
+        
+        // Update incidents state by combining all collections
+        setIncidents(prevIncidents => {
+          // Remove incidents from this collection and add new ones
+          const filtered = prevIncidents.filter(inc => inc.source !== collectionName);
+          return [...filtered, ...incidentList];
+        });
+      }, (error) => {
+        console.error(`Error fetching active incidents from ${collectionName}:`, error);
       });
-      setIncidents(incidentList);
-      setLoading(false);
-    }, (error) => {
-      console.error('Error fetching active incidents:', error);
-      setLoading(false);
+
+      unsubscribers.push(unsubscribe);
     });
 
-    return () => unsubscribe();
+    setLoading(false);
+
+    return () => {
+      unsubscribers.forEach(unsubscribe => unsubscribe());
+    };
   }, [currentUser]);
 
   const formatDateTime = (dateTime) => {

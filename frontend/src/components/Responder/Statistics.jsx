@@ -65,13 +65,35 @@ const Statistics = ({ responderData }) => {
           break;
       }
 
-      // Fetch incidents data
-      const incidentsQuery = query(
-        collection(db, 'incidents'),
-        where('assignedTo', '==', responderData.uid),
-        where('createdAt', '>=', startDate),
-        orderBy('createdAt', 'desc')
-      );
+      // Get incidents from both collections assigned to this responder
+      const collections = ['incidents', 'anonymous_reports'];
+      let allIncidents = [];
+
+      for (const collectionName of collections) {
+        try {
+          // Fetch incidents data - try different assignment field names
+          const incidentsQuery = query(
+            collection(db, collectionName),
+            where('assignedResponderId', '==', responderData.uid),
+            where('createdAt', '>=', startDate),
+            orderBy('createdAt', 'desc')
+          );
+
+          const incidentsSnap = await getDocs(incidentsQuery);
+          const incidents = incidentsSnap.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            source: collectionName
+          }));
+
+          console.log(`Fetched ${incidents.length} incidents from ${collectionName}`);
+          allIncidents = [...allIncidents, ...incidents];
+        } catch (error) {
+          console.log(`Failed to fetch from ${collectionName}:`, error);
+        }
+      }
+
+      console.log("Total incidents for statistics:", allIncidents.length);
 
       // Fetch tooltip interaction data
       const tooltipQuery = query(
@@ -89,16 +111,10 @@ const Statistics = ({ responderData }) => {
         orderBy('createdAt', 'desc')
       );
 
-      const [incidentsSnap, tooltipSnap, cohortSnap] = await Promise.all([
-        getDocs(incidentsQuery),
+      const [tooltipSnap, cohortSnap] = await Promise.all([
         getDocs(tooltipQuery),
         getDocs(cohortQuery)
       ]);
-
-      const incidents = incidentsSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
 
       const tooltipInteractions = tooltipSnap.docs.map(doc => ({
         id: doc.id,
@@ -111,16 +127,23 @@ const Statistics = ({ responderData }) => {
       }));
 
       // Calculate incident statistics
-      const totalIncidents = incidents.length;
-      const resolvedIncidents = incidents.filter(inc => inc.status === 'resolved').length;
+      const totalIncidents = allIncidents.length;
+      const resolvedIncidents = allIncidents.filter(inc => inc.status === 'resolved').length;
 
-      const responseTimes = incidents
+      // Calculate response times - handle different timestamp formats
+      const responseTimes = allIncidents
         .filter(inc => inc.startedAt && inc.createdAt)
         .map(inc => {
-          const start = inc.startedAt.toDate();
-          const created = inc.createdAt.toDate();
-          return (start - created) / (1000 * 60);
-        });
+          try {
+            const start = inc.createdAt instanceof Date ? inc.createdAt : new Date(inc.createdAt);
+            const responded = inc.startedAt?.toDate?.() || new Date(inc.startedAt);
+            return (responded - start) / (1000 * 60);
+          } catch (error) {
+            console.log('Error calculating response time for incident:', inc.id, error);
+            return null;
+          }
+        })
+        .filter(time => time !== null);
 
       const averageResponseTime = responseTimes.length > 0
         ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length
@@ -133,13 +156,14 @@ const Statistics = ({ responderData }) => {
       const cohortStats = calculateCohortStats(cohortData);
 
       // Group incidents by type
-      const incidentsByType = incidents.reduce((acc, inc) => {
-        acc[inc.incidentType] = (acc[inc.incidentType] || 0) + 1;
+      const incidentsByType = allIncidents.reduce((acc, inc) => {
+        const type = inc.type || inc.incidentType || 'Other';
+        acc[type] = (acc[type] || 0) + 1;
         return acc;
       }, {});
 
       // Calculate monthly statistics
-      const monthlyStats = calculateMonthlyStats(incidents);
+      const monthlyStats = calculateMonthlyStats(allIncidents);
 
       setStats({
         totalIncidents,
@@ -209,9 +233,15 @@ const Statistics = ({ responderData }) => {
     }).reverse();
 
     return months.map(month => {
-      const monthIncidents = incidents.filter(inc =>
-        inc.createdAt.toDate().toLocaleString('default', { month: 'short' }) === month
-      );
+      const monthIncidents = incidents.filter(inc => {
+        try {
+          const incidentDate = inc.createdAt instanceof Date ? inc.createdAt : new Date(inc.createdAt);
+          return incidentDate.toLocaleString('default', { month: 'short' }) === month;
+        } catch (error) {
+          console.log('Error processing incident date:', inc.id, error);
+          return false;
+        }
+      });
       return {
         month,
         incidents: monthIncidents.length,

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase/firebase';
 import { useAuth } from '../../contexts/AuthContext';
-import { FiAlertTriangle, FiClock, FiCheckCircle, FiMapPin } from 'react-icons/fi';
+import { FiAlertTriangle, FiClock, FiCheckCircle, FiMapPin, FiRefreshCw } from 'react-icons/fi';
 
 const ResponderStats = () => {
   const { currentUser } = useAuth();
@@ -22,52 +22,84 @@ const ResponderStats = () => {
 
   const fetchStats = async () => {
     try {
+      setLoading(true);
       if (!currentUser) return;
 
-      const incidentsRef = collection(db, 'incidents');
-      const q = query(
-        incidentsRef,
-        where('assignedResponderId', '==', currentUser.uid)
-      );
+      // Get incidents from both collections assigned to this responder
+      const collections = ['incidents', 'anonymous_reports'];
+      let allIncidents = [];
 
-      const snapshot = await getDocs(q);
-      const incidents = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      for (const collectionName of collections) {
+        try {
+          const incidentsRef = collection(db, collectionName);
+          const q = query(
+            incidentsRef,
+            where('assignedResponderId', '==', currentUser.uid)
+          );
+
+          const snapshot = await getDocs(q);
+          const incidents = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            source: collectionName
+          }));
+
+          console.log(`Fetched ${incidents.length} incidents from ${collectionName}`);
+          allIncidents = [...allIncidents, ...incidents];
+        } catch (error) {
+          console.log(`Failed to fetch from ${collectionName}:`, error);
+        }
+      }
+
+      console.log("Total incidents for stats:", allIncidents.length);
 
       // Calculate statistics
-      const totalIncidents = incidents.length;
-      const activeIncidents = incidents.filter(inc => 
-        ['assigned', 'in_progress'].includes(inc.status)
+      const totalIncidents = allIncidents.length;
+      const activeIncidents = allIncidents.filter(inc => 
+        ['assigned', 'in_progress', 'pending'].includes(inc.status)
       ).length;
-      const completedIncidents = incidents.filter(inc => 
-        inc.status === 'completed'
+      const completedIncidents = allIncidents.filter(inc => 
+        inc.status === 'resolved'
       ).length;
 
-      // Calculate average response time
-      const responseTimes = incidents
+      // Calculate average response time - handle different timestamp formats
+      const responseTimes = allIncidents
         .filter(inc => inc.startedAt && inc.createdAt)
         .map(inc => {
-          const start = new Date(inc.startedAt);
-          const created = new Date(inc.createdAt);
-          return (start - created) / 1000 / 60; // Convert to minutes
-        });
+          try {
+            const start = inc.createdAt instanceof Date ? inc.createdAt : new Date(inc.createdAt);
+            const responded = inc.startedAt?.toDate?.() || new Date(inc.startedAt);
+            return (responded - start) / 1000 / 60; // Convert to minutes
+          } catch (error) {
+            console.log('Error calculating response time for incident:', inc.id, error);
+            return null;
+          }
+        })
+        .filter(time => time !== null);
 
       const averageResponseTime = responseTimes.length > 0
         ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length
         : 0;
 
       // Calculate total distance traveled
-      const totalDistance = incidents
+      const totalDistance = allIncidents
         .filter(inc => inc.distance)
         .reduce((sum, inc) => sum + inc.distance, 0);
 
       // Group incidents by type
-      const byType = incidents.reduce((acc, inc) => {
-        acc[inc.type] = (acc[inc.type] || 0) + 1;
+      const byType = allIncidents.reduce((acc, inc) => {
+        const type = inc.type || inc.incidentType || 'Other';
+        acc[type] = (acc[type] || 0) + 1;
         return acc;
       }, {});
+
+      console.log("Setting responder stats:", {
+        totalIncidents,
+        activeIncidents,
+        completedIncidents,
+        averageResponseTime,
+        totalDistance
+      });
 
       setStats({
         totalIncidents,
@@ -87,14 +119,26 @@ const ResponderStats = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0d522c]"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#0D522C]"></div>
       </div>
     );
   }
 
   return (
     <div className="max-w-7xl mx-auto p-6">
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">Performance Statistics</h2>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold text-gray-900">Performance Statistics</h2>
+        
+        {/* Refresh Button */}
+        <button
+          onClick={fetchStats}
+          disabled={loading}
+          className="px-4 py-2 bg-[#0d522c] text-white rounded-lg hover:bg-[#347752] transition-colors flex items-center space-x-2 disabled:opacity-50"
+        >
+          <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          <span>Refresh Stats</span>
+        </button>
+      </div>
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

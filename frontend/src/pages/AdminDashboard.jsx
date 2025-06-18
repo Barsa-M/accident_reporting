@@ -5,7 +5,7 @@ import { auth, db } from '../firebase/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { ROLES, normalizeRole } from '../firebase/roles';
 import { FiMenu, FiX, FiHome, FiUsers, FiShield, FiFileText, FiMessageSquare, 
-         FiPieChart, FiSettings, FiUser, FiBell, FiSearch, FiCode, FiLogOut, FiAlertCircle } from 'react-icons/fi';
+         FiPieChart, FiSettings, FiUser, FiBell, FiSearch, FiLogOut, FiAlertCircle } from 'react-icons/fi';
 import { Transition } from '@headlessui/react';
 import DashboardHome from '../components/Admin/DashboardHome';
 import UsersManagement from '../components/Admin/UsersManagement';
@@ -15,7 +15,6 @@ import ForumModeration from '../components/Admin/ForumModeration';
 import Analytics from '../components/Admin/Analytics';
 import Settings from '../components/Admin/Settings';
 import AdminProfile from '../components/Admin/AdminProfile';
-import TestPanel from '../components/Admin/TestPanel';
 import { toast } from "react-toastify";
 
 const AdminDashboard = () => {
@@ -99,7 +98,6 @@ const AdminDashboard = () => {
     { id: 'forum', label: 'Forum Moderation', icon: FiMessageSquare },
     { id: 'analytics', label: 'Analytics', icon: FiPieChart },
     { id: 'settings', label: 'Settings', icon: FiSettings },
-    { id: 'test', label: 'Test Panel', icon: FiCode },
   ];
 
   const renderContent = () => {
@@ -120,8 +118,6 @@ const AdminDashboard = () => {
         return <Settings />;
       case 'profile':
         return <AdminProfile adminData={adminData} />;
-      case 'test':
-        return <TestPanel />;
       default:
         return <DashboardHome />;
     }
@@ -175,12 +171,95 @@ const AdminDashboard = () => {
               );
             })}
           </nav>
+
+          {/* Sidebar Footer - Notifications and Profile */}
+          <div className="border-t border-[#347752] p-4 space-y-2">
+            {/* Notifications */}
+            <div className="relative">
+              <button
+                onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                className="flex items-center w-full px-4 py-2 text-sm rounded-lg transition-colors text-gray-300 hover:bg-[#347752] hover:text-white relative"
+              >
+                <FiBell className="h-5 w-5 mr-3" />
+                <span>Notifications</span>
+                {notifications.length > 0 && (
+                  <span className="absolute top-1 right-2 h-4 w-4 bg-red-500 rounded-full text-xs text-white flex items-center justify-center">
+                    {notifications.length}
+                  </span>
+                )}
+              </button>
+              
+              {/* Notifications Dropdown */}
+              {isNotificationsOpen && (
+                <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-lg shadow-lg py-2 z-50 text-gray-900">
+                  {notifications.length === 0 ? (
+                    <p className="px-4 py-2 text-gray-500 text-sm">No new notifications</p>
+                  ) : (
+                    notifications.map((notification) => (
+                      <div
+                        key={notification.id}
+                        className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-sm"
+                      >
+                        {notification.message}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Profile Section */}
+            <div className="relative">
+              <button
+                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                className="flex items-center w-full px-4 py-2 text-sm rounded-lg transition-colors text-gray-300 hover:bg-[#347752] hover:text-white"
+              >
+                <div className="flex items-center space-x-3">
+                  <img
+                    src={adminData?.photoURL || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTYiIGZpbGw9IiMwZDUyMmMiLz4KPHN2ZyB4PSI4IiB5PSI4IiB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPgo8cGF0aCBkPSJNMTIgMTJjMi4yMSAwIDQtMS43OSA0LTRzLTEuNzktNC00LTQtNCAxLjc5LTQgNCAxLjc5IDQgNCA0em0wIDJjLTIuNjcgMC04IDEuMzQtOCA0djJoMTZ2LTJjMC0yLjY2LTUuMzMtNC04LTR6Ii8+Cjwvc3ZnPgo8L3N2Zz4K'}
+                    alt="Profile"
+                    className="h-8 w-8 rounded-full object-cover"
+                    onError={(e) => {
+                      e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTYiIGZpbGw9IiMwZDUyMmMiLz4KPHN2ZyB4PSI4IiB5PSI4IiB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPgo8cGF0aCBkPSJNMTIgMTJjMi4yMSAwIDQtMS43OSA0LTRzLTEuNzktNC00LTQtNCAxLjc5LTQgNCAxLjc5IDQgNCA0em0wIDJjLTIuNjcgMC04IDEuMzQtOCA0djJoMTZ2LTJjMC0yLjY2LTUuMzMtNC04LTR6Ii8+Cjwvc3ZnPgo8L3N2Zz4K';
+                    }}
+                  />
+                  <div className="text-left">
+                    <div className="font-medium">{adminData?.name || 'Admin'}</div>
+                    <div className="text-xs text-gray-400">Administrator</div>
+                  </div>
+                </div>
+              </button>
+              
+              {/* Profile Dropdown */}
+              {isProfileOpen && (
+                <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-lg shadow-lg py-2 z-50 text-gray-900">
+                  <button
+                    onClick={() => {
+                      setCurrentSection('profile');
+                      setIsProfileOpen(false);
+                    }}
+                    className="block w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50 text-sm"
+                  >
+                    <FiUser className="h-4 w-4 inline mr-2" />
+                    Profile Settings
+                  </button>
+                  <button
+                    onClick={() => setShowSignOutConfirm(true)}
+                    className="block w-full px-4 py-2 text-left text-red-600 hover:bg-gray-50 text-sm"
+                  >
+                    <FiLogOut className="h-4 w-4 inline mr-2" />
+                    Sign Out
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </Transition>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Navigation */}
+        {/* Top Navigation - Simplified */}
         <header className="bg-white shadow-sm z-20">
           <div className="flex items-center justify-between h-16 px-4">
             {/* Left Section */}
@@ -192,13 +271,18 @@ const AdminDashboard = () => {
                 <FiMenu className="h-6 w-6" />
               </button>
 
-              {/* Search Bar - Only show on specific pages, excluding incidents */}
-              {['users', 'responders', 'forum'].includes(currentSection) && (
-                <div className="w-96 ml-4">
+              {/* Page Title */}
+              <h1 className="text-xl font-semibold text-gray-900 ml-4 lg:ml-0">
+                {navigationItems.find(item => item.id === currentSection)?.label || 'Dashboard'}
+              </h1>
+            </div>
+
+            {/* Right Section - Search Bar for specific pages */}
+            <div className="flex items-center">
+              {['users', 'responders', 'forum', 'incidents'].includes(currentSection) && (
+                <div className="w-96">
                   <div className="relative">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-                      <FiSearch className="h-5 w-5 text-gray-400" />
-                    </span>
+                    <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
                       type="text"
                       placeholder={`Search ${currentSection}...`}
@@ -207,75 +291,6 @@ const AdminDashboard = () => {
                   </div>
                 </div>
               )}
-            </div>
-
-            {/* Right Section - Always aligned to the right */}
-            <div className="flex items-center space-x-4">
-              {/* Notifications */}
-              <div className="relative">
-                <button
-                  onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-                  className="p-2 text-gray-500 hover:text-gray-700 relative"
-                >
-                  <FiBell className="h-6 w-6" />
-                  {notifications.length > 0 && (
-                    <span className="absolute top-0 right-0 h-4 w-4 bg-red-500 rounded-full text-xs text-white flex items-center justify-center">
-                      {notifications.length}
-                    </span>
-                  )}
-                </button>
-                {/* Notifications Dropdown */}
-                {isNotificationsOpen && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg py-2 z-50">
-                    {notifications.length === 0 ? (
-                      <p className="px-4 py-2 text-gray-500">No new notifications</p>
-                    ) : (
-                      notifications.map((notification) => (
-                        <div
-                          key={notification.id}
-                          className="px-4 py-2 hover:bg-gray-50 cursor-pointer"
-                        >
-                          {notification.message}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Profile Dropdown */}
-              <div className="relative">
-                <button
-                  onClick={() => setIsProfileOpen(!isProfileOpen)}
-                  className="flex items-center space-x-2 text-gray-700 hover:text-gray-900"
-                >
-                  <img
-                    src={adminData?.photoURL || '/default-avatar.png'}
-                    alt="Profile"
-                    className="h-8 w-8 rounded-full object-cover"
-                  />
-                  <span className="hidden md:block">{adminData?.name || 'Admin'}</span>
-                </button>
-                {isProfileOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-50">
-                    <button
-                      onClick={() => {
-                        setCurrentSection('profile');
-                        setIsProfileOpen(false);
-                      }}
-                      className="block w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50"
-                    >
-                      Profile Settings
-                    </button>
-                    <button
-                      onClick={() => setShowSignOutConfirm(true)}
-                      className="block w-full px-4 py-2 text-left text-red-600 hover:bg-gray-50"
-                    >
-                      Sign Out
-                    </button>
-                  </div>
-                )}
-              </div>
             </div>
           </div>
         </header>

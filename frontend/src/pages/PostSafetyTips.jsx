@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import UserSidebar from "../components/UserSidebar";
-import { FiSearch, FiAlertCircle, FiCheckCircle, FiSend, FiMessageSquare, FiPlus, FiChevronDown, FiChevronUp, FiCornerDownRight } from "react-icons/fi";
-import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { FiSearch, FiAlertCircle, FiCheckCircle, FiSend, FiMessageSquare, FiPlus, FiChevronDown, FiChevronUp, FiCornerDownRight, FiFilter, FiHeart, FiShare2, FiEye, FiThumbsUp, FiThumbsDown, FiFlag, FiX } from "react-icons/fi";
+import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, getDocs, updateDoc, doc, increment } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from "date-fns";
+import VerificationBadge from '../components/Common/VerificationBadge';
+import MediaDisplay from '../components/Common/MediaDisplay';
 
 const PostSafetyTips = () => {
   const navigate = useNavigate();
@@ -35,6 +37,10 @@ const PostSafetyTips = () => {
   const [expandedReplies, setExpandedReplies] = useState({});
   const [error, setError] = useState(null);
   const [commentUnsubscribes, setCommentUnsubscribes] = useState({});
+  const [flagModal, setFlagModal] = useState({ show: false, tipId: null, tipTitle: '' });
+  const [flagReason, setFlagReason] = useState('');
+  const [flaggingTip, setFlaggingTip] = useState(false);
+  const [likedTips, setLikedTips] = useState(new Set());
 
   // Categories for filtering
   const categories = [
@@ -301,31 +307,23 @@ const PostSafetyTips = () => {
   };
 
   const renderMedia = (tip) => {
-    if (!tip.imageUrl) return null;
-    
-    if (tip.imageUrl.includes('youtube.com') || tip.imageUrl.includes('youtu.be')) {
-      const videoId = tip.imageUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
-      if (videoId) {
-        return (
-          <iframe
-            width="100%"
-            height="315"
-            src={`https://www.youtube.com/embed/${videoId}`}
-            title={tip.title}
-            frameBorder="0"
-            allowFullScreen
-            className="rounded-lg"
-          />
-        );
-      }
-    }
+    if (!tip.files || tip.files.length === 0) return null;
     
     return (
-      <img
-        src={tip.imageUrl}
-        alt={tip.title}
-        className="rounded-lg w-full h-64 object-cover"
-      />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {tip.files.map((file, index) => (
+          <div key={index} className="relative">
+            <MediaDisplay
+              url={file.path || file.url}
+              type={file.type}
+              className="w-full h-64 object-cover rounded-lg"
+              showControls={true}
+              maxWidth="full"
+              maxHeight="64"
+            />
+          </div>
+        ))}
+      </div>
     );
   };
 
@@ -526,6 +524,77 @@ const PostSafetyTips = () => {
     );
   };
 
+  const openFlagModal = (tipId, tipTitle) => {
+    setFlagModal({ show: true, tipId, tipTitle });
+    setFlagReason('');
+  };
+
+  const closeFlagModal = () => {
+    setFlagModal({ show: false, tipId: null, tipTitle: '' });
+    setFlagReason('');
+  };
+
+  const handleFlagTip = async () => {
+    if (!flagReason.trim()) {
+      toast.error('Please provide a reason for flagging this tip');
+      return;
+    }
+
+    setFlaggingTip(true);
+    try {
+      const flagData = {
+        tipId: flagModal.tipId,
+        tipTitle: flagModal.tipTitle,
+        reason: flagReason.trim(),
+        flaggedBy: currentUser?.uid || 'anonymous',
+        flaggedByName: currentUser?.displayName || 'Anonymous User',
+        flaggedAt: serverTimestamp(),
+        status: 'pending' // pending admin review
+      };
+
+      // Add flag to flags collection
+      await addDoc(collection(db, 'flags'), flagData);
+
+      // Update the tip's flag count
+      await updateDoc(doc(db, 'safety_tips', flagModal.tipId), {
+        flagCount: increment(1)
+      });
+
+      toast.success('Tip flagged successfully. Our team will review it.');
+      closeFlagModal();
+    } catch (error) {
+      console.error('Error flagging tip:', error);
+      toast.error('Failed to flag tip. Please try again.');
+    } finally {
+      setFlaggingTip(false);
+    }
+  };
+
+  const handleLike = (tipId) => {
+    if (!currentUser) {
+      toast.error('Please log in to like this tip');
+      navigate('/login');
+      return;
+    }
+
+    setLikedTips(prev => {
+      const newLikedTips = new Set(prev);
+      if (newLikedTips.has(tipId)) {
+        newLikedTips.delete(tipId);
+      } else {
+        newLikedTips.add(tipId);
+      }
+      return newLikedTips;
+    });
+
+    toast.success('Tip like status updated');
+  };
+
+  const handleShare = (tip) => {
+    // Implement share functionality
+    toast.success('Share functionality not implemented yet');
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen bg-gray-50">
@@ -649,11 +718,55 @@ const PostSafetyTips = () => {
                 </div>
 
                 {/* Media Section */}
-                {tip.imageUrl && (
+                {tip.files && (
                   <div className="px-6 py-4 bg-gray-50">
                     {renderMedia(tip)}
                   </div>
                 )}
+
+                {/* Engagement Actions */}
+                <div className="px-6 py-4 border-t border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-6">
+                      <button
+                        onClick={() => handleLike(tip.id)}
+                        className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                          likedTips.has(tip.id)
+                            ? 'bg-red-50 text-red-600'
+                            : 'text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        <FiHeart className={`w-5 h-5 ${likedTips.has(tip.id) ? 'fill-current' : ''}`} />
+                        <span>{tip.likes || 0}</span>
+                      </button>
+                      
+                      <button
+                        onClick={() => toggleComments(tip.id)}
+                        className="flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+                      >
+                        <FiMessageSquare className="w-5 h-5" />
+                        <span>{tip.comments || 0}</span>
+                      </button>
+                      
+                      <button
+                        onClick={() => handleShare(tip)}
+                        className="flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+                      >
+                        <FiShare2 className="w-5 h-5" />
+                        <span>{tip.shares || 0}</span>
+                      </button>
+
+                      <button
+                        onClick={() => openFlagModal(tip.id, tip.title)}
+                        className="flex items-center space-x-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors"
+                        title="Flag this tip"
+                      >
+                        <FiFlag className="w-5 h-5" />
+                        <span>Flag</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
 
                 {/* Comments Section */}
                 <div className="p-6 bg-gray-50">
@@ -735,6 +848,55 @@ const PostSafetyTips = () => {
           </div>
         </div>
       </div>
+
+      {/* Flag Modal */}
+      {flagModal.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-800">Flag Safety Tip</h2>
+              <button
+                onClick={closeFlagModal}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <FiX className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <p className="text-gray-600 mb-4">
+                Please provide a reason for flagging "<strong>{flagModal.tipTitle}</strong>":
+              </p>
+              
+              <textarea
+                value={flagReason}
+                onChange={(e) => setFlagReason(e.target.value)}
+                placeholder="Explain why you're flagging this tip..."
+                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0d522c] resize-none"
+                rows="4"
+                maxLength="500"
+              />
+              
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  onClick={closeFlagModal}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                  disabled={flaggingTip}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleFlagTip}
+                  disabled={flaggingTip || !flagReason.trim()}
+                  className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {flaggingTip ? 'Flagging...' : 'Submit Flag'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

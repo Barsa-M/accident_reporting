@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firebase/firebase';
-import { FiCheckCircle, FiClock, FiAlertTriangle, FiFileText, FiBell, FiTrendingUp, FiTarget, FiZap } from 'react-icons/fi';
+import { FiCheckCircle, FiClock, FiAlertTriangle, FiFileText, FiBell, FiTrendingUp, FiTarget, FiZap, FiRefreshCw } from 'react-icons/fi';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
          BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import PropTypes from 'prop-types';
 import { toast } from 'react-hot-toast';
+import { useAuth } from '../../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const DashboardHome = ({ responderData }) => {
   const [loading, setLoading] = useState(true);
@@ -25,6 +27,8 @@ const DashboardHome = ({ responderData }) => {
     responseTimeUnder5Min: 0,
     responseTimeOver15Min: 0
   });
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (responderData) {
@@ -53,60 +57,102 @@ const DashboardHome = ({ responderData }) => {
         return;
       }
 
-      // First, get all incidents for this responder type
-      const incidentsQuery = query(
-        collection(db, 'incidents'),
-        where('responderType', '==', responderData.specialization)
-      );
-
       console.log("Fetching dashboard stats with query:", {
         responderType: responderData.specialization,
         responderUid: responderUid
       });
 
-      const incidentsSnap = await getDocs(incidentsQuery);
-      const incidents = incidentsSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate()
-      }));
+      // Get incidents from both collections assigned to this specific responder
+      const collections = ['incidents', 'anonymous_reports'];
+      let allIncidents = [];
 
-      console.log("Fetched incidents for stats:", incidents.length);
+      for (const collectionName of collections) {
+        try {
+          // Query for incidents assigned to this specific responder
+          const incidentsQuery = query(
+            collection(db, collectionName),
+            where('assignedResponderId', '==', responderUid)
+          );
 
-      // Filter incidents assigned to this responder - try different field names
-      const assignedIncidents = incidents.filter(inc => 
-        inc.assignedTo === responderUid || 
-        inc.assignedResponderId === responderUid ||
-        inc.responderId === responderUid
-      );
-      console.log("Assigned incidents:", assignedIncidents.length);
+          const incidentsSnap = await getDocs(incidentsQuery);
+          const incidents = incidentsSnap.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            source: collectionName,
+            createdAt: doc.data().createdAt?.toDate?.() || new Date(doc.data().createdAt)
+          }));
 
+          console.log(`Fetched ${incidents.length} incidents from ${collectionName}`);
+          allIncidents = [...allIncidents, ...incidents];
+        } catch (error) {
+          console.log(`Failed to fetch from ${collectionName}:`, error);
+        }
+      }
+
+      console.log("Total incidents for stats:", allIncidents.length);
+      
       // Calculate basic statistics
-      const totalAssigned = assignedIncidents.length;
-      const resolvedIncidents = assignedIncidents.filter(inc => inc.status === 'resolved').length;
-      const pendingIncidents = assignedIncidents.filter(inc => inc.status === 'pending').length;
-
-      // Calculate new priority metrics
-      const unopenedIncidents = assignedIncidents.filter(inc => 
-        inc.status === 'assigned' && !inc.viewedByResponder
+      const totalAssigned = allIncidents.length;
+      const resolvedIncidents = allIncidents.filter(inc => inc.status === 'resolved').length;
+      const pendingIncidents = allIncidents.filter(inc => inc.status === 'pending').length;
+      const activeIncidents = allIncidents.filter(inc => 
+        ['assigned', 'in_progress', 'pending'].includes(inc.status)
       ).length;
 
-      const priorityIncidents = assignedIncidents.filter(inc => 
-        inc.severityLevel === 'High' || inc.urgencyLevel === 'high'
-      ).length;
+      // Calculate unopened incidents - incidents that haven't been viewed by responder
+      const unopenedIncidents = allIncidents.filter(inc => {
+        // Check if incident is active and hasn't been viewed
+        const isActive = ['assigned', 'in_progress', 'pending'].includes(inc.status);
+        const notViewed = !inc.viewedByResponder && !inc.viewedAt;
+        return isActive && notViewed;
+      }).length;
 
-      const criticalIncidents = assignedIncidents.filter(inc => 
-        inc.severityLevel === 'Critical' || inc.urgencyLevel === 'critical'
-      ).length;
+      // Calculate priority incidents - more comprehensive check
+      const priorityIncidents = allIncidents.filter(inc => {
+        // Check multiple priority fields
+        const severity = (inc.severityLevel || inc.severity || '').toLowerCase();
+        const urgency = (inc.urgencyLevel || inc.urgency || '').toLowerCase();
+        const priority = (inc.priority || '').toLowerCase();
+        const level = (inc.level || '').toLowerCase();
+        
+        // Consider high priority if any of these fields indicate high priority
+        return severity === 'high' || 
+               urgency === 'high' || 
+               priority === 'high' ||
+               level === 'high' ||
+               severity === 'urgent' ||
+               urgency === 'urgent' ||
+               priority === 'urgent';
+      }).length;
 
-      // Calculate response time metrics
-      const responseTimes = assignedIncidents
-        .filter(inc => inc.startedAt && inc.createdAt)
+      const criticalIncidents = allIncidents.filter(inc => {
+        const severity = (inc.severityLevel || inc.severity || '').toLowerCase();
+        const urgency = (inc.urgencyLevel || inc.urgency || '').toLowerCase();
+        const priority = (inc.priority || '').toLowerCase();
+        const level = (inc.level || '').toLowerCase();
+        
+        return severity === 'critical' || 
+               urgency === 'critical' || 
+               priority === 'critical' ||
+               level === 'critical';
+      }).length;
+
+      // Calculate response time metrics - time between in_progress and resolved
+      const responseTimes = allIncidents
+        .filter(inc => inc.status === 'resolved' && inc.startedAt && inc.resolvedAt)
         .map(inc => {
-          const start = inc.createdAt;
-          const responded = inc.startedAt.toDate();
-          return Math.floor((responded - start) / (1000 * 60)); // Convert to minutes
-        });
+          try {
+            const startTime = inc.startedAt?.toDate?.() || new Date(inc.startedAt);
+            const resolvedTime = inc.resolvedAt?.toDate?.() || new Date(inc.resolvedAt);
+            const responseTimeMinutes = Math.floor((resolvedTime - startTime) / (1000 * 60));
+            console.log(`Response time for incident ${inc.id}: ${responseTimeMinutes} minutes`);
+            return responseTimeMinutes;
+          } catch (error) {
+            console.log('Error calculating response time for incident:', inc.id, error);
+            return null;
+          }
+        })
+        .filter(time => time !== null && time >= 0);
 
       const averageResponseTime = responseTimes.length > 0
         ? Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length)
@@ -116,16 +162,12 @@ const DashboardHome = ({ responderData }) => {
       const responseTimeOver15Min = responseTimes.filter(time => time > 15).length;
 
       // Get recent incidents
-      const recentIncidents = [...assignedIncidents]
+      const recentIncidents = [...allIncidents]
         .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
         .slice(0, 5);
 
-      // Calculate incidents by type
-      const typeCount = assignedIncidents.reduce((acc, inc) => {
-        const type = inc.incidentType || 'Other';
-        acc[type] = (acc[type] || 0) + 1;
-        return acc;
-      }, {});
+      // Calculate total distance traveled (placeholder - would need location data)
+      const totalDistanceTraveled = 0; // TODO: Implement distance calculation based on responder location and incident locations
 
       // Calculate monthly stats
       const monthlyData = Array.from({ length: 6 }, (_, i) => {
@@ -138,7 +180,7 @@ const DashboardHome = ({ responderData }) => {
         };
       }).reverse();
 
-      assignedIncidents.forEach(incident => {
+      allIncidents.forEach(incident => {
         if (incident.createdAt) {
           const month = incident.createdAt.toLocaleString('default', { month: 'short' });
           const monthData = monthlyData.find(data => data.name === month);
@@ -153,6 +195,7 @@ const DashboardHome = ({ responderData }) => {
 
       console.log("Setting enhanced dashboard stats:", {
         totalAssigned,
+        activeIncidents,
         resolvedIncidents,
         pendingIncidents,
         averageResponseTime,
@@ -161,22 +204,21 @@ const DashboardHome = ({ responderData }) => {
         criticalIncidents,
         responseTimeUnder5Min,
         responseTimeOver15Min,
+        totalDistanceTraveled,
         recentIncidentsCount: recentIncidents.length,
         monthlyStatsCount: monthlyData.length
       });
 
       setStats({
         totalAssigned,
+        activeIncidents,
         resolvedIncidents,
         pendingIncidents,
         averageResponseTime,
+        totalDistanceTraveled,
         recentIncidents,
-        incidentsByType: Object.entries(typeCount).map(([name, value]) => ({
-          name,
-          value
-        })),
         monthlyStats: monthlyData,
-        // New metrics
+        // Priority metrics
         unopenedIncidents,
         priorityIncidents,
         criticalIncidents,
@@ -191,6 +233,20 @@ const DashboardHome = ({ responderData }) => {
       setLoading(false);
     }
   };
+
+  // Add a refresh function that can be called externally
+  const refreshStats = () => {
+    fetchDashboardStats();
+  };
+
+  // Expose refresh function to parent component
+  useEffect(() => {
+    if (window.refreshResponderDashboard) {
+      window.refreshResponderDashboard = refreshStats;
+    } else {
+      window.refreshResponderDashboard = refreshStats;
+    }
+  }, []);
 
   if (loading) {
     return (
@@ -221,15 +277,27 @@ const DashboardHome = ({ responderData }) => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800">Dashboard Overview</h1>
         
-        {/* Notification Badge */}
-        {stats.unopenedIncidents > 0 && (
-          <div className="flex items-center space-x-2 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
-            <FiBell className="h-5 w-5 text-red-600" />
-            <span className="text-red-800 font-medium">
-              {stats.unopenedIncidents} new incident{stats.unopenedIncidents !== 1 ? 's' : ''} require{stats.unopenedIncidents === 1 ? 's' : ''} attention
-            </span>
-          </div>
-        )}
+        <div className="flex items-center space-x-4">
+          {/* Refresh Button */}
+          <button
+            onClick={refreshStats}
+            disabled={loading}
+            className="px-4 py-2 bg-[#0d522c] text-white rounded-lg hover:bg-[#347752] transition-colors flex items-center space-x-2 disabled:opacity-50"
+          >
+            <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh Stats</span>
+          </button>
+          
+          {/* Notification Badge */}
+          {stats.unopenedIncidents > 0 && (
+            <div className="flex items-center space-x-2 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+              <FiBell className="h-5 w-5 text-red-600" />
+              <span className="text-red-800 font-medium">
+                {stats.unopenedIncidents} new incident{stats.unopenedIncidents !== 1 ? 's' : ''} require{stats.unopenedIncidents === 1 ? 's' : ''} attention
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Priority Alerts */}
@@ -261,8 +329,8 @@ const DashboardHome = ({ responderData }) => {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Assigned</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.totalAssigned}</p>
+              <p className="text-sm font-medium text-gray-600">Active Incidents</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.activeIncidents}</p>
               {stats.unopenedIncidents > 0 && (
                 <p className="text-sm text-red-600 font-medium">
                   {stats.unopenedIncidents} unopened
@@ -309,10 +377,10 @@ const DashboardHome = ({ responderData }) => {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Priority Cases</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.priorityIncidents + stats.criticalIncidents}</p>
+              <p className="text-sm font-medium text-gray-600">Total Distance</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.totalDistanceTraveled}km</p>
               <p className="text-sm text-orange-600 font-medium">
-                {stats.criticalIncidents} critical
+                {stats.priorityIncidents + stats.criticalIncidents} priority cases
               </p>
             </div>
             <div className="p-3 bg-orange-100 rounded-full">
@@ -378,18 +446,21 @@ const DashboardHome = ({ responderData }) => {
           </h2>
           <div className="space-y-3">
             {stats.unopenedIncidents > 0 && (
-              <button className="w-full bg-red-600 text-white py-3 px-4 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center space-x-2">
+              <button className="w-full bg-red-600 text-white py-3 px-4 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center space-x-2"
+                onClick={() => navigate('/responder/incidents')}>
                 <FiBell className="h-4 w-4" />
                 <span>View {stats.unopenedIncidents} Unopened Incident{stats.unopenedIncidents !== 1 ? 's' : ''}</span>
               </button>
             )}
             {stats.criticalIncidents > 0 && (
-              <button className="w-full bg-orange-600 text-white py-3 px-4 rounded-lg hover:bg-orange-700 transition-colors flex items-center justify-center space-x-2">
+              <button className="w-full bg-orange-600 text-white py-3 px-4 rounded-lg hover:bg-orange-700 transition-colors flex items-center justify-center space-x-2"
+                onClick={() => navigate('/responder/incidents')}>
                 <FiAlertTriangle className="h-4 w-4" />
                 <span>Handle {stats.criticalIncidents} Critical Case{stats.criticalIncidents !== 1 ? 's' : ''}</span>
               </button>
             )}
-            <button className="w-full bg-[#0d522c] text-white py-3 px-4 rounded-lg hover:bg-[#347752] transition-colors flex items-center justify-center space-x-2">
+            <button className="w-full bg-[#0d522c] text-white py-3 px-4 rounded-lg hover:bg-[#347752] transition-colors flex items-center justify-center space-x-2"
+              onClick={() => navigate('/responder/incidents')}>
               <FiFileText className="h-4 w-4" />
               <span>View All Active Incidents</span>
             </button>
@@ -416,14 +487,18 @@ const DashboardHome = ({ responderData }) => {
           </div>
         </div>
 
-        {/* Pie Chart */}
+        {/* Status Distribution Chart */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Incidents by Type</h2>
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">Status Distribution</h2>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={stats.incidentsByType}
+                  data={[
+                    { name: 'Active', value: stats.activeIncidents, color: '#f59e0b' },
+                    { name: 'Resolved', value: stats.resolvedIncidents, color: '#10b981' },
+                    { name: 'Pending', value: stats.pendingIncidents, color: '#3b82f6' }
+                  ]}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -431,8 +506,12 @@ const DashboardHome = ({ responderData }) => {
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  {stats.incidentsByType.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  {[
+                    { name: 'Active', value: stats.activeIncidents, color: '#f59e0b' },
+                    { name: 'Resolved', value: stats.resolvedIncidents, color: '#10b981' },
+                    { name: 'Pending', value: stats.pendingIncidents, color: '#3b82f6' }
+                  ].map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip />
@@ -465,15 +544,36 @@ const DashboardHome = ({ responderData }) => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {stats.recentIncidents.map((incident) => (
+                {stats.recentIncidents.map((incident, index) => (
                   <tr key={incident.id}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                        {incident.incidentType}
+                        {incident.incidentType || incident.type || 'Unknown'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {incident.location}
+                      {(() => {
+                        try {
+                          if (incident.location) {
+                            // Handle location object with lat/lng
+                            if (typeof incident.location === 'object' && incident.location.latitude && incident.location.longitude) {
+                              return `${incident.location.latitude.toFixed(4)}, ${incident.location.longitude.toFixed(4)}`;
+                            }
+                            // Handle string location
+                            if (typeof incident.location === 'string') {
+                              return incident.location;
+                            }
+                            // Handle other object formats
+                            if (typeof incident.location === 'object') {
+                              return JSON.stringify(incident.location);
+                            }
+                          }
+                          return 'N/A';
+                        } catch (error) {
+                          console.error('Error formatting location:', error, incident.location);
+                          return 'N/A';
+                        }
+                      })()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -485,7 +585,32 @@ const DashboardHome = ({ responderData }) => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {incident.createdAt?.toDate().toLocaleString()}
+                      {(() => {
+                        try {
+                          if (incident.createdAt) {
+                            // Handle Firestore timestamp
+                            if (incident.createdAt.toDate && typeof incident.createdAt.toDate === 'function') {
+                              return incident.createdAt.toDate().toLocaleString();
+                            }
+                            // Handle regular Date object
+                            if (incident.createdAt instanceof Date) {
+                              return incident.createdAt.toLocaleString();
+                            }
+                            // Handle timestamp number
+                            if (typeof incident.createdAt === 'number') {
+                              return new Date(incident.createdAt).toLocaleString();
+                            }
+                            // Handle string date
+                            if (typeof incident.createdAt === 'string') {
+                              return new Date(incident.createdAt).toLocaleString();
+                            }
+                          }
+                          return 'N/A';
+                        } catch (error) {
+                          console.error('Error formatting date:', error, incident.createdAt);
+                          return 'N/A';
+                        }
+                      })()}
                     </td>
                   </tr>
                 ))}

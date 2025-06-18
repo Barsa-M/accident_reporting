@@ -9,7 +9,7 @@ import { auth } from "../firebase/firebase";
 import { routeIncident } from "../services/incidentRouting";
 import { createChatRoom } from "../services/chatService";
 import FileUpload from '../components/Common/FileUpload';
-import { saveIncidentFilesLocally } from '../services/localFileService';
+import { saveIncidentFilesLocally } from '../services/fileStorage';
 
 export default function PoliceIncidentForm() {
   const navigate = useNavigate();

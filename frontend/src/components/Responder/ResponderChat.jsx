@@ -17,6 +17,7 @@ const ResponderChat = () => {
   const [reporterInfo, setReporterInfo] = useState(null);
   const [chatLoading, setChatLoading] = useState(false);
   const messagesEndRef = useRef(null);
+  const lastMessageIds = useRef({});
 
   useEffect(() => {
     fetchActiveIncidents();
@@ -24,10 +25,11 @@ const ResponderChat = () => {
 
   useEffect(() => {
     if (selectedIncident) {
-      const unsubscribe = fetchMessages(selectedIncident.id);
+      const source = selectedIncident.source || 'incidents';
+      const unsubscribe = fetchMessages(selectedIncident.id, source);
       fetchReporterInfo(selectedIncident);
       // Mark messages as read when incident is selected
-      markMessagesAsRead(selectedIncident.id);
+      markMessagesAsRead(selectedIncident.id, source);
       
       return () => {
         if (unsubscribe) unsubscribe();
@@ -52,36 +54,58 @@ const ResponderChat = () => {
 
       console.log('Fetching incidents for responder:', currentUser.uid);
 
-      // Show only incidents assigned to this responder
-      const incidentsRef = collection(db, 'incidents');
-      const q = query(
-        incidentsRef,
-        where('assignedResponderId', '==', currentUser.uid),
-        where('status', 'in', ['assigned', 'in_progress', 'pending'])
-      );
+      // Set up listeners for both collections
+      const collections = ['incidents', 'anonymous_reports'];
+      const unsubscribers = [];
 
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const incidents = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        console.log('Assigned incidents for responder:', incidents);
-        setActiveIncidents(incidents);
-        setLoading(false);
-        
-        // Auto-select incident if URL parameter is provided
-        const incidentId = searchParams.get('incidentId');
-        console.log('Looking for incidentId from URL:', incidentId);
-        if (incidentId && incidents.length > 0) {
-          const incident = incidents.find(inc => inc.id === incidentId);
-          console.log('Found incident for URL parameter:', incident);
-          if (incident) {
-            setSelectedIncident(incident);
+      collections.forEach(collectionName => {
+        const incidentsRef = collection(db, collectionName);
+        const q = query(
+          incidentsRef,
+          where('assignedResponderId', '==', currentUser.uid),
+          where('status', 'in', ['assigned', 'in_progress', 'pending'])
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+          const incidents = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            source: collectionName
+          }));
+          console.log(`Assigned incidents from ${collectionName} for responder:`, incidents);
+          
+          // Update active incidents by combining all collections
+          setActiveIncidents(prevIncidents => {
+            // Remove incidents from this collection and add new ones
+            const filtered = prevIncidents.filter(inc => inc.source !== collectionName);
+            const combined = [...filtered, ...incidents];
+            console.log('Combined active incidents:', combined);
+            return combined;
+          });
+          
+          setLoading(false);
+          
+          // Auto-select incident if URL parameter is provided
+          const incidentId = searchParams.get('incidentId');
+          console.log('Looking for incidentId from URL:', incidentId);
+          if (incidentId && incidents.length > 0) {
+            const incident = incidents.find(inc => inc.id === incidentId);
+            console.log('Found incident for URL parameter:', incident);
+            if (incident) {
+              setSelectedIncident(incident);
+            }
           }
-        }
+        }, (error) => {
+          console.error(`Error fetching incidents from ${collectionName}:`, error);
+          setLoading(false);
+        });
+
+        unsubscribers.push(unsubscribe);
       });
 
-      return () => unsubscribe();
+      return () => {
+        unsubscribers.forEach(unsubscribe => unsubscribe());
+      };
     } catch (error) {
       console.error('Error fetching incidents:', error);
       setLoading(false);
@@ -118,10 +142,10 @@ const ResponderChat = () => {
     }
   };
 
-  const fetchMessages = (incidentId) => {
-    console.log('Fetching messages for incident:', incidentId);
+  const fetchMessages = (incidentId, source = 'incidents') => {
+    console.log('Fetching messages for incident:', incidentId, 'from source:', source);
     setChatLoading(true);
-    const messagesRef = collection(db, 'incidents', incidentId, 'messages');
+    const messagesRef = collection(db, source, incidentId, 'messages');
     const q = query(messagesRef, orderBy('timestamp', 'asc'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -138,6 +162,28 @@ const ResponderChat = () => {
       setMessages(messageList);
       scrollToBottom();
       setChatLoading(false);
+
+      // Toast notification logic
+      if (messageList.length > 0) {
+        const lastMsg = messageList[messageList.length - 1];
+        if (
+          lastMsg.senderId !== currentUser.uid &&
+          lastMessageIds.current[incidentId] !== lastMsg.id &&
+          (!selectedIncident || selectedIncident.id !== incidentId)
+        ) {
+          toast.custom((t) => (
+            <div className="bg-white border border-blue-200 rounded-lg shadow-lg px-4 py-3 flex items-center space-x-3" style={{ minWidth: 280 }}>
+              <div className="bg-blue-100 rounded-full p-2"><FiMessageSquare className="text-blue-600 w-5 h-5" /></div>
+              <div>
+                <div className="font-semibold text-blue-900">New message from {lastMsg.senderName || 'User'}</div>
+                <div className="text-sm text-gray-700 line-clamp-1">{lastMsg.text}</div>
+                <div className="text-xs text-gray-400 mt-1">Incident: {selectedIncident?.type || selectedIncident?.incidentType || 'Incident'}</div>
+              </div>
+            </div>
+          ), { duration: 5000 });
+        }
+        lastMessageIds.current[incidentId] = lastMsg.id;
+      }
     }, (error) => {
       console.error('Error fetching messages:', error);
       setChatLoading(false);
@@ -168,7 +214,8 @@ const ResponderChat = () => {
 
     try {
       console.log('Sending message to Firestore...');
-      const messagesRef = collection(db, 'incidents', selectedIncident.id, 'messages');
+      const source = selectedIncident.source || 'incidents';
+      const messagesRef = collection(db, source, selectedIncident.id, 'messages');
       const messageData = {
         text: newMessage,
         senderId: currentUser.uid,
@@ -182,7 +229,7 @@ const ResponderChat = () => {
       await addDoc(messagesRef, messageData);
 
       // Update incident with last message info
-      await updateDoc(doc(db, 'incidents', selectedIncident.id), {
+      await updateDoc(doc(db, source, selectedIncident.id), {
         lastMessage: newMessage,
         lastMessageAt: serverTimestamp(),
         lastMessageBy: currentUser.uid
@@ -243,9 +290,9 @@ const ResponderChat = () => {
   };
 
   // Add markMessagesAsRead function
-  const markMessagesAsRead = async (incidentId) => {
+  const markMessagesAsRead = async (incidentId, source = 'incidents') => {
     try {
-      const messagesRef = collection(db, 'incidents', incidentId, 'messages');
+      const messagesRef = collection(db, source, incidentId, 'messages');
       const q = query(
         messagesRef,
         where('senderId', '!=', currentUser.uid),
@@ -322,11 +369,11 @@ const ResponderChat = () => {
         </div>
 
         {/* Chat Area */}
-        <div className="lg:col-span-3 bg-white rounded-lg shadow overflow-hidden">
+        <div className="lg:col-span-3 bg-white rounded-lg shadow overflow-hidden flex flex-col h-[calc(100vh-200px)]">
           {selectedIncident ? (
             <>
-              {/* Chat Header */}
-              <div className="p-4 border-b bg-gray-50">
+              {/* Chat Header - Fixed height */}
+              <div className="p-4 border-b bg-gray-50 flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900 flex items-center">
@@ -342,9 +389,9 @@ const ResponderChat = () => {
                   </div>
                 </div>
                 
-                {/* Reporter Contact Info */}
+                {/* Reporter Contact Info - Scrollable if needed */}
                 {reporterInfo && (
-                  <div className="mt-3 p-3 bg-white rounded-lg border">
+                  <div className="mt-3 p-3 bg-white rounded-lg border max-h-32 overflow-y-auto">
                     <h3 className="text-sm font-medium text-gray-700 mb-2">Reporter Information</h3>
                     {reporterInfo.isAnonymous ? (
                       <div className="space-y-1">
@@ -376,8 +423,8 @@ const ResponderChat = () => {
                 )}
               </div>
 
-              {/* Messages */}
-              <div className="h-[calc(100vh-400px)] overflow-y-auto p-4 space-y-4">
+              {/* Messages - Flexible height, scrollable */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
                 {chatLoading ? (
                   <div className="flex justify-center items-center h-32">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0d522c]"></div>
@@ -428,7 +475,7 @@ const ResponderChat = () => {
               </div>
             </>
           ) : (
-            <div className="h-[calc(100vh-200px)] flex items-center justify-center text-gray-500">
+            <div className="flex-1 flex items-center justify-center text-gray-500">
               <div className="text-center">
                 <FiMessageSquare className="mx-auto h-12 w-12 mb-4" />
                 <p className="text-lg font-medium">Select an incident to start chatting</p>
@@ -437,8 +484,14 @@ const ResponderChat = () => {
             </div>
           )}
 
-          {/* Message Input - Always Available */}
-          <form onSubmit={handleSendMessage} className="p-4 border-t bg-gray-50 border-2 border-blue-200">
+          {/* Message Input - Fixed height at bottom */}
+          <form onSubmit={handleSendMessage} className="p-4 border-t bg-gray-50 border-2 border-blue-200 flex-shrink-0" style={{
+            display: 'block !important',
+            visibility: 'visible !important',
+            opacity: '1 !important',
+            position: 'relative !important',
+            zIndex: '9999 !important'
+          }}>
             {!selectedIncident && (
               <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <p className="text-sm text-yellow-800">
@@ -453,18 +506,29 @@ const ResponderChat = () => {
                 onChange={(e) => setNewMessage(e.target.value)}
                 placeholder={selectedIncident ? "Type your message..." : "Select an incident to send messages..."}
                 disabled={!selectedIncident}
-                className="flex-1 rounded-lg border-2 border-gray-300 focus:border-[#0d522c] focus:ring-[#0d522c] px-4 py-3 disabled:bg-gray-100 disabled:cursor-not-allowed text-lg"
+                className="flex-1 rounded-lg border-2 border-gray-300 focus:border-[#0d522c] focus:ring-[#0d522c] px-4 py-3 disabled:bg-gray-100 disabled:cursor-not-allowed text-lg min-h-[50px]"
+                style={{
+                  backgroundColor: selectedIncident ? '#ffffff' : '#f3f4f6',
+                  borderColor: selectedIncident ? '#d1d5db' : '#9ca3af',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  display: 'block !important',
+                  visibility: 'visible !important',
+                  opacity: '1 !important'
+                }}
               />
               <button
                 type="submit"
                 disabled={!selectedIncident || !newMessage.trim()}
-                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-[#0d522c] hover:bg-[#094023] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0d522c] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-[#0d522c] hover:bg-[#094023] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0d522c] disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[50px]"
+                style={{
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  display: 'inline-flex !important',
+                  visibility: 'visible !important',
+                  opacity: '1 !important'
+                }}
               >
                 <FiSend className="h-6 w-6" />
               </button>
-            </div>
-            <div className="mt-2 text-xs text-gray-500">
-              Chat input field is visible - {selectedIncident ? 'Incident selected: ' + selectedIncident.id : 'No incident selected'}
             </div>
           </form>
         </div>

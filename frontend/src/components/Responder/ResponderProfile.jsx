@@ -39,7 +39,7 @@ const ResponderProfile = () => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setProfile(data);
-        setAvailabilityStatus(data.availabilityStatus || AVAILABILITY_STATUS.BUSY);
+        setAvailabilityStatus(data.availabilityStatus || AVAILABILITY_STATUS.AVAILABLE);
         setFormData({
           name: data.name || '',
           phone: data.phone || '',

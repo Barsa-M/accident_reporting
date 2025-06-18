@@ -25,12 +25,25 @@ export const saveIncidentFilesLocally = async (files) => {
     const processedFiles = await Promise.all(
       files.map(async (file) => {
         try {
-          const data = await readFileAsDataURL(file);
-          if (!data || typeof data !== 'string') {
+          let dataUrl;
+          
+          // Check if the file already has a data URL in the url field
+          if (file.url && file.url.startsWith('data:')) {
+            dataUrl = file.url;
+          } else if (file.path && file.path.startsWith('data:')) {
+            dataUrl = file.path;
+          } else {
+            // Convert file to data URL if it doesn't have one
+            dataUrl = await readFileAsDataURL(file.file || file);
+          }
+          
+          if (!dataUrl || typeof dataUrl !== 'string') {
             throw new Error('Invalid file data');
           }
+          
           return {
-            path: data, // Store the data URL directly
+            path: dataUrl, // Store the data URL in path field for consistency
+            url: dataUrl,  // Also store in url field for backward compatibility
             name: file.name,
             type: file.type,
             size: file.size,

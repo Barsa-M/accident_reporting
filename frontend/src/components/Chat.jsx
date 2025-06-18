@@ -18,6 +18,7 @@ const Chat = () => {
   const [chatLoading, setChatLoading] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState({});
   const messagesEndRef = useRef(null);
+  const lastMessageIds = useRef({});
 
   useEffect(() => {
     if (currentUser) {
@@ -181,18 +182,32 @@ const Chat = () => {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       console.log('User Chat: Messages snapshot received:', snapshot.docs.length, 'messages');
-      const messageList = snapshot.docs.map(doc => {
-        const data = doc.data();
-        console.log('User Chat: Message data:', { id: doc.id, ...data });
-        return {
-          id: doc.id,
-          ...data
-        };
-      });
-      console.log('User Chat: Processed messages:', messageList);
+      const messageList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setMessages(messageList);
       scrollToBottom();
       setChatLoading(false);
+
+      // Toast notification logic
+      if (messageList.length > 0) {
+        const lastMsg = messageList[messageList.length - 1];
+        if (
+          lastMsg.senderId !== currentUser.uid &&
+          lastMessageIds.current[incidentId] !== lastMsg.id &&
+          (!selectedIncident || selectedIncident.id !== incidentId)
+        ) {
+          toast.custom((t) => (
+            <div className="bg-white border border-green-200 rounded-lg shadow-lg px-4 py-3 flex items-center space-x-3" style={{ minWidth: 280 }}>
+              <div className="bg-green-100 rounded-full p-2"><FiMessageSquare className="text-green-600 w-5 h-5" /></div>
+              <div>
+                <div className="font-semibold text-green-900">New message from {lastMsg.senderName || 'Responder'}</div>
+                <div className="text-sm text-gray-700 line-clamp-1">{lastMsg.text}</div>
+                <div className="text-xs text-gray-400 mt-1">Incident: {selectedIncident?.type || selectedIncident?.incidentType || 'Incident'}</div>
+              </div>
+            </div>
+          ), { duration: 5000 });
+        }
+        lastMessageIds.current[incidentId] = lastMsg.id;
+      }
     }, (error) => {
       console.error('User Chat: Error fetching messages:', error);
       setChatLoading(false);
@@ -362,11 +377,11 @@ const Chat = () => {
         </div>
 
         {/* Chat Area */}
-        <div className="lg:col-span-3 bg-white rounded-lg shadow overflow-hidden">
+        <div className="lg:col-span-3 bg-white rounded-lg shadow overflow-hidden flex flex-col h-[calc(100vh-200px)]">
           {selectedIncident ? (
             <>
-              {/* Chat Header */}
-              <div className="p-4 border-b bg-gray-50">
+              {/* Chat Header - Fixed height */}
+              <div className="p-4 border-b bg-gray-50 flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900 flex items-center">
@@ -382,9 +397,9 @@ const Chat = () => {
                   </div>
                 </div>
                 
-                {/* Responder Info */}
+                {/* Responder Info - Scrollable if needed */}
                 {responderInfo && (
-                  <div className="mt-3 p-3 bg-white rounded-lg border">
+                  <div className="mt-3 p-3 bg-white rounded-lg border max-h-32 overflow-y-auto">
                     <h3 className="text-sm font-medium text-gray-700 mb-2">Assigned Responder</h3>
                     <div className="space-y-1">
                       <div className="flex items-center text-sm text-gray-600">
@@ -407,8 +422,8 @@ const Chat = () => {
                 )}
               </div>
 
-              {/* Messages */}
-              <div className="h-[calc(100vh-400px)] overflow-y-auto p-4 space-y-4">
+              {/* Messages - Flexible height, scrollable */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
                 {chatLoading ? (
                   <div className="flex justify-center items-center h-32">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0d522c]"></div>
@@ -420,17 +435,9 @@ const Chat = () => {
                     {!selectedIncident.assignedResponderId && (
                       <p className="text-sm mt-2">Your report is being reviewed and will be assigned to a responder soon. You can still send messages that will be visible when a responder is assigned.</p>
                     )}
-                    {/* Debug info */}
-                    <div className="mt-4 p-2 bg-gray-100 rounded text-xs">
-                      <p>Debug: Messages array length: {messages.length}</p>
-                      <p>Debug: Selected incident ID: {selectedIncident?.id}</p>
-                    </div>
                   </div>
                 ) : (
                   <>
-                    <div className="mb-4 p-2 bg-blue-100 rounded text-xs">
-                      <p>Debug: Found {messages.length} messages</p>
-                    </div>
                     {messages.map((message, index) => (
                       <div
                         key={`${message.id}-${index}`}
@@ -463,7 +470,7 @@ const Chat = () => {
               </div>
             </>
           ) : (
-            <div className="h-[calc(100vh-200px)] flex items-center justify-center text-gray-500">
+            <div className="flex-1 flex items-center justify-center text-gray-500">
               <div className="text-center">
                 <FiMessageSquare className="mx-auto h-12 w-12 mb-4" />
                 <p className="text-lg font-medium">Select a report to start chatting</p>
@@ -472,8 +479,14 @@ const Chat = () => {
             </div>
           )}
 
-          {/* Message Input - Always Available */}
-          <form onSubmit={handleSendMessage} className="p-4 border-t bg-gray-50">
+          {/* Message Input - Fixed height at bottom */}
+          <form onSubmit={handleSendMessage} className="p-4 border-t bg-gray-50 relative z-10 border-2 border-blue-200 flex-shrink-0" style={{
+            display: 'block !important',
+            visibility: 'visible !important',
+            opacity: '1 !important',
+            position: 'relative !important',
+            zIndex: '9999 !important'
+          }}>
             {!selectedIncident && (
               <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <p className="text-sm text-yellow-800">
@@ -495,14 +508,28 @@ const Chat = () => {
                 onChange={(e) => setNewMessage(e.target.value)}
                 placeholder={selectedIncident ? (selectedIncident.assignedResponderId ? "Type your message..." : "Type your message (will be visible when assigned)...") : "Select a report to send messages..."}
                 disabled={!selectedIncident}
-                className="flex-1 rounded-lg border-gray-300 focus:border-[#0d522c] focus:ring-[#0d522c] px-4 py-2 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="flex-1 rounded-lg border-2 border-gray-300 focus:border-[#0d522c] focus:ring-[#0d522c] px-4 py-3 disabled:bg-gray-100 disabled:cursor-not-allowed text-lg min-h-[50px]"
+                style={{
+                  backgroundColor: selectedIncident ? '#ffffff' : '#f3f4f6',
+                  borderColor: selectedIncident ? '#d1d5db' : '#9ca3af',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  display: 'block !important',
+                  visibility: 'visible !important',
+                  opacity: '1 !important'
+                }}
               />
               <button
                 type="submit"
                 disabled={!selectedIncident || !newMessage.trim()}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-[#0d522c] hover:bg-[#094023] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0d522c] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-[#0d522c] hover:bg-[#094023] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0d522c] disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[50px]"
+                style={{
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  display: 'inline-flex !important',
+                  visibility: 'visible !important',
+                  opacity: '1 !important'
+                }}
               >
-                <FiSend className="h-5 w-5" />
+                <FiSend className="h-6 w-6" />
               </button>
             </div>
           </form>

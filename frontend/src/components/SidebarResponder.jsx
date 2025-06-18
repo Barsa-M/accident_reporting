@@ -14,7 +14,8 @@ import {
   FiBell,
   FiTarget,
   FiUser,
-  FiBarChart2
+  FiBarChart2,
+  FiShield
 } from 'react-icons/fi';
 import { auth } from '../firebase/firebase';
 
@@ -35,34 +36,45 @@ const SidebarResponder = () => {
 
   const fetchNotifications = async () => {
     try {
-      // Get incidents assigned to this responder - try different field names
-      const incidentsQuery = query(
-        collection(db, 'incidents'),
-        where('assignedTo', '==', currentUser.uid)
-      );
-      
-      const incidentsSnap = await getDocs(incidentsQuery);
-      const incidents = incidentsSnap.docs.map(doc => doc.data());
+      // Get incidents assigned to this responder from both collections
+      const collections = ['incidents', 'anonymous_reports'];
+      let allIncidents = [];
 
-      // Also try other possible field names for assignment
-      const incidentsQuery2 = query(
-        collection(db, 'incidents'),
-        where('assignedResponderId', '==', currentUser.uid)
-      );
-      
-      const incidentsSnap2 = await getDocs(incidentsQuery2);
-      const incidents2 = incidentsSnap2.docs.map(doc => doc.data());
+      for (const collectionName of collections) {
+        try {
+          // Try different field names for assignment
+          const incidentsQuery = query(
+            collection(db, collectionName),
+            where('assignedTo', '==', currentUser.uid)
+          );
+          
+          const incidentsSnap = await getDocs(incidentsQuery);
+          const incidents = incidentsSnap.docs.map(doc => doc.data());
 
-      const incidentsQuery3 = query(
-        collection(db, 'incidents'),
-        where('responderId', '==', currentUser.uid)
-      );
-      
-      const incidentsSnap3 = await getDocs(incidentsQuery3);
-      const incidents3 = incidentsSnap3.docs.map(doc => doc.data());
+          // Also try other possible field names for assignment
+          const incidentsQuery2 = query(
+            collection(db, collectionName),
+            where('assignedResponderId', '==', currentUser.uid)
+          );
+          
+          const incidentsSnap2 = await getDocs(incidentsQuery2);
+          const incidents2 = incidentsSnap2.docs.map(doc => doc.data());
 
-      // Combine all incidents
-      const allIncidents = [...incidents, ...incidents2, ...incidents3];
+          const incidentsQuery3 = query(
+            collection(db, collectionName),
+            where('responderId', '==', currentUser.uid)
+          );
+          
+          const incidentsSnap3 = await getDocs(incidentsQuery3);
+          const incidents3 = incidentsSnap3.docs.map(doc => doc.data());
+
+          // Combine all incidents from this collection
+          const collectionIncidents = [...incidents, ...incidents2, ...incidents3];
+          allIncidents = [...allIncidents, ...collectionIncidents];
+        } catch (error) {
+          console.log(`Failed to fetch from ${collectionName}:`, error);
+        }
+      }
 
       const unopenedIncidents = allIncidents.filter(inc => 
         inc.status === 'assigned' && !inc.viewedByResponder
@@ -109,6 +121,12 @@ const SidebarResponder = () => {
       path: '/responder/incident-history', 
       label: 'History', 
       icon: <FiClock className="w-5 h-5" />,
+      badge: null
+    },
+    { 
+      path: '/responder/safety-tips', 
+      label: 'Safety Tips', 
+      icon: <FiShield className="w-5 h-5" />,
       badge: null
     },
     { 

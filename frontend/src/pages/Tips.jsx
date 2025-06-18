@@ -6,6 +6,8 @@ import { FiX } from 'react-icons/fi';
 import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import FileUpload from '../components/Common/FileUpload';
+import { saveIncidentFilesLocally } from '../services/fileStorage';
 
 const Tips = ({ onClose, responderData }) => {
   const navigate = useNavigate();
@@ -13,9 +15,9 @@ const Tips = ({ onClose, responderData }) => {
   const [formData, setFormData] = useState({
     title: "",
     content: "",
-    imageUrl: "",
     category: "" // We'll set this automatically based on responder's specialization
   });
+  const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -68,14 +70,23 @@ const Tips = ({ onClose, responderData }) => {
 
     setLoading(true);
     try {
+      // Process files if any
+      let processedFiles = [];
+      if (files.length > 0) {
+        processedFiles = await saveIncidentFilesLocally(files);
+      }
+
       const tipData = {
         ...formData,
         authorId: responderData.uid,
         authorName: responderData.name,
         authorType: responderData.specialization,
         createdAt: new Date(),
-        status: 'pending',
-        verifiedAt: null
+        status: 'published',
+        verifiedAt: null,
+        files: processedFiles,
+        flags: [],
+        flagCount: 0
       };
       console.log('Submitting tip data:', tipData);
       
@@ -142,17 +153,19 @@ const Tips = ({ onClose, responderData }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Media URL (Optional)</label>
-              <input
-                type="url"
-                name="imageUrl"
-                value={formData.imageUrl}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0d522c]"
-                placeholder="Enter image or video URL"
+              <label className="block text-sm font-medium text-gray-700 mb-1">Media Files (Optional)</label>
+              <FileUpload
+                label="Upload Images or Videos"
+                name="files"
+                type="INCIDENT"
+                files={files}
+                setFiles={setFiles}
+                maxFiles={3}
+                maxSizeMB={10}
+                required={false}
               />
               <p className="mt-1 text-sm text-gray-500">
-                You can add an image URL or a YouTube video URL
+                You can upload images (JPG, PNG) or videos (MP4, MOV) up to 10MB each
               </p>
             </div>
 
