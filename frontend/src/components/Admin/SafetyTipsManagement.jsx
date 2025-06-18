@@ -359,20 +359,31 @@ const SafetyTipsManagement = () => {
               {/* Media Display */}
               {tip.files && tip.files.length > 0 && (
                 <div className="mb-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {tip.files.map((file, index) => (
-                      <div key={index} className="relative">
-                        <MediaDisplay
-                          url={file.path || file.url}
-                          type={file.type}
-                          className="w-full h-48 object-cover rounded-lg"
-                          showControls={true}
-                          maxWidth="full"
-                          maxHeight="48"
-                        />
-                      </div>
-                    ))}
-                  </div>
+                  {tip.files.length === 1 ? (
+                    // Single media item - larger display
+                    <div className="relative">
+                      <MediaDisplay
+                        url={tip.files[0].path || tip.files[0].url}
+                        type={tip.files[0].type}
+                        className="w-full h-64 object-cover rounded-lg"
+                        showControls={true}
+                      />
+                    </div>
+                  ) : (
+                    // Multiple media items - grid layout
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {tip.files.map((file, index) => (
+                        <div key={index} className="relative aspect-video">
+                          <MediaDisplay
+                            url={file.path || file.url}
+                            type={file.type}
+                            className="w-full h-full"
+                            showControls={true}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -506,20 +517,31 @@ const SafetyTipsManagement = () => {
               {/* Media Display */}
               {selectedTip.files && selectedTip.files.length > 0 && (
                 <div className="mb-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {selectedTip.files.map((file, index) => (
-                      <div key={index} className="relative">
-                        <MediaDisplay
-                          url={file.path || file.url}
-                          type={file.type}
-                          className="w-full h-48 object-cover rounded-lg"
-                          showControls={true}
-                          maxWidth="full"
-                          maxHeight="48"
-                        />
-                      </div>
-                    ))}
-                  </div>
+                  {selectedTip.files.length === 1 ? (
+                    // Single media item - larger display
+                    <div className="relative">
+                      <MediaDisplay
+                        url={selectedTip.files[0].path || selectedTip.files[0].url}
+                        type={selectedTip.files[0].type}
+                        className="w-full h-64 object-cover rounded-lg"
+                        showControls={true}
+                      />
+                    </div>
+                  ) : (
+                    // Multiple media items - grid layout
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {selectedTip.files.map((file, index) => (
+                        <div key={index} className="relative aspect-video">
+                          <MediaDisplay
+                            url={file.path || file.url}
+                            type={file.type}
+                            className="w-full h-full"
+                            showControls={true}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

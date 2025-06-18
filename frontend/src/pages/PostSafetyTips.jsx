@@ -310,19 +310,32 @@ const PostSafetyTips = () => {
     if (!tip.files || tip.files.length === 0) return null;
     
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {tip.files.map((file, index) => (
-          <div key={index} className="relative">
+      <div className="mt-4">
+        {tip.files.length === 1 ? (
+          // Single media item - larger display
+          <div className="relative">
             <MediaDisplay
-              url={file.path || file.url}
-              type={file.type}
-              className="w-full h-64 object-cover rounded-lg"
+              url={tip.files[0].path || tip.files[0].url}
+              type={tip.files[0].type}
+              className="w-full h-80 object-cover rounded-lg"
               showControls={true}
-              maxWidth="full"
-              maxHeight="64"
             />
           </div>
-        ))}
+        ) : (
+          // Multiple media items - grid layout
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {tip.files.map((file, index) => (
+              <div key={index} className="relative aspect-video">
+                <MediaDisplay
+                  url={file.path || file.url}
+                  type={file.type}
+                  className="w-full h-full"
+                  showControls={true}
+                />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   };

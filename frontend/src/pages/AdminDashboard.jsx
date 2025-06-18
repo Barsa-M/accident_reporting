@@ -12,6 +12,7 @@ import UsersManagement from '../components/Admin/UsersManagement';
 import ResponderList from '../components/Admin/ResponderList';
 import IncidentReports from '../components/Admin/IncidentReports';
 import ForumModeration from '../components/Admin/ForumModeration';
+import SafetyTipsManagement from '../components/Admin/SafetyTipsManagement';
 import Analytics from '../components/Admin/Analytics';
 import Settings from '../components/Admin/Settings';
 import AdminProfile from '../components/Admin/AdminProfile';
@@ -96,6 +97,7 @@ const AdminDashboard = () => {
     { id: 'responders', label: 'Responders', icon: FiShield },
     { id: 'incidents', label: 'Incident Reports', icon: FiFileText },
     { id: 'forum', label: 'Forum Moderation', icon: FiMessageSquare },
+    { id: 'safety-tips', label: 'Safety Tips Management', icon: FiShield },
     { id: 'analytics', label: 'Analytics', icon: FiPieChart },
     { id: 'settings', label: 'Settings', icon: FiSettings },
   ];
@@ -112,6 +114,8 @@ const AdminDashboard = () => {
         return <IncidentReports />;
       case 'forum':
         return <ForumModeration />;
+      case 'safety-tips':
+        return <SafetyTipsManagement />;
       case 'analytics':
         return <Analytics />;
       case 'settings':
