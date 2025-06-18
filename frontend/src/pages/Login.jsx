@@ -120,7 +120,7 @@ function Login() {
             
             if (applicationStatus === RESPONDER_STATUS.APPROVED) {
               console.log("Status matches APPROVED, routing to dashboard");
-              navigate("/responder/dashboard", { replace: true });
+              navigate("/responder", { replace: true });
               return;
             }
             

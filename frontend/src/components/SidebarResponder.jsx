@@ -153,7 +153,7 @@ const SidebarResponder = () => {
     <div className="fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-100 shadow-sm">
       {/* Logo Section */}
       <div className="h-20 flex items-center px-6 border-b border-gray-100">
-        <Link to="/responder/dashboard" className="flex items-center space-x-3">
+        <Link to="/responder" className="flex items-center space-x-3">
           <img
             src="/safereport.svg"
             alt="SAFE Logo"
