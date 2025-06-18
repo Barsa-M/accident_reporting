@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, getDocs, updateDoc, doc, deleteDoc, orderBy, where, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase/firebase';
-import { FiCheckCircle, FiX, FiEye, FiTrash2, FiShield, FiFire, FiHeart, FiMessageSquare, FiShare2, FiUser, FiAlertCircle, FiXCircle, FiEdit2, FiFlag, FiSend } from 'react-icons/fi';
+import { FiCheckCircle, FiX, FiEye, FiTrash2, FiShield, FiZap, FiHeart, FiMessageSquare, FiShare2, FiUser, FiAlertCircle, FiXCircle, FiEdit2, FiFlag, FiSend } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 import { format } from 'date-fns';
 import VerificationBadge from '../Common/VerificationBadge';
