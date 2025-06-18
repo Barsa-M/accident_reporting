@@ -86,12 +86,11 @@ const SafetyTipsManagement = ({ responderData }) => {
           authorType: responderData.specialization,
           createdAt: new Date(),
           status: 'published',
-          verifiedAt: null,
           likes: 0,
           comments: 0,
           shares: 0,
+          likedBy: [],
           files: processedFiles,
-          flags: [],
           flagCount: 0
         });
         toast.success('Safety tip created successfully');

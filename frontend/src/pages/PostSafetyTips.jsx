@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import UserSidebar from "../components/UserSidebar";
 import { FiSearch, FiAlertCircle, FiCheckCircle, FiSend, FiMessageSquare, FiPlus, FiChevronDown, FiChevronUp, FiCornerDownRight, FiFilter, FiHeart, FiShare2, FiEye, FiThumbsUp, FiThumbsDown, FiFlag, FiX } from "react-icons/fi";
-import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, getDocs, updateDoc, doc, increment } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, getDocs, updateDoc, doc, increment, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
@@ -98,9 +98,24 @@ const PostSafetyTips = () => {
           verifiedAt: doc.data().verifiedAt?.toDate()
           })).sort((a, b) => b.createdAt - a.createdAt);
           
-        console.log('Current tips list:', tipsList);
-        setTips(tipsList);
-        setFilteredTips(tipsList);
+        // Filter out deleted tips
+        const activeTips = tipsList.filter(tip => {
+          // Handle various edge cases
+          if (!tip.status) return true; // Tips without status are considered active
+          if (tip.status === 'deleted') {
+            console.log('Filtering out deleted tip (PostSafetyTips):', tip.id, tip.title);
+            return false; // Explicitly deleted tips
+          }
+          if (tip.status === 'published' || tip.status === 'pending' || tip.status === 'approved') return true; // Active statuses
+          console.log('Tip with unknown status (PostSafetyTips):', tip.id, tip.title, 'status:', tip.status);
+          return true; // Default to showing tips with unknown statuses
+        });
+        console.log('Active tips after filtering (PostSafetyTips):', activeTips.length, 'out of', tipsList.length);
+        console.log('Tips that were filtered out (PostSafetyTips):', tipsList.filter(tip => tip.status === 'deleted').map(t => ({ id: t.id, title: t.title, status: t.status })));
+        
+        console.log('Current tips list:', activeTips);
+        setTips(activeTips);
+        setFilteredTips(activeTips);
         setLoading(false);
           setError(null);
       },
@@ -240,51 +255,21 @@ const PostSafetyTips = () => {
         console.error('Error fetching user name:', error);
       }
 
-      const newComment = {
-        id: Date.now().toString(),
-        text: commentText,
-        authorId: currentUser.uid,
-        authorName: userName,
-        tipId: tipId,
-        createdAt: new Date().toISOString(),
-        parentId: replyToReplyId || parentCommentId
+      const commentData = {
+        tipId,
+        content: commentText,
+        userId: currentUser.uid,
+        userName: userName,
+        createdAt: serverTimestamp(),
+        parentId: replyToReplyId || parentCommentId || null
       };
 
-      // Update local state immediately
-      setLocalComments(prev => {
-        const updatedComments = { ...prev };
-        if (replyToReplyId) {
-          updatedComments[tipId] = (prev[tipId] || []).map(comment => {
-            if (comment.id === parentCommentId) {
-              return {
-                ...comment,
-                replies: (comment.replies || []).map(reply => {
-                  if (reply.id === replyToReplyId) {
-                    return {
-                      ...reply,
-                      replies: [...(reply.replies || []), newComment]
-                    };
-                  }
-                  return reply;
-                })
-              };
-            }
-            return comment;
-          });
-        } else if (parentCommentId) {
-          updatedComments[tipId] = (prev[tipId] || []).map(comment => {
-            if (comment.id === parentCommentId) {
-              return {
-                ...comment,
-                replies: [...(comment.replies || []), newComment]
-              };
-            }
-            return comment;
-          });
-        } else {
-          updatedComments[tipId] = [...(prev[tipId] || []), newComment];
-        }
-        return updatedComments;
+      // Add comment to Firestore
+      await addDoc(collection(db, 'comments'), commentData);
+
+      // Update tip's comment count
+      await updateDoc(doc(db, 'safety_tips', tipId), {
+        comments: increment(1)
       });
 
       // Clear the comment input
@@ -583,30 +568,115 @@ const PostSafetyTips = () => {
     }
   };
 
-  const handleLike = (tipId) => {
+  const handleLike = async (tipId) => {
     if (!currentUser) {
       toast.error('Please log in to like this tip');
       navigate('/login');
       return;
     }
 
-    setLikedTips(prev => {
-      const newLikedTips = new Set(prev);
-      if (newLikedTips.has(tipId)) {
-        newLikedTips.delete(tipId);
-      } else {
-        newLikedTips.add(tipId);
+    try {
+      const tipRef = doc(db, 'safety_tips', tipId);
+      const tipDoc = await getDoc(tipRef);
+      
+      if (!tipDoc.exists()) {
+        toast.error('Tip not found');
+        return;
       }
-      return newLikedTips;
-    });
 
-    toast.success('Tip like status updated');
+      const tipData = tipDoc.data();
+      const likedBy = tipData.likedBy || [];
+      const isLiked = likedBy.includes(currentUser.uid);
+      
+      if (isLiked) {
+        // Unlike
+        await updateDoc(tipRef, {
+          likes: increment(-1),
+          likedBy: likedBy.filter(id => id !== currentUser.uid)
+        });
+        setLikedTips(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(tipId);
+          return newSet;
+        });
+        toast.success('Tip unliked');
+      } else {
+        // Like
+        await updateDoc(tipRef, {
+          likes: increment(1),
+          likedBy: [...likedBy, currentUser.uid]
+        });
+        setLikedTips(prev => {
+          const newSet = new Set(prev);
+          newSet.add(tipId);
+          return newSet;
+        });
+        toast.success('Tip liked');
+      }
+    } catch (error) {
+      console.error('Error updating like:', error);
+      toast.error('Failed to update like');
+    }
   };
 
   const handleShare = (tip) => {
     // Implement share functionality
     toast.success('Share functionality not implemented yet');
   };
+
+  // Real-time comment loading for expanded tips
+  useEffect(() => {
+    // Clean up previous listeners
+    Object.values(commentUnsubscribes).forEach(unsubscribe => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    });
+
+    const newUnsubscribes = {};
+
+    // Set up real-time listeners for comments of expanded tips
+    Object.keys(expandedTips).forEach(tipId => {
+      if (expandedTips[tipId]) {
+        try {
+          const commentsQuery = query(
+            collection(db, 'comments'),
+            where('tipId', '==', tipId),
+            orderBy('createdAt', 'asc')
+          );
+          
+          const unsubscribe = onSnapshot(commentsQuery, (snapshot) => {
+            const tipComments = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data(),
+              createdAt: doc.data().createdAt?.toDate()
+            }));
+            
+            setLocalComments(prev => ({
+              ...prev,
+              [tipId]: tipComments
+            }));
+          }, (error) => {
+            console.error(`Error loading comments for tip ${tipId}:`, error);
+          });
+          
+          newUnsubscribes[tipId] = unsubscribe;
+        } catch (error) {
+          console.error(`Error setting up comment listener for tip ${tipId}:`, error);
+        }
+      }
+    });
+
+    setCommentUnsubscribes(newUnsubscribes);
+
+    return () => {
+      Object.values(newUnsubscribes).forEach(unsubscribe => {
+        if (typeof unsubscribe === 'function') {
+          unsubscribe();
+        }
+      });
+    };
+  }, [expandedTips]);
 
   if (loading) {
     return (

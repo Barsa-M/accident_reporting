@@ -48,6 +48,7 @@ const SafetyTips = () => {
   const [flagModal, setFlagModal] = useState({ show: false, tipId: null, tipTitle: '' });
   const [flagReason, setFlagReason] = useState('');
   const [flaggingTip, setFlaggingTip] = useState(false);
+  const [commentUnsubscribes, setCommentUnsubscribes] = useState({});
 
   // Categories for filtering
   const categories = [
@@ -58,116 +59,86 @@ const SafetyTips = () => {
     { id: "traffic", name: "Traffic Safety", color: "yellow" }
   ];
 
-  // Migrate existing tips to ensure they have all required fields
+  // Migration function to ensure all tips have required fields
   const migrateTips = async (tipsList) => {
     const migrationPromises = tipsList
-      .filter(tip => {
-        // Check if tip needs migration (missing interactive fields or has old structure)
-        return !tip.likes || !tip.comments || !tip.shares || !tip.likedBy || 
-               !tip.status || (tip.imageUrl && !tip.files);
-      })
+      .filter(tip => !tip.likedBy || !tip.flagCount || tip.flagCount === undefined || !tip.status)
       .map(async (tip) => {
         try {
-          const tipRef = doc(db, 'safety_tips', tip.id);
-          const updateData = {
-            likes: tip.likes || 0,
-            comments: tip.comments || 0,
-            shares: tip.shares || 0,
-            likedBy: tip.likedBy || [],
-            status: tip.status || 'published'
-          };
-
-          // Handle old imageUrl structure
-          if (tip.imageUrl && !tip.files) {
-            updateData.files = [{ path: tip.imageUrl, type: 'image' }];
+          const updates = {};
+          if (!tip.likedBy) updates.likedBy = [];
+          if (tip.flagCount === undefined) updates.flagCount = 0;
+          if (!tip.likes) updates.likes = 0;
+          if (!tip.comments) updates.comments = 0;
+          if (!tip.shares) updates.shares = 0;
+          if (!tip.status) updates.status = 'published'; // Ensure all tips have a status
+          
+          if (Object.keys(updates).length > 0) {
+            await updateDoc(doc(db, 'safety_tips', tip.id), updates);
+            console.log(`Migrated tip ${tip.id} with updates:`, updates);
           }
-
-          await updateDoc(tipRef, updateData);
-          console.log(`Migrated tip ${tip.id}`);
         } catch (error) {
           console.error(`Error migrating tip ${tip.id}:`, error);
         }
       });
-
-    if (migrationPromises.length > 0) {
-      console.log(`Migrating ${migrationPromises.length} tips...`);
-      await Promise.all(migrationPromises);
-    }
+    
+    await Promise.all(migrationPromises);
   };
 
-  // Fetch tips from Firebase with real-time updates
+  // Load safety tips with real-time updates
   useEffect(() => {
-    console.log('Setting up real-time listener for safety tips...');
-    let tipsQuery;
     let unsubscribe;
-
+    
     try {
-      if (selectedCategory !== 'all') {
-        tipsQuery = query(
-          collection(db, 'safety_tips'),
-          where('authorType', '==', selectedCategory),
-          where('status', 'in', ['verified', 'deleted']),
-          orderBy('createdAt', 'desc')
-        );
-      } else {
-        tipsQuery = query(
-          collection(db, 'safety_tips'),
-          where('status', 'in', ['verified', 'deleted']),
-          orderBy('createdAt', 'desc')
-        );
-      }
+      console.log('Setting up real-time tips listener...');
+      
+      // Query for tips that are not deleted (either status is not 'deleted' or status doesn't exist)
+      const tipsQuery = query(
+        collection(db, 'safety_tips'),
+        orderBy('createdAt', 'desc')
+      );
 
-      unsubscribe = onSnapshot(tipsQuery, 
-        (snapshot) => {
-          const tipsList = snapshot.docs.map(doc => {
-            const data = doc.data();
-            const processedTip = {
-              id: doc.id,
-              ...data,
-              createdAt: data.createdAt?.toDate(),
-              verifiedAt: data.verifiedAt?.toDate(),
-              deletedAt: data.deletedAt?.toDate(),
-              // Ensure all tips have the required interactive fields with defaults
-              likes: data.likes || 0,
-              comments: data.comments || 0,
-              shares: data.shares || 0,
-              likedBy: data.likedBy || [],
-              // Handle both old and new file structures
-              files: data.files || (data.imageUrl ? [{ path: data.imageUrl, type: 'image' }] : []),
-              // Ensure status is set
-              status: data.status || 'published'
-            };
-            
-            // Debug log for posts missing interactive features
-            if (!data.likes && !data.comments && !data.shares) {
-              console.log('Post missing interactive fields:', {
-                id: doc.id,
-                title: data.title,
-                originalData: data,
-                processedData: processedTip
-              });
+      unsubscribe = onSnapshot(
+        tipsQuery,
+        async (snapshot) => {
+          console.log('Tips snapshot received:', snapshot.docs.length, 'docs');
+          
+          const tipsList = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate()
+          }));
+
+          // Filter out deleted tips on the client side
+          const activeTips = tipsList.filter(tip => {
+            // Handle various edge cases
+            if (!tip.status) return true; // Tips without status are considered active (will be migrated)
+            if (tip.status === 'deleted') {
+              console.log('Filtering out deleted tip:', tip.id, tip.title);
+              return false; // Explicitly deleted tips
             }
-            
-            return processedTip;
+            if (tip.status === 'published' || tip.status === 'pending' || tip.status === 'approved') return true; // Active statuses
+            console.log('Tip with unknown status:', tip.id, tip.title, 'status:', tip.status);
+            return true; // Default to showing tips with unknown statuses
           });
+          console.log('Active tips after filtering:', activeTips.length, 'out of', tipsList.length);
+          console.log('Tips that were filtered out:', tipsList.filter(tip => tip.status === 'deleted').map(t => ({ id: t.id, title: t.title, status: t.status })));
+
+          // Migrate tips if needed
+          await migrateTips(activeTips);
           
-          console.log('Current tips list:', tipsList);
-          setTips(tipsList);
-          setFilteredTips(tipsList);
+          setTips(activeTips);
           
-          // Initialize likedTips state based on current user
+          // Update liked tips for current user
           if (currentUser) {
             const userLikedTips = new Set();
-            tipsList.forEach(tip => {
+            activeTips.forEach(tip => {
               if (tip.likedBy && tip.likedBy.includes(currentUser.uid)) {
                 userLikedTips.add(tip.id);
               }
             });
             setLikedTips(userLikedTips);
           }
-          
-          // Migrate tips that are missing interactive fields
-          migrateTips(tipsList);
           
           setLoading(false);
         },
@@ -189,41 +160,61 @@ const SafetyTips = () => {
         unsubscribe();
       }
     };
-  }, [selectedCategory]);
+  }, [currentUser]);
 
-  // Load comments for tips
+  // Real-time comment loading for expanded tips
   useEffect(() => {
-    if (tips.length === 0) return;
+    // Clean up previous listeners
+    Object.values(commentUnsubscribes).forEach(unsubscribe => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    });
 
-    const loadComments = async () => {
-      try {
-        const commentsData = {};
-        
-        for (const tip of tips) {
+    const newUnsubscribes = {};
+
+    // Set up real-time listeners for comments of expanded tips
+    Object.keys(expandedTips).forEach(tipId => {
+      if (expandedTips[tipId]) {
+        try {
           const commentsQuery = query(
             collection(db, 'comments'),
-            where('tipId', '==', tip.id),
+            where('tipId', '==', tipId),
             orderBy('createdAt', 'asc')
           );
           
-          const commentsSnapshot = await getDocs(commentsQuery);
-          const tipComments = commentsSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            createdAt: doc.data().createdAt?.toDate()
-          }));
+          const unsubscribe = onSnapshot(commentsQuery, (snapshot) => {
+            const tipComments = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data(),
+              createdAt: doc.data().createdAt?.toDate()
+            }));
+            
+            setComments(prev => ({
+              ...prev,
+              [tipId]: tipComments
+            }));
+          }, (error) => {
+            console.error(`Error loading comments for tip ${tipId}:`, error);
+          });
           
-          commentsData[tip.id] = tipComments;
+          newUnsubscribes[tipId] = unsubscribe;
+        } catch (error) {
+          console.error(`Error setting up comment listener for tip ${tipId}:`, error);
         }
-        
-        setComments(commentsData);
-      } catch (error) {
-        console.error('Error loading comments:', error);
       }
-    };
+    });
 
-    loadComments();
-  }, [tips]);
+    setCommentUnsubscribes(newUnsubscribes);
+
+    return () => {
+      Object.values(newUnsubscribes).forEach(unsubscribe => {
+        if (typeof unsubscribe === 'function') {
+          unsubscribe();
+        }
+      });
+    };
+  }, [expandedTips]);
 
   // Filter tips based on search query
   useEffect(() => {
@@ -247,6 +238,9 @@ const SafetyTips = () => {
       return;
     }
 
+    console.log('Handling like for tip:', tipId);
+    console.log('Current user:', currentUser);
+
     try {
       const tipRef = doc(db, 'safety_tips', tipId);
       const tipDoc = await getDoc(tipRef);
@@ -257,11 +251,17 @@ const SafetyTips = () => {
       }
 
       const tipData = tipDoc.data();
+      console.log('Tip data before like:', tipData);
+      
       const likedBy = tipData.likedBy || [];
       const isLiked = likedBy.includes(currentUser.uid);
       
+      console.log('Current likedBy:', likedBy);
+      console.log('Is liked:', isLiked);
+      
       if (isLiked) {
         // Unlike
+        console.log('Unliking tip...');
         await updateDoc(tipRef, {
           likes: increment(-1),
           likedBy: likedBy.filter(id => id !== currentUser.uid)
@@ -274,15 +274,25 @@ const SafetyTips = () => {
         toast.success('Tip unliked');
       } else {
         // Like
+        console.log('Liking tip...');
         await updateDoc(tipRef, {
           likes: increment(1),
           likedBy: [...likedBy, currentUser.uid]
         });
-        setLikedTips(prev => new Set([...prev, tipId]));
-        toast.success('Tip liked!');
+        setLikedTips(prev => {
+          const newSet = new Set(prev);
+          newSet.add(tipId);
+          return newSet;
+        });
+        toast.success('Tip liked');
       }
     } catch (error) {
       console.error('Error updating like:', error);
+      console.error('Error details:', {
+        code: error.code,
+        message: error.message,
+        stack: error.stack
+      });
       toast.error('Failed to update like');
     }
   };
@@ -294,11 +304,6 @@ const SafetyTips = () => {
       await updateDoc(doc(db, 'safety_tips', tip.id), {
         shares: increment(1)
       });
-      
-      // Update local state
-      setTips(prev => prev.map(t => 
-        t.id === tip.id ? { ...t, shares: (t.shares || 0) + 1 } : t
-      ));
       
       toast.success('Tip shared successfully!');
     } catch (error) {
@@ -321,44 +326,28 @@ const SafetyTips = () => {
     }
 
     setSubmittingComments(prev => ({ ...prev, [tipId]: true }));
-
+    
     try {
-      const newComment = {
+      const commentData = {
         tipId,
-        userId: currentUser.uid,
-        userName: currentUser.displayName || currentUser.email,
         content: commentText,
-        createdAt: serverTimestamp(),
-        parentCommentId: null
+        userId: currentUser.uid,
+        userName: currentUser.displayName || 'Anonymous User',
+        createdAt: serverTimestamp()
       };
 
-      const commentRef = await addDoc(collection(db, 'comments'), newComment);
+      // Add comment to comments collection
+      await addDoc(collection(db, 'comments'), commentData);
 
-      // Update comment count
-      const tipRef = doc(db, 'safety_tips', tipId);
-      await updateDoc(tipRef, {
+      // Update tip's comment count
+      await updateDoc(doc(db, 'safety_tips', tipId), {
         comments: increment(1)
       });
 
-      // Update local state immediately
-      const commentWithId = {
-        id: commentRef.id,
-        ...newComment,
-        createdAt: new Date()
-      };
-
-      setComments(prev => ({
-        ...prev,
-        [tipId]: [...(prev[tipId] || []), commentWithId]
-      }));
-
-      // Update tip's comment count in local state
-      setTips(prev => prev.map(t => 
-        t.id === tipId ? { ...t, comments: (t.comments || 0) + 1 } : t
-      ));
-
+      // Clear comment text
       setCommentTexts(prev => ({ ...prev, [tipId]: '' }));
-      toast.success('Comment posted successfully!');
+      
+      toast.success('Comment posted successfully');
     } catch (error) {
       console.error('Error posting comment:', error);
       toast.error('Failed to post comment');
@@ -429,6 +418,11 @@ const SafetyTips = () => {
   };
 
   const handleFlagTip = async () => {
+    if (!currentUser) {
+      toast.error('Please log in to flag tips');
+      return;
+    }
+
     if (!flagReason.trim()) {
       toast.error('Please provide a reason for flagging this tip');
       return;
@@ -440,11 +434,15 @@ const SafetyTips = () => {
         tipId: flagModal.tipId,
         tipTitle: flagModal.tipTitle,
         reason: flagReason.trim(),
-        flaggedBy: currentUser?.uid || 'anonymous',
-        flaggedByName: currentUser?.displayName || 'Anonymous User',
+        flaggedBy: currentUser.uid,
+        flaggedByName: currentUser.displayName || 'Anonymous User',
         flaggedAt: serverTimestamp(),
         status: 'pending' // pending admin review
       };
+
+      // Debug logging
+      console.log('Creating flag with data:', flagData);
+      console.log('Current user:', currentUser);
 
       // Add flag to flags collection
       await addDoc(collection(db, 'flags'), flagData);
@@ -454,15 +452,15 @@ const SafetyTips = () => {
         flagCount: increment(1)
       });
 
-      // Update local state
-      setTips(prev => prev.map(t => 
-        t.id === flagModal.tipId ? { ...t, flagCount: (t.flagCount || 0) + 1 } : t
-      ));
-
       toast.success('Tip flagged successfully. Our team will review it.');
       closeFlagModal();
     } catch (error) {
       console.error('Error flagging tip:', error);
+      console.error('Error details:', {
+        code: error.code,
+        message: error.message,
+        stack: error.stack
+      });
       toast.error('Failed to flag tip. Please try again.');
     } finally {
       setFlaggingTip(false);
@@ -485,67 +483,59 @@ const SafetyTips = () => {
   return (
     <div className="flex min-h-screen bg-white">
       <UserSidebar />
-
       <div className="flex-1 p-8 ml-64">
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-[#0d522c]">Safety Tips</h1>
-            <p className="text-gray-600 mt-1">Expert safety advice from verified responders</p>
-          </div>
-          {isResponder && (
-            <button
-              onClick={() => navigate("/responder/safety-tips")}
-              className="flex items-center space-x-2 bg-[#0d522c] text-white px-6 py-3 rounded-lg hover:bg-[#347752] transition-colors"
-            >
-              <FiPlus className="w-5 h-5" />
-              <span>Post Safety Tip</span>
-            </button>
-          )}
-        </div>
-
-        {/* Search and Filters */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
-          <div className="flex flex-col lg:flex-row gap-4">
-            {/* Search */}
-            <div className="flex-1">
-              <div className="relative">
-                <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  placeholder="Search safety tips..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0d522c] focus:border-transparent"
-                />
-              </div>
+        <div className="mb-8">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800">Safety Tips</h1>
+              <p className="text-gray-600 mt-2">Expert safety advice from verified responders</p>
             </div>
-
-            {/* Category Filter */}
-            <div className="flex items-center space-x-2">
+            {isResponder && (
               <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center space-x-2 px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50"
+                onClick={() => navigate('/responder/safety-tips')}
+                className="flex items-center space-x-2 px-4 py-2 bg-[#0d522c] text-white rounded-lg hover:bg-[#347752] transition-colors"
               >
-                <FiFilter className="w-5 h-5" />
-                <span>Filter</span>
-                {showFilters ? <FiChevronUp className="w-4 h-4" /> : <FiChevronDown className="w-4 h-4" />}
+                <FiPlus className="w-5 h-5" />
+                <span>Post Tip</span>
               </button>
-            </div>
+            )}
           </div>
 
-          {/* Filter Options */}
+          {/* Search and Filters */}
+          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+            <div className="flex-1 relative">
+              <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Search safety tips..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0d522c]"
+              />
+            </div>
+            
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center space-x-2 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <FiFilter className="w-5 h-5" />
+              <span>Filter</span>
+            </button>
+          </div>
+
+          {/* Category Filters */}
           {showFilters && (
-            <div className="mt-4 pt-4 border-t border-gray-100">
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
               <div className="flex flex-wrap gap-2">
                 {categories.map((category) => (
                   <button
                     key={category.id}
                     onClick={() => setSelectedCategory(category.id)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
                       selectedCategory === category.id
                         ? 'bg-[#0d522c] text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
                     }`}
                   >
                     {category.name}
@@ -559,27 +549,7 @@ const SafetyTips = () => {
         {/* Tips Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
           {filteredTips.map((tip) => (
-            <div key={tip.id} className={`bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all duration-200 flex flex-col min-h-0 max-w-full ${
-              tip.status === 'deleted' ? 'opacity-75' : ''
-            }`}>
-              {/* Deleted Post Alert */}
-              {tip.status === 'deleted' && (
-                <div className="bg-red-50 border-b border-red-200 p-3 flex-shrink-0">
-                  <div className="flex items-center space-x-2 mb-1">
-                    <FiAlertCircle className="w-4 h-4 text-red-600" />
-                    <span className="font-semibold text-red-800 text-sm">Post Removed by Admin</span>
-                  </div>
-                  <p className="text-red-700 text-xs">
-                    <strong>Reason:</strong> {tip.adminReason || 'This post has been removed for violating community guidelines.'}
-                  </p>
-                  {tip.deletedAt && (
-                    <p className="text-xs text-red-600 mt-1">
-                      Removed on {format(tip.deletedAt, 'MMM dd, yyyy HH:mm')}
-                    </p>
-                  )}
-                </div>
-              )}
-
+            <div key={tip.id} className={`bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all duration-200 flex flex-col min-h-0 max-w-full`}>
               {/* Header - More Compact */}
               <div className="p-4 border-b border-gray-100 flex-shrink-0 overflow-hidden">
                 <div className="flex items-start space-x-3 mb-3">
@@ -609,14 +579,11 @@ const SafetyTips = () => {
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center space-x-2 sm:space-x-4">
                     <button
-                      onClick={() => tip.status !== 'deleted' ? handleLike(tip.id) : null}
-                      disabled={tip.status === 'deleted'}
+                      onClick={() => handleLike(tip.id)}
                       className={`flex items-center space-x-1 px-2 sm:px-3 py-1.5 rounded-full text-xs sm:text-sm transition-colors ${
-                        tip.status === 'deleted' 
-                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                          : (tip.likedBy && tip.likedBy.includes(currentUser?.uid)) || likedTips.has(tip.id)
-                            ? 'bg-red-100 text-red-600'
-                            : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                        (tip.likedBy && tip.likedBy.includes(currentUser?.uid)) || likedTips.has(tip.id)
+                          ? 'bg-red-100 text-red-600'
+                          : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
                       }`}
                     >
                       <FiHeart className={`w-3 h-3 sm:w-4 sm:h-4 ${(tip.likedBy && tip.likedBy.includes(currentUser?.uid)) || likedTips.has(tip.id) ? 'fill-current' : ''}`} />
@@ -624,26 +591,16 @@ const SafetyTips = () => {
                     </button>
                     
                     <button
-                      onClick={() => tip.status !== 'deleted' ? toggleComments(tip.id) : null}
-                      disabled={tip.status === 'deleted'}
-                      className={`flex items-center space-x-1 px-2 sm:px-3 py-1.5 rounded-full text-xs sm:text-sm transition-colors ${
-                        tip.status === 'deleted'
-                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                          : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-                      }`}
+                      onClick={() => toggleComments(tip.id)}
+                      className="flex items-center space-x-1 px-2 sm:px-3 py-1.5 rounded-full text-xs sm:text-sm transition-colors bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
                     >
                       <FiMessageSquare className="w-3 h-3 sm:w-4 sm:h-4" />
                       <span className="font-medium">{tip.comments || 0}</span>
                     </button>
                     
                     <button
-                      onClick={() => tip.status !== 'deleted' ? handleShare(tip) : null}
-                      disabled={tip.status === 'deleted'}
-                      className={`flex items-center space-x-1 px-2 sm:px-3 py-1.5 rounded-full text-xs sm:text-sm transition-colors ${
-                        tip.status === 'deleted'
-                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                          : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-                      }`}
+                      onClick={() => handleShare(tip)}
+                      className="flex items-center space-x-1 px-2 sm:px-3 py-1.5 rounded-full text-xs sm:text-sm transition-colors bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
                     >
                       <FiShare2 className="w-3 h-3 sm:w-4 sm:h-4" />
                       <span className="font-medium">{tip.shares || 0}</span>
@@ -651,14 +608,9 @@ const SafetyTips = () => {
                   </div>
 
                   <button
-                    onClick={() => tip.status !== 'deleted' ? openFlagModal(tip.id, tip.title) : null}
-                    disabled={tip.status === 'deleted'}
-                    className={`flex items-center space-x-1 px-2 sm:px-3 py-1.5 rounded-full text-xs sm:text-sm transition-colors ${
-                      tip.status === 'deleted'
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        : 'bg-white text-gray-600 hover:bg-red-50 hover:text-red-600 border border-gray-200'
-                    }`}
-                    title={tip.status === 'deleted' ? 'Cannot flag deleted post' : 'Flag this tip'}
+                    onClick={() => openFlagModal(tip.id, tip.title)}
+                    className="flex items-center space-x-1 px-2 sm:px-3 py-1.5 rounded-full text-xs sm:text-sm transition-colors bg-white text-gray-600 hover:bg-red-50 hover:text-red-600 border border-gray-200"
+                    title="Flag this tip"
                   >
                     <FiFlag className="w-3 h-3 sm:w-4 sm:h-4" />
                     <span className="hidden sm:inline">Flag</span>
@@ -666,7 +618,7 @@ const SafetyTips = () => {
                 </div>
 
                 {/* Comments Section - Collapsible */}
-                {expandedTips[tip.id] && tip.status !== 'deleted' && (
+                {expandedTips[tip.id] && (
                   <div className="mt-3 pt-3 border-t border-gray-200 bg-white rounded-lg p-3 overflow-hidden">
                     <h4 className="font-semibold text-gray-800 mb-3 text-sm">Comments</h4>
                     
@@ -703,6 +655,9 @@ const SafetyTips = () => {
                           <p className="text-gray-700 text-sm">{comment.content}</p>
                         </div>
                       ))}
+                      {(!comments[tip.id] || comments[tip.id].length === 0) && (
+                        <p className="text-gray-500 text-sm text-center py-2">No comments yet. Be the first to comment!</p>
+                      )}
                     </div>
                   </div>
                 )}
