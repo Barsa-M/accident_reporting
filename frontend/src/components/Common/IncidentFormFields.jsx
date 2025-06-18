@@ -83,13 +83,9 @@ const IncidentFormFields = ({
       console.error('Error initializing database:', error);
     });
 
-    // Cleanup function to revoke object URLs
+    // Cleanup function - no need to revoke URLs since we're using data URLs now
     return () => {
-      files.forEach(file => {
-        if (file.url && file.url.startsWith('blob:')) {
-          URL.revokeObjectURL(file.url);
-        }
-      });
+      // Data URLs don't need to be revoked like blob URLs
     };
   }, []);
 
@@ -145,13 +141,19 @@ const IncidentFormFields = ({
     try {
       const newFiles = await Promise.all(
         selectedFiles.map(async (file) => {
-          // Create a URL for the file
-          const url = URL.createObjectURL(file);
+          // Convert file to data URL (base64) for persistence
+          const dataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+
           return {
             name: file.name,
             type: file.type,
             size: file.size,
-            url: url,
+            url: dataUrl, // Use data URL instead of blob URL
             file: file
           };
         })
@@ -186,10 +188,8 @@ const IncidentFormFields = ({
       const fileToRemove = files[index];
       if (!fileToRemove) return;
 
-      // Revoke the object URL to free up memory
-      if (fileToRemove.url && fileToRemove.url.startsWith('blob:')) {
-        URL.revokeObjectURL(fileToRemove.url);
-      }
+      // No need to revoke URLs since we're using data URLs now
+      // Data URLs are automatically garbage collected
 
       // Create a new array without the removed file
       const updatedFiles = files.filter((_, i) => i !== index);

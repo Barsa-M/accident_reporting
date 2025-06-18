@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase/firebase';
 import { useAuth } from '../../contexts/AuthContext';
+import { AVAILABILITY_STATUS } from '../../firebase/responderStatus';
+import AvailabilityStatus from './AvailabilityStatus';
 import { FiUser, FiPhone, FiMail, FiMapPin, FiAward, FiClock, FiEdit2 } from 'react-icons/fi';
 
 const ResponderProfile = () => {
@@ -9,6 +11,7 @@ const ResponderProfile = () => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
+  const [availabilityStatus, setAvailabilityStatus] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -36,6 +39,7 @@ const ResponderProfile = () => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setProfile(data);
+        setAvailabilityStatus(data.availabilityStatus || AVAILABILITY_STATUS.BUSY);
         setFormData({
           name: data.name || '',
           phone: data.phone || '',
@@ -90,6 +94,12 @@ const ResponderProfile = () => {
     }
   };
 
+  const handleAvailabilityChange = (newStatus, newIsAvailable) => {
+    setAvailabilityStatus(newStatus);
+    // Refresh profile data to get the latest information
+    fetchProfile();
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -111,6 +121,17 @@ const ResponderProfile = () => {
               <FiEdit2 className="h-4 w-4 mr-2" />
               {isEditing ? 'Cancel' : 'Edit Profile'}
             </button>
+          </div>
+
+          {/* Availability Status Section */}
+          <div className="mb-8 p-4 bg-gray-50 rounded-lg">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Availability Status</h3>
+            <AvailabilityStatus
+              currentStatus={availabilityStatus}
+              onStatusChange={handleAvailabilityChange}
+              disabled={false}
+              showLabel={true}
+            />
           </div>
 
           {isEditing ? (

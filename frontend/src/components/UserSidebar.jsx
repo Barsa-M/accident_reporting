@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAuthState } from "react-firebase-hooks/auth";
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase/firebase';
 import { 
   FiFileText, 
   FiMessageSquare, 
@@ -22,9 +24,53 @@ const UserSidebar = () => {
   const navigate = useNavigate();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
 
   const isActive = (path) => {
     return location.pathname === path;
+  };
+
+  useEffect(() => {
+    if (currentUser) {
+      fetchUnreadCounts();
+    }
+  }, [currentUser]);
+
+  const fetchUnreadCounts = () => {
+    if (!currentUser) return;
+
+    // Fetch unread notifications only (simplified approach)
+    const notificationsRef = collection(db, 'notifications');
+    const notificationsQuery = query(
+      notificationsRef,
+      where('recipientId', '==', currentUser.uid),
+      where('read', '==', false)
+    );
+    
+    const notificationsUnsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
+      setUnreadNotificationCount(snapshot.docs.length);
+    });
+
+    // For chat notifications, we'll use a simpler approach
+    // Just check if user has any assigned incidents (chat will show unread counts)
+    const incidentsRef = collection(db, 'incidents');
+    const incidentsQuery = query(
+      incidentsRef, 
+      where('userId', '==', currentUser.uid),
+      where('assignedResponderId', '!=', null)
+    );
+    
+    const incidentsUnsubscribe = onSnapshot(incidentsQuery, (snapshot) => {
+      // If user has assigned incidents, they might have chat messages
+      // The actual unread count will be shown in the chat component
+      setUnreadChatCount(snapshot.docs.length > 0 ? 1 : 0);
+    });
+
+    return () => {
+      incidentsUnsubscribe();
+      notificationsUnsubscribe();
+    };
   };
 
   const userNavItems = [
@@ -51,12 +97,14 @@ const UserSidebar = () => {
     { 
       path: '/notifications', 
       label: 'Notifications', 
-      icon: <FiBell className="w-5 h-5" /> 
+      icon: <FiBell className="w-5 h-5" />,
+      badge: unreadNotificationCount
     },
     { 
       path: '/chat', 
       label: 'Chat with Responder', 
-      icon: <FiMessageCircle className="w-5 h-5" /> 
+      icon: <FiMessageCircle className="w-5 h-5" />,
+      badge: unreadChatCount
     },
     { 
       path: '/profile', 
@@ -104,7 +152,7 @@ const UserSidebar = () => {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+                  className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 relative ${
                     isActive(item.path)
                       ? 'bg-[#0d522c] text-white shadow-sm'
                       : 'text-gray-600 hover:bg-gray-50 hover:text-[#0d522c]'
@@ -112,6 +160,15 @@ const UserSidebar = () => {
                 >
                   {item.icon}
                   <span className="font-medium">{item.label}</span>
+                  {item.badge > 0 && (
+                    <span className={`text-xs px-2 py-1 rounded-full font-bold ${
+                      isActive(item.path) 
+                        ? 'bg-white text-[#0d522c]' 
+                        : 'bg-red-500 text-white'
+                    }`}>
+                      {item.badge}
+                    </span>
+                  )}
                 </Link>
               ))}
             </div>

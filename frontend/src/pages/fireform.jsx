@@ -7,7 +7,7 @@ import IncidentFormFields from "../components/Common/IncidentFormFields";
 import UserSidebar from "../components/UserSidebar";
 import { toast } from "react-toastify";
 import { auth } from "../firebase/firebase";
-import { routeIncident } from "../services/enhancedRouting";
+import { routeIncident } from "../services/incidentRouting";
 import { createChatRoom } from "../services/chatService";
 import FileUpload from '../components/Common/FileUpload';
 import { saveIncidentFilesLocally } from '../services/localFileService';
@@ -16,9 +16,7 @@ export default function FireIncidentForm() {
   const navigate = useNavigate();
   const [files, setFiles] = useState([]);
   const [formData, setFormData] = useState({
-    // Common fields
-    fullName: "",
-    phoneNumber: "",
+    // Common fields (no fullName or phoneNumber needed)
     severityLevel: "",
     location: [9.03, 38.74], // Default to Addis Ababa
     locationDescription: "",
@@ -44,9 +42,7 @@ export default function FireIncidentForm() {
 
   const validateForm = () => {
     const newErrors = {};
-    // Common field validations
-    if (!formData.fullName) newErrors.fullName = "Full name is required";
-    if (!formData.phoneNumber) newErrors.phoneNumber = "Phone number is required";
+    // Common field validations (no fullName or phoneNumber needed)
     if (!formData.severityLevel) newErrors.severityLevel = "Please select a severity level";
     if (!formData.location) newErrors.location = "Please select a location";
     if (!formData.description) newErrors.description = "Please provide a description";
@@ -72,71 +68,86 @@ export default function FireIncidentForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('Fire form submit clicked');
     
     if (!validateForm()) {
+      console.log('Form validation failed:', errors);
       toast.error('Please fill in all required fields');
       return;
     }
 
+    if (!auth.currentUser) {
+      console.log('No authenticated user found');
+      toast.error('You must be logged in to submit a report');
+      return;
+    }
+
     setIsSubmitting(true);
+    console.log('Starting fire form submission...');
 
     try {
+      console.log('Form data:', formData);
+      console.log('Location:', formData.location);
+      
       // Prepare incident data
       const incidentData = {
         ...formData,
         type: 'Fire',
         status: 'pending',
-        createdAt: new Date().toISOString(),
+        createdAt: serverTimestamp(),
         userId: auth.currentUser.uid,
         location: {
           latitude: formData.location[0],
           longitude: formData.location[1]
         },
-        files: files.map(file => ({
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          url: file.url
-        }))
+        files: await saveIncidentFilesLocally(files)
       };
+
+      console.log('Prepared incident data:', incidentData);
 
       // Add the incident to Firestore
       const docRef = await addDoc(collection(db, 'incidents'), incidentData);
+      console.log('Incident created with ID:', docRef.id);
 
-      // Now route the incident with the document ID
+      // Route the incident to find the best responder
+      console.log('Starting incident routing...');
       const routingResult = await routeIncident({
         ...incidentData,
         id: docRef.id
       });
+      
+      console.log('Routing result:', routingResult);
 
+      // Show appropriate feedback based on routing result
       if (routingResult.success) {
-        const successMessage = routingResult.responder 
-          ? `Your fire report has been submitted successfully and assigned to ${routingResult.responder.name}.`
-          : 'Your fire report has been submitted successfully.';
-        
-        toast.success(successMessage);
-        
-        // Wait for 2 seconds to show the success message
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Navigate to dashboard
-        navigate('/user-dashboard');
+        toast.success(routingResult.message);
+        console.log('Successfully assigned to:', routingResult.responder.name);
       } else {
-        // If no responder is available, queue the incident
-        toast.info('Your report has been submitted and is queued for assignment.');
-        
-        // Wait for 2 seconds to show the message
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Navigate to dashboard
-        navigate('/user-dashboard');
+        toast.info(routingResult.message);
+        console.log('No responder available, incident queued');
       }
+      
+      // Wait for 2 seconds to show the message
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Navigate to dashboard
+      navigate('/dashboard');
+      
     } catch (error) {
       console.error('Error submitting incident:', error);
       toast.error('Failed to submit report. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Test function to verify form data
+  const testFormData = () => {
+    console.log('Testing fire form data:');
+    console.log('Form data:', formData);
+    console.log('Errors:', errors);
+    console.log('Is submitting:', isSubmitting);
+    console.log('Auth user:', auth.currentUser);
   };
 
   return (

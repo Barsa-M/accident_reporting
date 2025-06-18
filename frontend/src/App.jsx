@@ -35,6 +35,7 @@ import Notifications from "./pages/Notifications";
 import PostSafetyTips from "./pages/PostSafetyTips";
 import Tips from "./pages/Tips";
 import CreatePost from "./pages/CreatePost";
+import Chat from "./components/Chat";
 
 // Admin Pages
 import AdminDashboard from "./pages/AdminDashboard";
@@ -49,7 +50,7 @@ import ViewReports from "./pages/ViewReports";
 import TrafficForm from "./pages/TrafficForm";
 import PoliceForm from "./pages/PoliceForm";
 import MedicalForm from "./pages/MedicalForm";
-import FireForm from "./pages/FireForm";
+import FireForm from "./pages/fireform";
 
 // Components
 import ChangePassword from "./components/ChangePassword";
@@ -231,6 +232,14 @@ function App() {
                   element={
                     <ProtectedRoute requiredRole={ROLES.USER}>
                       <Notifications />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/chat"
+                  element={
+                    <ProtectedRoute requiredRole={ROLES.USER}>
+                      <Chat />
                     </ProtectedRoute>
                   }
                 />

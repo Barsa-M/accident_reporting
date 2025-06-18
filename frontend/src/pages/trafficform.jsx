@@ -7,7 +7,7 @@ import IncidentFormFields from "../components/Common/IncidentFormFields";
 import UserSidebar from "../components/UserSidebar";
 import { toast } from "react-toastify";
 import { auth } from "../firebase/firebase";
-import { routeIncident } from "../services/enhancedRouting";
+import { routeIncident } from "../services/incidentRouting";
 import { createChatRoom } from "../services/chatService";
 import FileUpload from '../components/Common/FileUpload';
 import { saveIncidentFilesLocally } from '../services/localFileService';
@@ -15,9 +15,7 @@ import { saveIncidentFilesLocally } from '../services/localFileService';
 export default function TrafficIncidentForm() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    // Common fields
-    fullName: "",
-    phoneNumber: "",
+    // Common fields (no fullName or phoneNumber needed)
     severityLevel: "",
     location: [9.03, 38.74], // Default to Addis Ababa
     locationDescription: "",
@@ -44,7 +42,7 @@ export default function TrafficIncidentForm() {
   const validateForm = () => {
     const newErrors = {};
     
-    // Common validations
+    // Common validations (no fullName or phoneNumber needed)
     if (!formData.severityLevel) newErrors.severityLevel = "Please select a severity level";
     if (!formData.description) newErrors.description = "Please provide a description";
     if (!formData.location) newErrors.location = "Please select a location";
@@ -88,7 +86,7 @@ export default function TrafficIncidentForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Submit button clicked');
+    console.log('Traffic form submit clicked');
     
     if (!validateForm()) {
       console.log('Form validation failed:', errors);
@@ -103,55 +101,56 @@ export default function TrafficIncidentForm() {
     }
 
     setIsSubmitting(true);
-    console.log('Starting submission process');
+    console.log('Starting traffic form submission...');
 
     try {
-      // Save files locally and get their paths
-      const localFilePaths = await saveIncidentFilesLocally(files);
-      console.log('Files saved locally:', localFilePaths);
-
+      console.log('Form data:', formData);
+      console.log('Location:', formData.location);
+      
       // Prepare incident data
       const incidentData = {
         ...formData,
-        files: localFilePaths,
         type: 'Traffic',
         status: 'pending',
-        createdAt: new Date().toISOString(),
+        createdAt: serverTimestamp(),
         userId: auth.currentUser.uid,
         location: {
           latitude: formData.location[0],
           longitude: formData.location[1]
-        }
+        },
+        files: await saveIncidentFilesLocally(files)
       };
 
-      console.log('Creating incident document:', incidentData);
+      console.log('Prepared incident data:', incidentData);
 
-      // Route the incident (this will create the document if needed)
-      const routingResult = await routeIncident(incidentData);
+      // Add the incident to Firestore
+      const docRef = await addDoc(collection(db, 'incidents'), incidentData);
+      console.log('Incident created with ID:', docRef.id);
+
+      // Route the incident to find the best responder
+      console.log('Starting incident routing...');
+      const routingResult = await routeIncident({
+        ...incidentData,
+        id: docRef.id
+      });
+      
       console.log('Routing result:', routingResult);
 
+      // Show appropriate feedback based on routing result
       if (routingResult.success) {
-        const successMessage = routingResult.responder 
-          ? `Your traffic report has been submitted successfully and assigned to ${routingResult.responder.name}.`
-          : 'Your traffic report has been submitted successfully.';
-        
-        toast.success(successMessage);
-        
-        // Wait for 2 seconds to show the success message
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Navigate to dashboard
-        navigate('/user-dashboard');
+        toast.success(routingResult.message);
+        console.log('Successfully assigned to:', routingResult.responder.name);
       } else {
-        // If no responder is available, queue the incident
-        toast.info('Your report has been submitted and is queued for assignment.');
-        
-        // Wait for 2 seconds to show the message
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Navigate to dashboard
-        navigate('/user-dashboard');
+        toast.info(routingResult.message);
+        console.log('No responder available, incident queued');
       }
+      
+      // Wait for 2 seconds to show the message
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Navigate to dashboard
+      navigate('/dashboard');
+      
     } catch (error) {
       console.error('Error submitting incident:', error);
       toast.error('Failed to submit report. Please try again.');

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firebase/firebase';
-import { FiCheckCircle, FiClock, FiAlertTriangle, FiFileText } from 'react-icons/fi';
+import { FiCheckCircle, FiClock, FiAlertTriangle, FiFileText, FiBell, FiTrendingUp, FiTarget, FiZap } from 'react-icons/fi';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
          BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import PropTypes from 'prop-types';
@@ -17,7 +17,13 @@ const DashboardHome = ({ responderData }) => {
     averageResponseTime: 0,
     recentIncidents: [],
     incidentsByType: [],
-    monthlyStats: []
+    monthlyStats: [],
+    // New metrics
+    unopenedIncidents: 0,
+    priorityIncidents: 0,
+    criticalIncidents: 0,
+    responseTimeUnder5Min: 0,
+    responseTimeOver15Min: 0
   });
 
   useEffect(() => {
@@ -37,6 +43,16 @@ const DashboardHome = ({ responderData }) => {
         return;
       }
 
+      // Get the responder's user ID - try different possible field names
+      const responderUid = responderData.uid || responderData.userId || responderData.id;
+      
+      if (!responderUid) {
+        console.log("No responder UID found:", { responderData });
+        setError('Missing responder ID');
+        setLoading(false);
+        return;
+      }
+
       // First, get all incidents for this responder type
       const incidentsQuery = query(
         collection(db, 'incidents'),
@@ -44,7 +60,8 @@ const DashboardHome = ({ responderData }) => {
       );
 
       console.log("Fetching dashboard stats with query:", {
-        responderType: responderData.specialization
+        responderType: responderData.specialization,
+        responderUid: responderUid
       });
 
       const incidentsSnap = await getDocs(incidentsQuery);
@@ -56,16 +73,33 @@ const DashboardHome = ({ responderData }) => {
 
       console.log("Fetched incidents for stats:", incidents.length);
 
-      // Filter incidents assigned to this responder
-      const assignedIncidents = incidents.filter(inc => inc.assignedTo === responderData.uid);
+      // Filter incidents assigned to this responder - try different field names
+      const assignedIncidents = incidents.filter(inc => 
+        inc.assignedTo === responderUid || 
+        inc.assignedResponderId === responderUid ||
+        inc.responderId === responderUid
+      );
       console.log("Assigned incidents:", assignedIncidents.length);
 
-      // Calculate statistics
+      // Calculate basic statistics
       const totalAssigned = assignedIncidents.length;
       const resolvedIncidents = assignedIncidents.filter(inc => inc.status === 'resolved').length;
       const pendingIncidents = assignedIncidents.filter(inc => inc.status === 'pending').length;
 
-      // Calculate average response time
+      // Calculate new priority metrics
+      const unopenedIncidents = assignedIncidents.filter(inc => 
+        inc.status === 'assigned' && !inc.viewedByResponder
+      ).length;
+
+      const priorityIncidents = assignedIncidents.filter(inc => 
+        inc.severityLevel === 'High' || inc.urgencyLevel === 'high'
+      ).length;
+
+      const criticalIncidents = assignedIncidents.filter(inc => 
+        inc.severityLevel === 'Critical' || inc.urgencyLevel === 'critical'
+      ).length;
+
+      // Calculate response time metrics
       const responseTimes = assignedIncidents
         .filter(inc => inc.startedAt && inc.createdAt)
         .map(inc => {
@@ -77,6 +111,9 @@ const DashboardHome = ({ responderData }) => {
       const averageResponseTime = responseTimes.length > 0
         ? Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length)
         : 0;
+
+      const responseTimeUnder5Min = responseTimes.filter(time => time <= 5).length;
+      const responseTimeOver15Min = responseTimes.filter(time => time > 15).length;
 
       // Get recent incidents
       const recentIncidents = [...assignedIncidents]
@@ -114,11 +151,16 @@ const DashboardHome = ({ responderData }) => {
         }
       });
 
-      console.log("Setting dashboard stats:", {
+      console.log("Setting enhanced dashboard stats:", {
         totalAssigned,
         resolvedIncidents,
         pendingIncidents,
         averageResponseTime,
+        unopenedIncidents,
+        priorityIncidents,
+        criticalIncidents,
+        responseTimeUnder5Min,
+        responseTimeOver15Min,
         recentIncidentsCount: recentIncidents.length,
         monthlyStatsCount: monthlyData.length
       });
@@ -133,7 +175,13 @@ const DashboardHome = ({ responderData }) => {
           name,
           value
         })),
-        monthlyStats: monthlyData
+        monthlyStats: monthlyData,
+        // New metrics
+        unopenedIncidents,
+        priorityIncidents,
+        criticalIncidents,
+        responseTimeUnder5Min,
+        responseTimeOver15Min
       });
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
@@ -170,15 +218,56 @@ const DashboardHome = ({ responderData }) => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-800">Dashboard Overview</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-gray-800">Dashboard Overview</h1>
+        
+        {/* Notification Badge */}
+        {stats.unopenedIncidents > 0 && (
+          <div className="flex items-center space-x-2 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+            <FiBell className="h-5 w-5 text-red-600" />
+            <span className="text-red-800 font-medium">
+              {stats.unopenedIncidents} new incident{stats.unopenedIncidents !== 1 ? 's' : ''} require{stats.unopenedIncidents === 1 ? 's' : ''} attention
+            </span>
+          </div>
+        )}
+      </div>
 
-      {/* Stats Cards */}
+      {/* Priority Alerts */}
+      {(stats.criticalIncidents > 0 || stats.priorityIncidents > 0) && (
+        <div className="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center space-x-3">
+            <FiAlertTriangle className="h-6 w-6 text-red-600" />
+            <div>
+              <h3 className="text-lg font-semibold text-red-800">Priority Incidents Require Immediate Attention</h3>
+              <div className="flex space-x-6 mt-2">
+                {stats.criticalIncidents > 0 && (
+                  <span className="text-red-700 font-medium">
+                    {stats.criticalIncidents} Critical
+                  </span>
+                )}
+                {stats.priorityIncidents > 0 && (
+                  <span className="text-orange-700 font-medium">
+                    {stats.priorityIncidents} High Priority
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Enhanced Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total Assigned</p>
               <p className="text-2xl font-semibold text-gray-900">{stats.totalAssigned}</p>
+              {stats.unopenedIncidents > 0 && (
+                <p className="text-sm text-red-600 font-medium">
+                  {stats.unopenedIncidents} unopened
+                </p>
+              )}
             </div>
             <div className="p-3 bg-green-100 rounded-full">
               <FiFileText className="h-6 w-6 text-green-600" />
@@ -191,6 +280,9 @@ const DashboardHome = ({ responderData }) => {
             <div>
               <p className="text-sm font-medium text-gray-600">Resolved Incidents</p>
               <p className="text-2xl font-semibold text-gray-900">{stats.resolvedIncidents}</p>
+              <p className="text-sm text-green-600 font-medium">
+                {stats.totalAssigned > 0 ? Math.round((stats.resolvedIncidents / stats.totalAssigned) * 100) : 0}% success rate
+              </p>
             </div>
             <div className="p-3 bg-blue-100 rounded-full">
               <FiCheckCircle className="h-6 w-6 text-blue-600" />
@@ -201,11 +293,15 @@ const DashboardHome = ({ responderData }) => {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Pending Incidents</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.pendingIncidents}</p>
+              <p className="text-sm font-medium text-gray-600">Avg Response Time</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.averageResponseTime}m</p>
+              <div className="flex space-x-2 mt-1">
+                <span className="text-xs text-green-600">≤5m: {stats.responseTimeUnder5Min}</span>
+                <span className="text-xs text-red-600">&gt;15m: {stats.responseTimeOver15Min}</span>
+              </div>
             </div>
-            <div className="p-3 bg-yellow-100 rounded-full">
-              <FiAlertTriangle className="h-6 w-6 text-yellow-600" />
+            <div className="p-3 bg-purple-100 rounded-full">
+              <FiClock className="h-6 w-6 text-purple-600" />
             </div>
           </div>
         </div>
@@ -213,12 +309,90 @@ const DashboardHome = ({ responderData }) => {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Avg. Response Time</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.averageResponseTime}min</p>
+              <p className="text-sm font-medium text-gray-600">Priority Cases</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.priorityIncidents + stats.criticalIncidents}</p>
+              <p className="text-sm text-orange-600 font-medium">
+                {stats.criticalIncidents} critical
+              </p>
             </div>
-            <div className="p-3 bg-purple-100 rounded-full">
-              <FiClock className="h-6 w-6 text-purple-600" />
+            <div className="p-3 bg-orange-100 rounded-full">
+              <FiTarget className="h-6 w-6 text-orange-600" />
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Performance Metrics */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+            <FiTrendingUp className="h-5 w-5" />
+            Response Time Performance
+          </h2>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Under 5 minutes</span>
+              <div className="flex items-center space-x-2">
+                <div className="w-32 bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-green-500 h-2 rounded-full" 
+                    style={{ width: `${stats.totalAssigned > 0 ? (stats.responseTimeUnder5Min / stats.totalAssigned) * 100 : 0}%` }}
+                  ></div>
+                </div>
+                <span className="text-sm font-medium text-gray-900">{stats.responseTimeUnder5Min}</span>
+              </div>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">5-15 minutes</span>
+              <div className="flex items-center space-x-2">
+                <div className="w-32 bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-yellow-500 h-2 rounded-full" 
+                    style={{ width: `${stats.totalAssigned > 0 ? ((stats.totalAssigned - stats.responseTimeUnder5Min - stats.responseTimeOver15Min) / stats.totalAssigned) * 100 : 0}%` }}
+                  ></div>
+                </div>
+                <span className="text-sm font-medium text-gray-900">
+                  {stats.totalAssigned - stats.responseTimeUnder5Min - stats.responseTimeOver15Min}
+                </span>
+              </div>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Over 15 minutes</span>
+              <div className="flex items-center space-x-2">
+                <div className="w-32 bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-red-500 h-2 rounded-full" 
+                    style={{ width: `${stats.totalAssigned > 0 ? (stats.responseTimeOver15Min / stats.totalAssigned) * 100 : 0}%` }}
+                  ></div>
+                </div>
+                <span className="text-sm font-medium text-gray-900">{stats.responseTimeOver15Min}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+            <FiZap className="h-5 w-5" />
+            Quick Actions
+          </h2>
+          <div className="space-y-3">
+            {stats.unopenedIncidents > 0 && (
+              <button className="w-full bg-red-600 text-white py-3 px-4 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center space-x-2">
+                <FiBell className="h-4 w-4" />
+                <span>View {stats.unopenedIncidents} Unopened Incident{stats.unopenedIncidents !== 1 ? 's' : ''}</span>
+              </button>
+            )}
+            {stats.criticalIncidents > 0 && (
+              <button className="w-full bg-orange-600 text-white py-3 px-4 rounded-lg hover:bg-orange-700 transition-colors flex items-center justify-center space-x-2">
+                <FiAlertTriangle className="h-4 w-4" />
+                <span>Handle {stats.criticalIncidents} Critical Case{stats.criticalIncidents !== 1 ? 's' : ''}</span>
+              </button>
+            )}
+            <button className="w-full bg-[#0d522c] text-white py-3 px-4 rounded-lg hover:bg-[#347752] transition-colors flex items-center justify-center space-x-2">
+              <FiFileText className="h-4 w-4" />
+              <span>View All Active Incidents</span>
+            </button>
           </div>
         </div>
       </div>

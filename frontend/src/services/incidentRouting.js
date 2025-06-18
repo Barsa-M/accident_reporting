@@ -1,11 +1,5 @@
-import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
-
-// Maximum distance in kilometers for a responder to be considered
-const MAX_DISTANCE_KM = 10;
-
-// Maximum number of active incidents a responder can handle
-const MAX_ACTIVE_INCIDENTS = 3;
 
 // Calculate distance between two points using Haversine formula
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
@@ -20,138 +14,159 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return R * c;
 };
 
-// Get responder's current load (number of active incidents)
-const getResponderLoad = async (responderId) => {
-  const incidentsRef = collection(db, 'incidents');
-  const q = query(
-    incidentsRef,
-    where('assignedResponderId', '==', responderId),
-    where('status', 'in', ['assigned', 'in_progress'])
-  );
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.size;
+// Map incident types to responder types
+const getResponderType = (incidentType) => {
+  const typeMap = {
+    'Medical': 'Medical',
+    'Fire': 'Fire', 
+    'Police': 'Police',
+    'Traffic': 'Traffic'
+  };
+  return typeMap[incidentType] || incidentType;
 };
 
 // Find the best available responder for an incident
-export const findBestResponder = async (incidentType, location) => {
+const findBestResponder = async (incidentType, incidentLocation) => {
   try {
-    // Get all available responders of the required type
+    console.log('Finding responder for:', incidentType, 'at location:', incidentLocation);
+    
+    // Get the responder type needed
+    const responderType = getResponderType(incidentType);
+    console.log('Looking for responder type:', responderType);
+    
+    // Query for available responders of the required type
     const respondersRef = collection(db, 'responders');
     const q = query(
       respondersRef,
-      where('type', '==', incidentType),
-      where('status', '==', 'available')
+      where('responderType', '==', responderType),
+      where('availabilityStatus', '==', 'available'),
+      where('applicationStatus', '==', 'approved')
     );
+    
     const querySnapshot = await getDocs(q);
+    console.log('Found available responders:', querySnapshot.docs.length);
     
-    const availableResponders = [];
-    
-    // Check each responder's load and distance
-    for (const doc of querySnapshot.docs) {
-      const responder = doc.data();
-      const responderLoad = await getResponderLoad(doc.id);
-      
-      // Skip if responder is at max capacity
-      if (responderLoad >= MAX_ACTIVE_INCIDENTS) continue;
-      
-      // Calculate distance to incident
-      const distance = calculateDistance(
-        location[0],
-        location[1],
-        responder.location.latitude,
-        responder.location.longitude
-      );
-      
-      // Skip if too far
-      if (distance > MAX_DISTANCE_KM) continue;
-      
-      availableResponders.push({
-        id: doc.id,
-        ...responder,
-        distance,
-        currentLoad: responderLoad
-      });
+    if (querySnapshot.empty) {
+      console.log('No available responders found');
+      return null;
     }
     
-    // Sort by distance and load
-    availableResponders.sort((a, b) => {
-      // First sort by load (prefer responders with lower load)
-      if (a.currentLoad !== b.currentLoad) {
-        return a.currentLoad - b.currentLoad;
+    // Calculate distances and find the closest responder
+    let bestResponder = null;
+    let shortestDistance = Infinity;
+    
+    for (const doc of querySnapshot.docs) {
+      const responder = doc.data();
+      
+      if (responder.location && incidentLocation) {
+        const distance = calculateDistance(
+          incidentLocation.latitude || incidentLocation[0],
+          incidentLocation.longitude || incidentLocation[1],
+          responder.location.latitude,
+          responder.location.longitude
+        );
+        
+        console.log(`Responder ${responder.name || responder.fullName}: ${distance}km away`);
+        
+        if (distance < shortestDistance) {
+          shortestDistance = distance;
+          bestResponder = {
+            id: doc.id,
+            ...responder,
+            distance: distance
+          };
+        }
       }
-      // Then sort by distance
-      return a.distance - b.distance;
-    });
+    }
     
-    return availableResponders[0] || null;
+    console.log('Best responder found:', bestResponder);
+    return bestResponder;
   } catch (error) {
-    console.error('Error finding best responder:', error);
-    throw error;
+    console.error('Error finding responder:', error);
+    return null;
   }
 };
 
-// Update responder's status and load
-export const updateResponderStatus = async (responderId, status) => {
-  try {
-    const responderRef = doc(db, 'responders', responderId);
-    await updateDoc(responderRef, {
-      status,
-      lastUpdated: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Error updating responder status:', error);
-    throw error;
-  }
-};
-
-// Assign incident to responder
-export const assignIncidentToResponder = async (incidentId, responderId) => {
-  try {
-    const incidentRef = doc(db, 'incidents', incidentId);
-    await updateDoc(incidentRef, {
-      assignedResponderId: responderId,
-      status: 'assigned',
-      assignedAt: new Date().toISOString()
-    });
-    
-    // Update responder's status to busy
-    await updateResponderStatus(responderId, 'busy');
-    
-    return true;
-  } catch (error) {
-    console.error('Error assigning incident:', error);
-    throw error;
-  }
-};
-
-// Handle incident routing
+// Route an incident to the best available responder
 export const routeIncident = async (incidentData) => {
   try {
-    const bestResponder = await findBestResponder(
-      incidentData.type,
-      incidentData.location
-    );
+    console.log('Starting incident routing for:', incidentData.type);
+    
+    // Find the best available responder
+    const bestResponder = await findBestResponder(incidentData.type, incidentData.location);
     
     if (!bestResponder) {
-      // No suitable responder found
+      console.log('No available responders found - incident will be queued');
       return {
         success: false,
-        message: 'No available responders in the area. Incident will be queued.',
-        incidentId: incidentData.id
+        message: 'No available responders found. Your report has been submitted and will be assigned when a responder becomes available.',
+        responder: null
       };
     }
     
-    // Assign incident to the best responder
-    await assignIncidentToResponder(incidentData.id, bestResponder.id);
+    console.log('Attempting to assign incident to:', bestResponder.name || bestResponder.fullName);
+    
+    try {
+      // Update the incident with responder assignment
+      const incidentRef = doc(db, 'incidents', incidentData.id);
+      console.log('Updating incident document:', incidentData.id);
+      
+      await updateDoc(incidentRef, {
+        status: 'assigned',
+        assignedResponderId: bestResponder.id,
+        assignedResponderName: bestResponder.name || bestResponder.fullName,
+        assignedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      
+      console.log('Incident updated successfully');
+      
+    } catch (incidentError) {
+      console.error('Error updating incident:', incidentError);
+      return {
+        success: false,
+        message: 'Failed to assign responder. Your report has been submitted and will be processed shortly.',
+        responder: null
+      };
+    }
+    
+    try {
+      // Update responder status to busy
+      const responderRef = doc(db, 'responders', bestResponder.id);
+      console.log('Updating responder document:', bestResponder.id);
+      
+      await updateDoc(responderRef, {
+        availabilityStatus: 'busy',
+        currentLoad: increment(1),
+        lastAssignedAt: serverTimestamp()
+      });
+      
+      console.log('Responder updated successfully');
+      
+    } catch (responderError) {
+      console.error('Error updating responder:', responderError);
+      // Even if responder update fails, the incident was assigned successfully
+      console.log('Responder update failed, but incident was assigned');
+    }
+    
+    console.log('Incident successfully assigned to:', bestResponder.name || bestResponder.fullName);
     
     return {
       success: true,
-      message: 'Incident assigned successfully',
-      responderId: bestResponder.id,
-      incidentId: incidentData.id
+      message: `Your report has been successfully submitted and assigned to ${bestResponder.name || bestResponder.fullName}.`,
+      responder: {
+        id: bestResponder.id,
+        name: bestResponder.name || bestResponder.fullName,
+        distance: bestResponder.distance
+      }
     };
+    
   } catch (error) {
     console.error('Error routing incident:', error);
-    throw error;
+    return {
+      success: false,
+      message: 'Failed to assign responder. Your report has been submitted and will be processed shortly.',
+      responder: null
+    };
   }
 }; 

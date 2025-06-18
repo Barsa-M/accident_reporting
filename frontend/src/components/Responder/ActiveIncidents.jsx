@@ -2,12 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase/firebase';
 import { useAuth } from '../../contexts/AuthContext';
-import { FiAlertCircle, FiMapPin, FiClock, FiUser } from 'react-icons/fi';
+import { FiAlertCircle, FiMapPin, FiClock, FiUser, FiEye } from 'react-icons/fi';
+import IncidentDetailModal from './IncidentDetailModal';
 
 const ActiveIncidents = () => {
   const { currentUser } = useAuth();
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedIncident, setSelectedIncident] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -39,6 +42,34 @@ const ActiveIncidents = () => {
     return () => unsubscribe();
   }, [currentUser]);
 
+  const formatDateTime = (dateTime) => {
+    if (!dateTime) return 'Not specified';
+    
+    try {
+      if (dateTime.toDate) {
+        return dateTime.toDate().toLocaleString();
+      } else if (typeof dateTime === 'string') {
+        return new Date(dateTime).toLocaleString();
+      } else if (dateTime instanceof Date) {
+        return dateTime.toLocaleString();
+      }
+      return 'Invalid date';
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Invalid date';
+    }
+  };
+
+  const handleViewDetails = (incident) => {
+    setSelectedIncident(incident);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setSelectedIncident(null);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -63,19 +94,28 @@ const ActiveIncidents = () => {
             {incidents.map((incident) => (
               <div key={incident.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
                 <div className="flex justify-between items-start">
-                  <div>
+                  <div className="flex-1">
                     <h3 className="text-lg font-medium text-gray-900">
                       {incident.type} Incident
                     </h3>
                     <p className="mt-1 text-sm text-gray-500">{incident.description}</p>
                   </div>
-                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                    incident.status === 'assigned' ? 'bg-blue-100 text-blue-800' :
-                    incident.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {incident.status.replace('_', ' ').toUpperCase()}
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                      incident.status === 'assigned' ? 'bg-blue-100 text-blue-800' :
+                      incident.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {incident.status.replace('_', ' ').toUpperCase()}
+                    </span>
+                    <button
+                      onClick={() => handleViewDetails(incident)}
+                      className="px-3 py-1 bg-[#0D522C] text-white text-xs rounded-md hover:bg-[#0A3F22] transition-colors flex items-center space-x-1"
+                    >
+                      <FiEye className="h-3 w-3" />
+                      <span>View Details</span>
+                    </button>
+                  </div>
                 </div>
                 
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -86,12 +126,7 @@ const ActiveIncidents = () => {
                   
                   <div className="flex items-center text-sm text-gray-500">
                     <FiClock className="mr-2" />
-                    <span>
-                      {incident.createdAt?.toDate ? 
-                        new Date(incident.createdAt.toDate()).toLocaleString() :
-                        'Time not specified'
-                      }
-                    </span>
+                    <span>{formatDateTime(incident.createdAt)}</span>
                   </div>
                   
                   {incident.severityLevel && (
@@ -126,6 +161,13 @@ const ActiveIncidents = () => {
           </div>
         )}
       </div>
+
+      {/* Incident Detail Modal */}
+      <IncidentDetailModal
+        incident={selectedIncident}
+        isOpen={isModalOpen}
+        onClose={closeModal}
+      />
     </div>
   );
 };

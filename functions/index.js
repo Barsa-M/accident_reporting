@@ -8,6 +8,7 @@ admin.initializeApp();
 const { onUserCreate } = require("./auth/onUserCreate");
 const { applyResponder } = require("./responders/applyResponder");
 const { approveResponder } = require("./responders/approveResponder");
+const { updateResponderAvailability } = require("./responders/updateAvailability");
 const {
   processEmailQueue,
   sendEmail,
@@ -54,6 +55,7 @@ exports.onUserCreate = functions.auth.user().onCreate(onUserCreate);
 // Export responder functions
 exports.applyResponder = functions.https.onCall(applyResponder);
 exports.approveResponder = functions.https.onCall(approveResponder);
+exports.updateResponderAvailability = functions.https.onCall(updateResponderAvailability);
 
 // Export email functions
 exports.processEmailQueue = processEmailQueue;

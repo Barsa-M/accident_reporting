@@ -4,12 +4,21 @@ import { auth } from '../config/firebase';
 
 // Create a new incident
 export const createIncident = async (incident) => {
-  const docRef = await addDoc(collection(db, 'incidents'), {
+  const currentUserId = auth.currentUser?.uid;
+  console.log('incidentService: Creating incident for user:', currentUserId);
+  
+  const incidentData = {
     ...incident,
     status: 'pending',
     createdAt: new Date(),
-    createdBy: auth.currentUser?.uid || null
-  });
+    createdBy: currentUserId || null,
+    userId: currentUserId || null  // Add userId field for compatibility
+  };
+  
+  console.log('incidentService: Incident data to be created:', incidentData);
+  
+  const docRef = await addDoc(collection(db, 'incidents'), incidentData);
+  console.log('incidentService: Incident created with ID:', docRef.id);
   return docRef.id;
 };
 

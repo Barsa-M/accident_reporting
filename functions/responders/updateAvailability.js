@@ -16,13 +16,22 @@ exports.updateResponderAvailability = functions.https.onCall(async (data, contex
 
     const db = admin.firestore();
     const responderId = context.auth.uid;
-    const { isAvailable, location } = data;
+    const { isAvailable, location, availabilityStatus } = data;
 
-    // Validate input
-    if (typeof isAvailable !== 'boolean') {
+    // Validate input - accept either isAvailable boolean or availabilityStatus string
+    let finalIsAvailable = isAvailable;
+    let finalAvailabilityStatus = availabilityStatus;
+
+    if (typeof isAvailable === 'boolean') {
+      finalIsAvailable = isAvailable;
+      finalAvailabilityStatus = isAvailable ? 'available' : 'unavailable';
+    } else if (availabilityStatus) {
+      finalAvailabilityStatus = availabilityStatus;
+      finalIsAvailable = availabilityStatus === 'available';
+    } else {
       throw new functions.https.HttpsError(
         'invalid-argument',
-        'isAvailable must be a boolean'
+        'Either isAvailable (boolean) or availabilityStatus (string) must be provided'
       );
     }
 
@@ -47,7 +56,7 @@ exports.updateResponderAvailability = functions.https.onCall(async (data, contex
     const responderData = responderDoc.data();
 
     // Check if responder is approved
-    if (responderData.status !== 'approved') {
+    if (responderData.status !== 'approved' && responderData.applicationStatus !== 'approved') {
       throw new functions.https.HttpsError(
         'permission-denied',
         'Only approved responders can update availability'
@@ -56,7 +65,8 @@ exports.updateResponderAvailability = functions.https.onCall(async (data, contex
 
     // Update responder availability
     const updateData = {
-      isAvailable,
+      isAvailable: finalIsAvailable,
+      availabilityStatus: finalAvailabilityStatus,
       lastUpdated: admin.firestore.FieldValue.serverTimestamp()
     };
 
@@ -68,7 +78,7 @@ exports.updateResponderAvailability = functions.https.onCall(async (data, contex
     await responderRef.update(updateData);
 
     // If responder is marking themselves as unavailable, check for pending incidents
-    if (!isAvailable) {
+    if (!finalIsAvailable) {
       const pendingIncidents = await db
         .collection('incidents')
         .where('assignedResponderId', '==', responderId)
@@ -125,7 +135,11 @@ exports.updateResponderAvailability = functions.https.onCall(async (data, contex
 
     return {
       success: true,
-      message: `Availability updated to ${isAvailable ? 'available' : 'unavailable'}`
+      message: `Availability updated to ${finalAvailabilityStatus}`,
+      data: {
+        isAvailable: finalIsAvailable,
+        availabilityStatus: finalAvailabilityStatus
+      }
     };
 
   } catch (error) {

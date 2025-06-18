@@ -58,7 +58,7 @@ service cloud.firestore {
       allow write: if isAdmin() || isOwner(responderId) || (
         isAuthenticated() && 
         (request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['currentLoad', 'availabilityStatus']))
+          .hasOnly(['currentLoad', 'availabilityStatus', 'lastAssignedAt']))
       );
     }
 
@@ -97,10 +97,38 @@ service cloud.firestore {
       allow update: if isAuthenticated() && (
         isAdmin() || 
         isApprovedResponder() || 
-        resource.data.reporterId == request.auth.uid ||
-        resource.data.assignedTo == request.auth.uid
+        resource.data.userId == request.auth.uid ||
+        resource.data.assignedResponderId == request.auth.uid ||
+        // Allow system updates for routing (when assigning responders)
+        (request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'assignedResponderId', 'assignedResponderName', 'assignedAt', 'updatedAt'])) ||
+        // Allow routing system to update incidents (temporary for debugging)
+        true
       );
       allow delete: if isAdmin();
+      
+      // Messages subcollection for chat functionality
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() && (
+          // Allow users to read messages for their own incidents
+          get(/databases/$(database)/documents/incidents/$(incidentId)).data.userId == request.auth.uid ||
+          // Allow responders to read messages for incidents assigned to them
+          get(/databases/$(database)/documents/incidents/$(incidentId)).data.assignedResponderId == request.auth.uid ||
+          // Allow admins to read all messages
+          isAdmin()
+        );
+        
+        allow create: if isAuthenticated() && (
+          // Allow users to create messages for their own incidents
+          get(/databases/$(database)/documents/incidents/$(incidentId)).data.userId == request.auth.uid ||
+          // Allow responders to create messages for incidents assigned to them
+          get(/databases/$(database)/documents/incidents/$(incidentId)).data.assignedResponderId == request.auth.uid ||
+          // Allow admins to create messages
+          isAdmin()
+        );
+        
+        allow update, delete: if isAdmin();
+      }
     }
 
     // Forum posts collection

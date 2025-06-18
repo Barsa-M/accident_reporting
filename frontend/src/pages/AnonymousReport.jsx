@@ -1,19 +1,25 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, storage } from "../firebase/firebase";
+import { db, storage, auth } from "../firebase/firebase";
 import IncidentFormFields from "../components/Common/IncidentFormFields";
 import Navigation from "../components/Navigation";
 import Footer from "../components/Footer";
 import { toast } from "react-toastify";
-import { routeIncident } from "../services/enhancedRouting";
+import { routeIncident } from "../services/incidentRouting";
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { saveIncidentFilesLocally } from "../services/fileStorage";
 
 export default function AnonymousReport() {
   const navigate = useNavigate();
   const [files, setFiles] = useState([]);
+  const [currentLocation, setCurrentLocation] = useState([9.03, 38.74]); // Default to Addis Ababa
+  const mapRef = useRef(null);
+  const markerRef = useRef(null);
   const [formData, setFormData] = useState({
-    // Common fields
+    // Common fields (no fullName or phoneNumber needed)
     severityLevel: "",
     description: "",
     location: [9.03, 38.74], // Default to Addis Ababa
@@ -32,9 +38,56 @@ export default function AnonymousReport() {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Initialize map
+  useEffect(() => {
+    if (!mapRef.current) {
+      mapRef.current = L.map("map", {
+        center: currentLocation,
+        zoom: 13,
+        minZoom: 8,
+        maxZoom: 16,
+      });
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }).addTo(mapRef.current);
+
+      markerRef.current = L.marker(currentLocation, { draggable: true }).addTo(mapRef.current);
+
+      markerRef.current.on("dragend", (event) => {
+        const newLocation = event.target.getLatLng();
+        const location = [newLocation.lat, newLocation.lng];
+        setCurrentLocation(location);
+        handleLocationSelect(location);
+      });
+
+      const bounds = [
+        [3.4, 33.0], // South-West
+        [15.0, 48.0], // North-East
+      ];
+      mapRef.current.setMaxBounds(bounds);
+      mapRef.current.on("drag", () => {
+        mapRef.current.panInsideBounds(bounds, { animate: false });
+      });
+    }
+
+    if (markerRef.current) {
+      markerRef.current.setLatLng(currentLocation);
+      mapRef.current.panTo(currentLocation);
+    }
+  }, [currentLocation]);
+
+  const handleLocationSelect = (location) => {
+    setFormData(prev => ({
+      ...prev,
+      location
+    }));
+  };
+
   const validateForm = () => {
     const newErrors = {};
-    // Common field validations
+    // Common field validations (no fullName or phoneNumber for anonymous reports)
     if (!formData.severityLevel) newErrors.severityLevel = "Please select a severity level";
     if (!formData.description) newErrors.description = "Please provide a description";
     if (!formData.location) newErrors.location = "Please select a location";
@@ -53,74 +106,71 @@ export default function AnonymousReport() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleLocationSelect = (location) => {
-    setFormData(prev => ({
-      ...prev,
-      location
-    }));
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('Anonymous form submit clicked');
     
     if (!validateForm()) {
+      console.log('Form validation failed:', errors);
       toast.error('Please fill in all required fields');
       return;
     }
 
     setIsSubmitting(true);
+    console.log('Starting anonymous form submission...');
 
     try {
+      console.log('AnonymousReport: Current user:', auth.currentUser);
+      console.log('AnonymousReport: Current user UID:', auth.currentUser?.uid);
+      console.log('Form data:', formData);
+      console.log('Location:', formData.location);
+      
       // Prepare incident data
       const incidentData = {
         ...formData,
         type: formData.incidentType,
         status: 'pending',
-        createdAt: new Date().toISOString(),
+        createdAt: serverTimestamp(),
         isAnonymous: true,
+        // Include userId if user is authenticated (for history tracking)
+        ...(auth.currentUser && { userId: auth.currentUser.uid }),
         location: {
           latitude: formData.location[0],
           longitude: formData.location[1]
         },
-        files: files.map(file => ({
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          url: file.url
-        }))
+        files: await saveIncidentFilesLocally(files)
       };
+
+      console.log('AnonymousReport: Prepared incident data:', incidentData);
 
       // Add the incident to Firestore
       const docRef = await addDoc(collection(db, 'incidents'), incidentData);
+      console.log('Incident created with ID:', docRef.id);
 
-      // Now route the incident with the document ID
+      // Route the incident to find the best responder
+      console.log('Starting incident routing...');
       const routingResult = await routeIncident({
         ...incidentData,
         id: docRef.id
       });
+      
+      console.log('Routing result:', routingResult);
 
+      // Show appropriate feedback based on routing result
       if (routingResult.success) {
-        const successMessage = routingResult.responder 
-          ? `Your anonymous report has been submitted successfully and assigned to ${routingResult.responder.name}.`
-          : 'Your anonymous report has been submitted successfully.';
-        
-        toast.success(successMessage);
-        
-        // Wait for 2 seconds to show the success message
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Navigate to home
-        navigate('/');
+        toast.success(routingResult.message);
+        console.log('Successfully assigned to:', routingResult.responder.name);
       } else {
-        // If no responder is available, queue the incident
-        toast.info('Your report has been submitted and is queued for assignment.');
-        
-        // Wait for 2 seconds to show the message
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Navigate to home
-        navigate('/');
+        toast.info(routingResult.message);
+        console.log('No responder available, incident queued');
       }
+      
+      // Wait for 2 seconds to show the message
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Navigate to home
+      navigate('/');
+      
     } catch (error) {
       console.error('Error submitting incident:', error);
       toast.error('Failed to submit report. Please try again.');
@@ -142,17 +192,99 @@ export default function AnonymousReport() {
               </p>
 
               <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Common Fields */}
-                <IncidentFormFields
-                  formData={formData}
-                  setFormData={setFormData}
-                  errors={errors}
-                  incidentType="Anonymous"
-                  onLocationSelect={handleLocationSelect}
-                  isSubmitting={isSubmitting}
-                  files={files}
-                  setFiles={setFiles}
-                />
+                {/* Custom Fields for Anonymous Report (without name and phone) */}
+                <div className="space-y-6">
+                  {/* Severity Level */}
+                  <div>
+                    <label className="block text-sm font-medium text-[#0d522c] mb-2">
+                      Severity Level *
+                    </label>
+                    <div className="flex space-x-6">
+                      {['Low', 'Medium', 'High'].map((level) => (
+                        <label key={level} className="inline-flex items-center">
+                          <input
+                            type="radio"
+                            name="severityLevel"
+                            value={level}
+                            checked={formData.severityLevel === level}
+                            onChange={(e) => setFormData(prev => ({ ...prev, severityLevel: e.target.value }))}
+                            className="w-4 h-4 text-[#0d522c] border-[#0d522c]/20 focus:ring-[#0d522c]"
+                            required
+                          />
+                          <span className="ml-2 text-[#0d522c]">{level}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {errors.severityLevel && (
+                      <p className="mt-1 text-sm text-red-600">{errors.severityLevel}</p>
+                    )}
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label className="block text-sm font-medium text-[#0d522c] mb-1">
+                      Description *
+                    </label>
+                    <textarea
+                      name="description"
+                      value={formData.description || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                      rows="4"
+                      className={`w-full px-4 py-2 rounded-lg border ${
+                        errors.description ? 'border-red-500' : 'border-[#0d522c]/20'
+                      } focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
+                      placeholder="Describe the incident in detail"
+                      required
+                    />
+                    {errors.description && (
+                      <p className="mt-1 text-sm text-red-600">{errors.description}</p>
+                    )}
+                  </div>
+
+                  {/* Location */}
+                  <div>
+                    <label className="block text-sm font-medium text-[#0d522c] mb-1">
+                      Location *
+                    </label>
+                    <div id="map" className="h-64 rounded-lg overflow-hidden border border-[#0d522c]/20 mb-2"></div>
+                    <div className="text-sm text-[#0d522c] font-medium mb-2">
+                      Coordinates: {currentLocation[0].toFixed(6)}, {currentLocation[1].toFixed(6)}
+                    </div>
+                    <input
+                      type="text"
+                      name="locationDescription"
+                      value={formData.locationDescription || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, locationDescription: e.target.value }))}
+                      placeholder="Enter detailed location description (optional)"
+                      className={`w-full px-4 py-2 rounded-lg border ${
+                        errors.locationDescription ? 'border-red-500' : 'border-[#0d522c]/20'
+                      } focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
+                    />
+                    {errors.locationDescription && (
+                      <p className="mt-1 text-sm text-red-600">{errors.locationDescription}</p>
+                    )}
+                  </div>
+
+                  {/* Date & Time */}
+                  <div>
+                    <label className="block text-sm font-medium text-[#0d522c] mb-1">
+                      Date & Time of Incident *
+                    </label>
+                    <input
+                      type="datetime-local"
+                      name="incidentDateTime"
+                      value={formData.incidentDateTime || new Date().toISOString().slice(0, 16)}
+                      onChange={(e) => setFormData(prev => ({ ...prev, incidentDateTime: e.target.value }))}
+                      className={`w-full px-4 py-2 rounded-lg border ${
+                        errors.incidentDateTime ? 'border-red-500' : 'border-[#0d522c]/20'
+                      } focus:ring-2 focus:ring-[#0d522c] focus:border-[#0d522c] transition-colors bg-white/50`}
+                      required
+                    />
+                    {errors.incidentDateTime && (
+                      <p className="mt-1 text-sm text-red-600">{errors.incidentDateTime}</p>
+                    )}
+                  </div>
+                </div>
 
                 {/* Incident Type Selection */}
                 <div>
@@ -299,4 +431,4 @@ export default function AnonymousReport() {
       <Footer />
     </div>
   );
-} 
+}
