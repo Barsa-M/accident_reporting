@@ -2,11 +2,11 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth, db } from "../firebase/firebase";
-import { doc, getDoc, collection, query, onSnapshot, addDoc, deleteDoc, updateDoc, serverTimestamp, arrayUnion } from "firebase/firestore";
+import { doc, getDoc, collection, query, onSnapshot, addDoc, deleteDoc, updateDoc, serverTimestamp, arrayUnion, increment } from "firebase/firestore";
 import UserSidebar from "../components/UserSidebar";
 import { format } from "date-fns";
-import { FiHeart, FiMessageSquare, FiTrash2, FiMoreVertical, FiUser, FiClock, FiCornerDownRight, FiChevronDown, FiChevronUp, FiAlertCircle } from "react-icons/fi";
-import { toast } from "react-toastify";
+import { FiHeart, FiMessageSquare, FiTrash2, FiMoreVertical, FiUser, FiClock, FiCornerDownRight, FiChevronDown, FiChevronUp, FiAlertCircle, FiFlag, FiX } from "react-icons/fi";
+import { toast } from "react-hot-toast";
 
 export default function ForumDiscussion() {
   const [user] = useAuthState(auth);
@@ -23,6 +23,9 @@ export default function ForumDiscussion() {
   const [expandedPosts, setExpandedPosts] = useState({});
   const [expandedReplies, setExpandedReplies] = useState({});
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [flagModal, setFlagModal] = useState({ show: false, postId: null, postTitle: '' });
+  const [flagReason, setFlagReason] = useState('');
+  const [flaggingPost, setFlaggingPost] = useState(false);
 
   const navigate = useNavigate();
 
@@ -433,6 +436,66 @@ export default function ForumDiscussion() {
     }));
   };
 
+  const openFlagModal = (postId, postTitle) => {
+    setFlagModal({ show: true, postId, postTitle });
+    setFlagReason('');
+  };
+
+  const closeFlagModal = () => {
+    setFlagModal({ show: false, postId: null, postTitle: '' });
+    setFlagReason('');
+  };
+
+  const handleFlagPost = async () => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+
+    if (!flagReason.trim()) {
+      toast.error('Please provide a reason for flagging this post');
+      return;
+    }
+
+    setFlaggingPost(true);
+    try {
+      // First, get the post document to ensure it exists
+      const postRef = doc(db, 'forum_posts', flagModal.postId);
+      const postDoc = await getDoc(postRef);
+      
+      if (!postDoc.exists()) {
+        toast.error('Post not found');
+        return;
+      }
+
+      const flagData = {
+        postId: flagModal.postId,
+        postTitle: flagModal.postTitle,
+        reason: flagReason.trim(),
+        flaggedBy: user.uid,
+        flaggedByName: userData?.name || user.displayName || 'Anonymous User',
+        flaggedAt: serverTimestamp(),
+        status: 'pending' // pending admin review
+      };
+
+      // Add flag to flags collection
+      await addDoc(collection(db, 'forum_flags'), flagData);
+
+      // Update the post's flag count using increment
+      await updateDoc(postRef, {
+        flagCount: increment(1)
+      });
+
+      toast.success('Post flagged successfully. Our team will review it.');
+      closeFlagModal();
+    } catch (error) {
+      console.error('Error flagging post:', error);
+      toast.error('Failed to flag post. Please try again.');
+    } finally {
+      setFlaggingPost(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen bg-white">
@@ -536,6 +599,7 @@ export default function ForumDiscussion() {
                     </div>
                   )}
 
+                  {/* Post Actions */}
                   <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
                     <div className="flex items-center space-x-8">
                       <button
@@ -557,6 +621,14 @@ export default function ForumDiscussion() {
                       >
                         <FiMessageSquare className="w-5 h-5" />
                         <span>Add Comment</span>
+                      </button>
+                      <button
+                        onClick={() => openFlagModal(post.id, post.title)}
+                        className="flex items-center space-x-1 text-[#0d522c] hover:text-red-600"
+                        title="Flag this post"
+                      >
+                        <FiFlag className="w-5 h-5" />
+                        <span>Flag</span>
                       </button>
                     </div>
                     <button
@@ -844,6 +916,55 @@ export default function ForumDiscussion() {
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Flag Modal */}
+      {flagModal.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-800">Flag Post</h2>
+              <button
+                onClick={closeFlagModal}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <FiX className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <p className="text-gray-600 mb-4">
+                Please provide a reason for flagging "<strong>{flagModal.postTitle}</strong>":
+              </p>
+              
+              <textarea
+                value={flagReason}
+                onChange={(e) => setFlagReason(e.target.value)}
+                placeholder="Explain why you're flagging this post..."
+                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0d522c] resize-none"
+                rows="4"
+                maxLength="500"
+              />
+              
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  onClick={closeFlagModal}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                  disabled={flaggingPost}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleFlagPost}
+                  disabled={flaggingPost || !flagReason.trim()}
+                  className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {flaggingPost ? 'Flagging...' : 'Submit Flag'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

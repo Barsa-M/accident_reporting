@@ -161,8 +161,24 @@ service cloud.firestore {
     match /forum_posts/{postId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && (isAdmin() || isOwner(resource.data.userId));
+      allow update: if isAuthenticated() && (
+        isAdmin() || 
+        isOwner(resource.data.userId) ||
+        // Allow any authenticated user to update flagCount
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['flagCount']))
+      );
       allow delete: if isAdmin() || isOwner(resource.data.userId);
+    }
+
+    // Forum flags collection
+    match /forum_flags/{flagId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        isAdmin() || 
+        resource.data.flaggedBy == request.auth.uid
+      );
+      allow delete: if isAdmin();
     }
 
     // Post likes collection
