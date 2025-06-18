@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, getDocs, doc, updateDoc, deleteDoc, where, orderBy } from 'firebase/firestore';
+import { collection, query, getDocs, doc, updateDoc, deleteDoc, where, orderBy, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase/firebase';
 import { FiFlag, FiLock, FiUnlock, FiTrash2, FiEye, FiSearch, FiFilter, FiX, FiMessageSquare } from 'react-icons/fi';
 import { toast } from 'react-toastify';
@@ -145,8 +145,14 @@ const ForumModeration = () => {
       const { post, action } = actionModal;
       
       if (action === 'remove') {
+        // Fetch the post before deleting
+        const postRef = doc(db, 'forum_posts', post.postId);
+        const postDoc = await getDoc(postRef);
+        const postData = postDoc.exists() ? postDoc.data() : null;
+        const postAuthorId = postData?.userId;
+
         // Delete the post
-        await deleteDoc(doc(db, 'forum_posts', post.postId));
+        await deleteDoc(postRef);
         
         // Update all flags for this post to resolved
         const flagsQuery = query(
@@ -166,6 +172,18 @@ const ForumModeration = () => {
         
         await Promise.all(updatePromises);
         
+        // Send notification to post author
+        if (postAuthorId) {
+          await addDoc(collection(db, 'notifications'), {
+            userId: postAuthorId,
+            type: 'forum_activity',
+            title: 'Your forum post was removed',
+            message: `Your post titled "${post.postTitle}" was removed by an admin. Reason: ${actionMessage}`,
+            createdAt: serverTimestamp(),
+            read: false
+          });
+        }
+
         toast.success('Post removed and users notified');
       } else if (action === 'ignore') {
         // Update all flags for this post to resolved
