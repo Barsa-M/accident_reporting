@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, getDocs, updateDoc, doc, deleteDoc, orderBy, where, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, getDocs, updateDoc, doc, deleteDoc, orderBy, where, addDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase/firebase';
 import { FiCheckCircle, FiX, FiEye, FiTrash2, FiShield, FiZap, FiHeart, FiMessageSquare, FiShare2, FiUser, FiAlertCircle, FiXCircle, FiEdit2, FiFlag, FiSend } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
@@ -20,6 +20,29 @@ const SafetyTipsManagement = () => {
 
   useEffect(() => {
     fetchSafetyTips();
+  }, []);
+
+  // Real-time listener for new flags
+  useEffect(() => {
+    const flagsQuery = query(
+      collection(db, 'flags'),
+      where('status', '==', 'pending'),
+      orderBy('flaggedAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(flagsQuery, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          const flagData = change.doc.data();
+          toast.success(`New flagged tip: "${flagData.tipTitle}" - ${flagData.reason}`, {
+            duration: 5000,
+            position: 'top-right'
+          });
+        }
+      });
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const fetchSafetyTips = async () => {
@@ -92,7 +115,12 @@ const SafetyTipsManagement = () => {
   const handleDelete = async (tipId) => {
     if (window.confirm('Are you sure you want to delete this safety tip? This action cannot be undone.')) {
       try {
-        await deleteDoc(doc(db, 'safety_tips', tipId));
+        // Instead of deleting, mark as deleted with reason
+        await updateDoc(doc(db, 'safety_tips', tipId), {
+          status: 'deleted',
+          deletedAt: serverTimestamp(),
+          adminReason: 'Post removed by admin for violating community guidelines.'
+        });
         toast.success('Safety tip deleted successfully');
         fetchSafetyTips();
       } catch (error) {
@@ -128,8 +156,12 @@ const SafetyTipsManagement = () => {
       const { tip, action } = actionModal;
 
       if (action === 'delete') {
-        // Delete the tip
-        await deleteDoc(doc(db, 'safety_tips', tip.tipId));
+        // Mark the tip as deleted instead of actually deleting it
+        await updateDoc(doc(db, 'safety_tips', tip.tipId), {
+          status: 'deleted',
+          deletedAt: serverTimestamp(),
+          adminReason: deleteReason
+        });
         
         // Update all flags for this tip to resolved
         const tipFlagsQuery = query(collection(db, 'flags'), where('tipId', '==', tip.tipId));

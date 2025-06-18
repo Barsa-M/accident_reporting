@@ -86,7 +86,11 @@ const Tips = ({ onClose, responderData }) => {
         verifiedAt: null,
         files: processedFiles,
         flags: [],
-        flagCount: 0
+        flagCount: 0,
+        likes: 0,
+        comments: 0,
+        shares: 0,
+        likedBy: []
       };
       console.log('Submitting tip data:', tipData);
       

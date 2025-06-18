@@ -48,6 +48,7 @@ const MediaDisplay = ({
           }`}
           onClick={handleFullscreen}
           onError={handleImageError}
+          style={{ maxWidth: '100%', maxHeight: '100%' }}
         />
       );
     }
@@ -100,7 +101,7 @@ const MediaDisplay = ({
 
   return (
     <div className={`relative group ${className}`}>
-      <div className={`w-full overflow-hidden rounded-lg shadow-sm`}>
+      <div className="w-full h-full overflow-hidden rounded-lg shadow-sm">
         {renderMedia()}
       </div>
       {showControls && !imageError && (
