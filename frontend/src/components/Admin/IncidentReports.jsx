@@ -91,7 +91,7 @@ const IncidentReports = () => {
         } catch (error) {
           console.error('Error processing anonymous report data:', error, doc.id);
           return {
-            id: doc.id,
+        id: doc.id,
             source: 'anonymous_reports',
             createdAt: new Date(),
             updatedAt: null,
@@ -200,15 +200,14 @@ const IncidentReports = () => {
       // Update responder's current load
       try {
         await updateDoc(doc(db, 'responders', responderId), {
-          currentLoad: increment(1),
-          lastAssignedAt: new Date()
+          currentLoad: increment(1)
         });
       } catch (responderError) {
         console.error('Error updating responder load:', responderError);
         // Don't fail the assignment if responder update fails
       }
       
-      toast.success(`Incident assigned to ${responder.name || responder.fullName}`);
+      toast.success('Responder assigned successfully');
       fetchIncidents();
     } catch (error) {
       console.error('Error assigning responder:', error);
@@ -358,8 +357,31 @@ const IncidentReports = () => {
 
   const formatDate = (date) => {
     if (!date) return 'N/A';
-    const d = date instanceof Date ? date : new Date(date);
-    return format(d, 'MMM dd, yyyy HH:mm');
+    
+    try {
+      let d;
+      if (date instanceof Date) {
+        d = date;
+      } else if (date && typeof date === 'object' && date.seconds) {
+        // Firestore timestamp
+        d = new Date(date.seconds * 1000);
+      } else if (date && typeof date === 'object' && date.toDate) {
+        // Firestore timestamp with toDate method
+        d = date.toDate();
+      } else {
+        d = new Date(date);
+      }
+      
+      // Check if the date is valid
+      if (isNaN(d.getTime())) {
+        return 'Invalid Date';
+      }
+      
+      return format(d, 'MMM dd, yyyy HH:mm');
+    } catch (error) {
+      console.error('Error formatting date:', error, date);
+      return 'Invalid Date';
+    }
   };
 
   const formatLocation = (location) => {
@@ -452,7 +474,8 @@ const IncidentReports = () => {
 
   const getUserInfo = (userId) => {
     if (!userId) return null;
-    return users.find(user => user.id === userId);
+    const user = users.find(user => user.id === userId);
+    return user || null;
   };
 
   // Get responders filtered by incident type
@@ -507,13 +530,13 @@ const IncidentReports = () => {
               Refresh
             </button>
             
-            <button
-              onClick={exportToCSV}
+        <button
+          onClick={exportToCSV}
               className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-[#0d522c] hover:bg-[#347752] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0d522c]"
-            >
+        >
               <FiDownload className="h-4 w-4 mr-2" />
-              Export Report
-            </button>
+          Export Report
+        </button>
           </div>
         </div>
       </div>
@@ -595,65 +618,65 @@ const IncidentReports = () => {
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          <div className="relative">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="relative">
             <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search incidents..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+          <input
+            type="text"
+            placeholder="Search incidents..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0d522c] focus:border-transparent"
-            />
-          </div>
+          />
+        </div>
 
-          <div className="relative">
+        <div className="relative">
             <FiFilter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0d522c] focus:border-transparent"
-            >
-              <option value="all">All Types</option>
+          >
+            <option value="all">All Types</option>
               <option value="medical">Medical</option>
-              <option value="fire">Fire</option>
+            <option value="fire">Fire</option>
               <option value="police">Police</option>
               <option value="traffic">Traffic</option>
               <option value="natural disaster">Natural Disaster</option>
-            </select>
-          </div>
+          </select>
+        </div>
 
-          <div className="relative">
+        <div className="relative">
             <FiFilter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0d522c] focus:border-transparent"
-            >
-              <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="assigned">Assigned</option>
-              <option value="in_progress">In Progress</option>
-              <option value="resolved">Resolved</option>
+          >
+            <option value="all">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="assigned">Assigned</option>
+            <option value="in_progress">In Progress</option>
+            <option value="resolved">Resolved</option>
               <option value="cancelled">Cancelled</option>
-            </select>
-          </div>
+          </select>
+        </div>
 
-          <input
-            type="date"
-            value={dateRange.start}
-            onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+        <input
+          type="date"
+          value={dateRange.start}
+          onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0d522c] focus:border-transparent"
             placeholder="Start Date"
-          />
+        />
 
-          <input
-            type="date"
-            value={dateRange.end}
-            onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+        <input
+          type="date"
+          value={dateRange.end}
+          onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0d522c] focus:border-transparent"
             placeholder="End Date"
-          />
+        />
         </div>
       </div>
 
@@ -710,12 +733,12 @@ const IncidentReports = () => {
                   
                   return (
                     <tr key={incident.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className="flex-shrink-0">
                             <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getTypeBadgeColor(incidentType)}`}>
                               {incidentType}
-                            </span>
+                      </span>
                           </div>
                           <div className="ml-3">
                             <div className="text-sm font-medium text-gray-900">
@@ -727,49 +750,57 @@ const IncidentReports = () => {
                             )}
                           </div>
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
                           <FiMapPin className="h-4 w-4 text-gray-400 mr-2" />
                           <div>
                             <span className="text-sm text-gray-900">{getLocationDisplay(incident.location).text}</span>
                             {getLocationDisplay(incident.location).hasCoordinates && (
                               <div className="text-xs text-gray-500">
-                                {getLocationDisplay(incident.location).coordinates}
+                                <a 
+                                  href={`https://www.google.com/maps?q=${getLocationDisplay(incident.location).coordinates}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[#0d522c] hover:text-[#347752] underline"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {getLocationDisplay(incident.location).coordinates}
+                                </a>
                               </div>
                             )}
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getStatusBadgeColor(incident.status)}`}>
                           {incident.status || 'Unknown'}
-                        </span>
-                      </td>
+                      </span>
+                    </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">
-                          {userInfo ? userInfo.name || userInfo.displayName || 'Unknown User' : 'Anonymous'}
+                          {incident.userId ? (userInfo ? userInfo.name || userInfo.displayName || 'Unknown User' : 'User Not Found') : 'Anonymous Reporter'}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {userInfo ? userInfo.email : 'No email'}
+                          {incident.userId && userInfo ? userInfo.email : 'No email available'}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatDate(incident.createdAt)}
-                      </td>
+                    </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button
-                          onClick={() => {
-                            setSelectedIncident(incident);
-                            setIsDetailsModalOpen(true);
-                          }}
+                      <button
+                        onClick={() => {
+                          setSelectedIncident(incident);
+                          setIsDetailsModalOpen(true);
+                        }}
                           className="text-[#0d522c] hover:text-[#347752] p-1"
                           title="View Details"
-                        >
+                      >
                           <FiEye className="h-4 w-4" />
-                        </button>
-                      </td>
-                    </tr>
+                      </button>
+                    </td>
+                  </tr>
                   );
                 })
               )}
@@ -888,15 +919,14 @@ const IncidentReports = () => {
                           <span className="font-medium">{getLocationDisplay(selectedIncident.location).text}</span>
                           {getLocationDisplay(selectedIncident.location).hasCoordinates && (
                             <div className="text-xs text-gray-500 mt-1">
-                              {getLocationDisplay(selectedIncident.location).coordinates}
-                              <br />
                               <a 
                                 href={`https://www.google.com/maps?q=${getLocationDisplay(selectedIncident.location).coordinates}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-[#0d522c] hover:text-[#347752] underline"
+                                onClick={(e) => e.stopPropagation()}
                               >
-                                View on Google Maps
+                                {getLocationDisplay(selectedIncident.location).coordinates}
                               </a>
                             </div>
                           )}
@@ -915,7 +945,7 @@ const IncidentReports = () => {
                     </div>
                   </div>
 
-                  <div>
+              <div>
                     <h3 className="font-medium text-gray-700 mb-3">Incident Details</h3>
                     <div className="bg-gray-50 rounded-lg p-4 space-y-3">
                       <div className="flex justify-between">
@@ -923,8 +953,8 @@ const IncidentReports = () => {
                         <span className="font-medium text-right max-w-xs">
                           {selectedIncident.description || selectedIncident.details || 'No description provided'}
                         </span>
-                      </div>
-                      
+                </div>
+
                       {/* Show all form fields that might be present */}
                       {selectedIncident.severityLevel && (
                         <div className="flex justify-between">
@@ -1087,25 +1117,25 @@ const IncidentReports = () => {
                     </div>
                   </div>
 
-                  {selectedIncident.mediaUrls && selectedIncident.mediaUrls.length > 0 && (
+                {selectedIncident.mediaUrls && selectedIncident.mediaUrls.length > 0 && (
                     <div>
                       <h3 className="font-medium text-gray-700 mb-3">Media Attachments</h3>
                       <div className="grid grid-cols-2 gap-3">
-                        {selectedIncident.mediaUrls.map((url, index) => (
-                          <img
-                            key={index}
-                            src={url}
-                            alt={`Incident media ${index + 1}`}
-                            className="w-full h-32 object-cover rounded-lg"
+                      {selectedIncident.mediaUrls.map((url, index) => (
+                        <img
+                          key={index}
+                          src={url}
+                          alt={`Incident media ${index + 1}`}
+                          className="w-full h-32 object-cover rounded-lg"
                             onError={(e) => {
                               e.target.style.display = 'none';
                             }}
-                          />
-                        ))}
+                        />
+                      ))}
                       </div>
                     </div>
-                  )}
-                </div>
+                )}
+              </div>
 
                 <div className="space-y-6">
                   <div>
@@ -1128,26 +1158,40 @@ const IncidentReports = () => {
                                 <span className="text-gray-500">Phone:</span>
                                 <span className="font-medium">{userInfo.phone || 'No phone'}</span>
                               </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">User ID:</span>
+                                <span className="font-medium text-sm">{selectedIncident.userId}</span>
+                              </div>
                             </div>
                           ) : (
-                            <p className="text-gray-500">User information not available</p>
+                            <div className="space-y-2">
+                              <p className="text-gray-500">User information not available</p>
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">User ID:</span>
+                                <span className="font-medium text-sm">{selectedIncident.userId}</span>
+                              </div>
+                              <p className="text-xs text-gray-400">User may have been deleted or account is inactive</p>
+                            </div>
                           );
                         })()
                       ) : (
-                        <p className="text-gray-500">Anonymous report - no user information available</p>
+                        <div className="space-y-2">
+                          <p className="text-gray-500 font-medium">Anonymous Report</p>
+                          <p className="text-xs text-gray-400">This report was submitted anonymously - no user information is available</p>
+                        </div>
                       )}
                     </div>
                   </div>
 
                   {/* Currently Assigned Responder */}
                   {selectedIncident.assignedResponderId && (
-                    <div>
+              <div>
                       <h3 className="font-medium text-gray-700 mb-3">Assigned Responder</h3>
                       <div className="bg-green-50 rounded-lg p-4 border border-green-200">
                         {(() => {
                           const assignedResponder = availableResponders.find(r => r.id === selectedIncident.assignedResponderId);
                           return assignedResponder ? (
-                            <div className="space-y-2">
+                  <div className="space-y-2">
                               <div className="flex justify-between">
                                 <span className="text-gray-500">Name:</span>
                                 <span className="font-medium text-green-800">{assignedResponder.name || assignedResponder.fullName || 'Unknown'}</span>
@@ -1174,15 +1218,6 @@ const IncidentReports = () => {
                                   <span className="font-medium">{formatDate(selectedIncident.assignedAt)}</span>
                                 </div>
                               )}
-                              
-                              <div className="pt-2 border-t border-green-200">
-                                <button
-                                  onClick={() => handleUnassignResponder(selectedIncident.id, selectedIncident.source)}
-                                  className="w-full px-3 py-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm font-medium transition-colors"
-                                >
-                                  Unassign Responder
-                                </button>
-                              </div>
                             </div>
                           ) : (
                             <div className="text-center">
@@ -1195,7 +1230,7 @@ const IncidentReports = () => {
                     </div>
                   )}
 
-                  <div>
+                        <div>
                     <h3 className="font-medium text-gray-700 mb-3">Assign Responder</h3>
                     {(() => {
                       const incidentType = selectedIncident.type || selectedIncident.incidentType;
@@ -1220,22 +1255,22 @@ const IncidentReports = () => {
                                     {responder.location.address || `${responder.location.latitude?.toFixed(4)}, ${responder.location.longitude?.toFixed(4)}`}
                                   </p>
                                 )}
-                              </div>
-                              <button
+                        </div>
+                        <button
                                 onClick={() => handleAssignResponder(selectedIncident.id, responder.id, selectedIncident.source)}
                                 className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
                                   selectedIncident.assignedResponderId === responder.id 
                                     ? 'bg-green-100 text-green-800 cursor-default' 
                                     : 'bg-[#0d522c] text-white hover:bg-[#347752]'
                                 }`}
-                                disabled={selectedIncident.assignedResponderId === responder.id}
-                              >
+                          disabled={selectedIncident.assignedResponderId === responder.id}
+                        >
                                 {selectedIncident.assignedResponderId === responder.id ? '✓ Assigned' : 'Assign'}
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
                         <div className="text-center py-4">
                           <p className="text-gray-500 mb-2">No available {incidentType} responders</p>
                           <p className="text-xs text-gray-400">All {incidentType} responders are currently busy or unavailable</p>
@@ -1247,41 +1282,37 @@ const IncidentReports = () => {
                   <div>
                     <h3 className="font-medium text-gray-700 mb-3">Update Status</h3>
                     <div className="space-y-3">
-                      <select
+                <select
                         value={selectedIncident.status || 'pending'}
                         onChange={(e) => handleUpdateStatus(selectedIncident.id, e.target.value, selectedIncident.source)}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0d522c] focus:border-transparent"
-                      >
-                        <option value="pending">Pending</option>
-                        <option value="assigned">Assigned</option>
-                        <option value="in_progress">In Progress</option>
-                        <option value="on_scene">On Scene</option>
-                        <option value="resolved">Resolved</option>
-                        <option value="cancelled">Cancelled</option>
-                        <option value="escalated">Escalated</option>
-                      </select>
+                >
+                  <option value="pending">Pending</option>
+                  <option value="assigned">Assigned</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
                       
                       <div className="text-xs text-gray-500">
                         <p><strong>Pending:</strong> Incident reported, waiting for assignment</p>
                         <p><strong>Assigned:</strong> Responder assigned, en route</p>
                         <p><strong>In Progress:</strong> Responder actively handling</p>
-                        <p><strong>On Scene:</strong> Responder arrived at location</p>
                         <p><strong>Resolved:</strong> Incident successfully handled</p>
                         <p><strong>Cancelled:</strong> Incident cancelled or false alarm</p>
-                        <p><strong>Escalated:</strong> Incident requires additional resources</p>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-              
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={() => setIsDetailsModalOpen(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                >
-                  Close
-                </button>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setIsDetailsModalOpen(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Close
+              </button>
               </div>
             </div>
           </div>

@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { FiAlertCircle, FiMapPin, FiClock, FiUser, FiEye } from 'react-icons/fi';
 import IncidentDetailModal from './IncidentDetailModal';
+import { useSearchParams } from 'react-router-dom';
 
 const ActiveIncidents = () => {
   const { currentUser } = useAuth();
+  const [searchParams] = useSearchParams();
   const [incidents, setIncidents] = useState([]);
+  const [filteredIncidents, setFilteredIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedIncident, setSelectedIncident] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('');
 
   useEffect(() => {
     if (!currentUser) return;
@@ -60,6 +64,44 @@ const ActiveIncidents = () => {
     };
   }, [currentUser]);
 
+  useEffect(() => {
+    // Get filter from URL parameters
+    const filter = searchParams.get('filter');
+    setActiveFilter(filter || '');
+  }, [searchParams]);
+
+  // Filter incidents based on active filter
+  useEffect(() => {
+    let filtered = [...incidents];
+
+    switch (activeFilter) {
+      case 'unopened':
+        filtered = incidents.filter(inc => {
+          const isActive = ['assigned', 'in_progress', 'pending'].includes(inc.status);
+          const notViewed = !inc.viewedByResponder && !inc.viewedAt;
+          return isActive && notViewed;
+        });
+        break;
+      case 'critical':
+        filtered = incidents.filter(inc => {
+          const severity = (inc.severityLevel || inc.severity || '').toLowerCase();
+          const urgency = (inc.urgencyLevel || inc.urgency || '').toLowerCase();
+          const priority = (inc.priority || '').toLowerCase();
+          const level = (inc.level || '').toLowerCase();
+          
+          return severity === 'critical' || 
+                 urgency === 'critical' || 
+                 priority === 'critical' ||
+                 level === 'critical';
+        });
+        break;
+      default:
+        filtered = incidents;
+    }
+
+    setFilteredIncidents(filtered);
+  }, [incidents, activeFilter]);
+
   const formatDateTime = (dateTime) => {
     if (!dateTime) return 'Not specified';
     
@@ -78,9 +120,33 @@ const ActiveIncidents = () => {
     }
   };
 
-  const handleViewDetails = (incident) => {
+  const handleViewDetails = async (incident) => {
     setSelectedIncident(incident);
     setIsModalOpen(true);
+    
+    // Mark incident as viewed if it hasn't been viewed yet
+    if (!incident.viewedByResponder && !incident.viewedAt) {
+      try {
+        const incidentRef = doc(db, incident.source, incident.id);
+        await updateDoc(incidentRef, {
+          viewedByResponder: true,
+          viewedAt: new Date()
+        });
+        
+        // Update local state
+        setIncidents(prevIncidents => 
+          prevIncidents.map(inc => 
+            inc.id === incident.id 
+              ? { ...inc, viewedByResponder: true, viewedAt: new Date() }
+              : inc
+          )
+        );
+        
+        console.log('Incident marked as viewed:', incident.id);
+      } catch (error) {
+        console.error('Error marking incident as viewed:', error);
+      }
+    }
   };
 
   const closeModal = () => {
@@ -99,17 +165,41 @@ const ActiveIncidents = () => {
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-4">Active Incidents</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-semibold text-gray-900">
+            Active Incidents
+            {activeFilter && (
+              <span className="ml-2 text-sm font-normal text-gray-500">
+                ({activeFilter === 'unopened' ? 'Unopened' : activeFilter === 'critical' ? 'Critical' : activeFilter})
+              </span>
+            )}
+          </h2>
+          {activeFilter && (
+            <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
+              {activeFilter === 'unopened' ? 'Unopened Filter' : 
+               activeFilter === 'critical' ? 'Critical Filter' : 
+               activeFilter}
+            </span>
+          )}
+        </div>
         
-        {incidents.length === 0 ? (
+        {filteredIncidents.length === 0 ? (
           <div className="text-center py-8">
             <FiAlertCircle className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No active incidents</h3>
-            <p className="mt-1 text-sm text-gray-500">You don't have any active incidents assigned to you.</p>
+            <h3 className="mt-2 text-sm font-medium text-gray-900">
+              {activeFilter === 'unopened' ? 'No unopened incidents' :
+               activeFilter === 'critical' ? 'No critical incidents' :
+               'No active incidents'}
+            </h3>
+            <p className="mt-1 text-sm text-gray-500">
+              {activeFilter === 'unopened' ? 'You have viewed all your assigned incidents.' :
+               activeFilter === 'critical' ? 'No critical incidents are currently assigned to you.' :
+               'You don\'t have any active incidents assigned to you.'}
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
-            {incidents.map((incident) => (
+            {filteredIncidents.map((incident) => (
               <div key={incident.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">

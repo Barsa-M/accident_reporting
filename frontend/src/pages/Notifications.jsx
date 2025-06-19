@@ -3,6 +3,7 @@ import { collection, query, where, orderBy, onSnapshot, getDocs, addDoc, updateD
 import { auth, db } from '../firebase/firebase';
 import { markAllNotificationsAsRead, markNotificationAsRead } from '../firebase/notifications';
 import { toast } from 'react-hot-toast';
+import { Link } from 'react-router-dom';
 import { 
   FiBell, 
   FiCheck, 
@@ -19,7 +20,9 @@ import {
   FiCheckSquare,
   FiMessageSquare,
   FiShield,
-  FiX
+  FiX,
+  FiArrowLeft,
+  FiHome
 } from 'react-icons/fi';
 
 const NOTIFICATION_TYPES = {
@@ -295,6 +298,24 @@ const Notifications = () => {
               </div>
               
               <div className="flex items-center space-x-3">
+                {/* Navigation buttons */}
+                <div className="flex items-center space-x-2">
+                  <Link
+                    to="/dashboard"
+                    className="flex items-center space-x-2 px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
+                  >
+                    <FiArrowLeft className="w-4 h-4" />
+                    <span>Dashboard</span>
+                  </Link>
+                  <Link
+                    to="/"
+                    className="flex items-center space-x-2 px-3 py-2 bg-[#0d522c] text-white rounded-lg hover:bg-[#B9E4C9] hover:text-[#0d522c] transition-colors text-sm"
+                  >
+                    <FiHome className="w-4 h-4" />
+                    <span>Homepage</span>
+                  </Link>
+                </div>
+                
                 <button 
                   onClick={() => setShowPreferences(!showPreferences)}
                   className="flex items-center space-x-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"

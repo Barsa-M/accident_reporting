@@ -8,7 +8,7 @@ import AvailabilityStatus from '../components/Responder/AvailabilityStatus';
 import SidebarResponder from '../components/SidebarResponder';
 import ActiveIncidents from '../components/Responder/ActiveIncidents';
 import ResponderProfile from '../components/Responder/ResponderProfile';
-import ResponderStats from '../components/Responder/ResponderStats';
+import Statistics from '../components/Responder/Statistics';
 import ResponderChat from '../components/Responder/ResponderChat';
 import SafetyTipsManagement from '../components/Responder/SafetyTipsManagement';
 import IncidentHistory from './IncidentHistory';
@@ -90,7 +90,7 @@ const ResponderDashboard = () => {
               <Route path="/profile" element={<ResponderProfile />} />
               <Route path="/chat" element={<ResponderChat />} />
               <Route path="/incident-history" element={<IncidentHistory />} />
-              <Route path="/stats" element={<ResponderStats />} />
+              <Route path="/stats" element={<Statistics responderData={responderData} />} />
               <Route path="/safety-tips" element={<SafetyTipsManagement responderData={responderData} />} />
             </Routes>
           </div>

@@ -78,20 +78,46 @@ const DashboardHome = () => {
         };
       });
 
-      // Calculate incidents by type
-      const incidentsByType = incidents.reduce((acc, doc) => {
-        const type = doc.type || 'Unknown';
+      // Calculate incidents by type - only include the four official types
+      const officialIncidentTypes = ['Fire', 'Medical', 'Traffic', 'Police'];
+      
+      const incidentsByType = incidents.reduce((acc, incident) => {
+        let type = incident.type || 'Unknown';
+        
+        // Normalize and categorize incident types
+        type = type.toLowerCase();
+        
+        // Map various possible values to official types
+        if (type.includes('fire') || type.includes('flame') || type.includes('smoke')) {
+          type = 'Fire';
+        } else if (type.includes('medical') || type.includes('health') || type.includes('ambulance') || type.includes('injury') || type.includes('accident')) {
+          type = 'Medical';
+        } else if (type.includes('traffic') || type.includes('vehicle') || type.includes('car') || type.includes('road')) {
+          type = 'Traffic';
+        } else if (type.includes('police') || type.includes('crime') || type.includes('theft') || type.includes('assault') || type.includes('harassment') || type.includes('vandalism') || type.includes('burglary') || type.includes('robbery') || type.includes('domestic') || type.includes('disturbance')) {
+          type = 'Police';
+        } else {
+          // If it doesn't match any official type, skip it
+          return acc;
+        }
+        
         acc[type] = (acc[type] || 0) + 1;
         return acc;
       }, {});
 
-      // Transform for pie chart
-      const incidentTypeData = Object.entries(incidentsByType)
-        .map(([name, value]) => ({
-          name,
-          value
-        }))
-        .filter(item => item.name !== 'Unknown' || item.value > 0);
+      // Debug logging to see what types are being captured
+      console.log('Incidents by type breakdown:', incidentsByType);
+      console.log('Official incident types:', officialIncidentTypes);
+
+      // Transform for pie chart - only include official types that have data
+      const incidentTypeData = officialIncidentTypes
+        .filter(type => incidentsByType[type] && incidentsByType[type] > 0)
+        .map(type => ({
+          name: type,
+          value: incidentsByType[type]
+        }));
+
+      console.log('Final incident type data for pie chart:', incidentTypeData);
 
       // Get recent incidents
       const recentIncidents = incidents
@@ -184,7 +210,7 @@ const DashboardHome = () => {
     );
   }
 
-  const COLORS = ['#0d522c', '#347752', '#B9E4C9', '#2E8B57', '#90EE90'];
+  const COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4']; // Fire, Medical, Traffic, Police
 
   return (
     <div className="space-y-6">

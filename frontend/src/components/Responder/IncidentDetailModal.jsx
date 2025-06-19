@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { FiX, FiMapPin, FiClock, FiUser, FiAlertCircle, FiFile, FiPhone, FiMail, FiMessageCircle, FiCheckCircle } from 'react-icons/fi';
+import { FiX, FiMapPin, FiClock, FiUser, FiAlertCircle, FiFile, FiPhone, FiMail, FiMessageCircle, FiCheckCircle, FiExternalLink } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -13,6 +13,9 @@ const IncidentDetailModal = ({ incident, isOpen, onClose, onStatusUpdate }) => {
   const [loading, setLoading] = useState(false);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
+
+  // Check if this is a resolved incident
+  const isResolved = incident?.status === 'resolved';
 
   useEffect(() => {
     if (incident?.userId) {
@@ -143,6 +146,11 @@ const IncidentDetailModal = ({ incident, isOpen, onClose, onStatusUpdate }) => {
     }
     
     return 'Location not specified';
+  };
+
+  const getGoogleMapsUrl = (location) => {
+    if (!location || !location.latitude || !location.longitude) return null;
+    return `https://www.google.com/maps?q=${location.latitude},${location.longitude}`;
   };
 
   const handleStatusUpdate = async (newStatus) => {
@@ -506,14 +514,30 @@ const IncidentDetailModal = ({ incident, isOpen, onClose, onStatusUpdate }) => {
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-[#0d522c] to-[#347752] text-white">
           <div>
-            <h2 className="text-2xl font-bold">{incident.type} Incident</h2>
-            <div className="flex items-center gap-3 mt-2">
-              <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium bg-white/20 backdrop-blur-sm border border-white/30`}>
-                {incident.status === 'in_progress' ? <FiAlertCircle className="w-4 h-4" /> : incident.status === 'resolved' ? <FiCheckCircle className="w-4 h-4" /> : <FiX className="w-4 h-4" />}
-                {incident.status.replace('_', ' ').toUpperCase()}
-              </span>
-              <span className="text-sm opacity-90">ID: #{incident.id}</span>
-            </div>
+            {isResolved ? (
+              <>
+                <h2 className="text-2xl font-bold">Resolved Incident Report</h2>
+                <div className="flex items-center gap-3 mt-2">
+                  <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium bg-green-500/20 backdrop-blur-sm border border-green-300/30">
+                    <FiCheckCircle className="w-4 h-4" />
+                    RESOLVED
+                  </span>
+                  <span className="text-sm opacity-90">ID: #{incident.id}</span>
+                  <span className="text-sm opacity-90">• {incident.type} Incident</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="text-2xl font-bold">{incident.type} Incident</h2>
+                <div className="flex items-center gap-3 mt-2">
+                  <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium bg-white/20 backdrop-blur-sm border border-white/30`}>
+                    {incident.status === 'in_progress' ? <FiAlertCircle className="w-4 h-4" /> : incident.status === 'resolved' ? <FiCheckCircle className="w-4 h-4" /> : <FiX className="w-4 h-4" />}
+                    {incident.status.replace('_', ' ').toUpperCase()}
+                  </span>
+                  <span className="text-sm opacity-90">ID: #{incident.id}</span>
+                </div>
+              </>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -533,7 +557,13 @@ const IncidentDetailModal = ({ incident, isOpen, onClose, onStatusUpdate }) => {
                 <h3 className="text-xl font-semibold text-[#0d522c] mb-4">Incident Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Type</label>
+                    <label className="text-sm font-medium text-gray-600">Report Type</label>
+                    <p className="text-[#0d522c] font-semibold text-lg">
+                      {incident.isAnonymous ? 'Anonymous Report' : 'Verified Report'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Incident Type</label>
                     <p className="text-[#0d522c] font-semibold text-lg">{incident.type}</p>
                   </div>
                   <div>
@@ -541,19 +571,19 @@ const IncidentDetailModal = ({ incident, isOpen, onClose, onStatusUpdate }) => {
                     <p className="text-[#0d522c] font-semibold text-lg">{incident.severityLevel}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Date & Time</label>
+                    <label className="text-sm font-medium text-gray-600">Date Reported</label>
                     <p className="text-[#0d522c] font-semibold">{formatDateTime(incident.incidentDateTime)}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Status</label>
+                    <label className="text-sm font-medium text-gray-600">Current Status</label>
                     <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${incident.status === 'in_progress' ? 'bg-orange-100 text-orange-800 border-orange-200' : incident.status === 'resolved' ? 'bg-green-100 text-green-800 border-green-200' : 'bg-red-100 text-red-800 border-red-200'}`}>
                       {incident.status === 'in_progress' ? <FiAlertCircle className="w-4 h-4" /> : incident.status === 'resolved' ? <FiCheckCircle className="w-4 h-4" /> : <FiX className="w-4 h-4" />}
-                      {incident.status.replace('_', ' ').toUpperCase()}
+                      {incident.status === 'resolved' ? 'RESOLVED' : incident.status.replace('_', ' ').toUpperCase()}
                     </span>
                   </div>
                 </div>
                 <div className="mt-6">
-                  <label className="text-sm font-medium text-gray-600">Description</label>
+                  <label className="text-sm font-medium text-gray-600">Incident Description</label>
                   <p className="text-[#0d522c] mt-2 bg-white/50 p-4 rounded-lg border border-[#0d522c]/10">
                     {incident.description}
                   </p>
@@ -570,14 +600,38 @@ const IncidentDetailModal = ({ incident, isOpen, onClose, onStatusUpdate }) => {
               <div className="bg-gradient-to-br from-[#0d522c]/5 to-[#347752]/5 rounded-xl p-6 border border-[#0d522c]/10">
                 <h3 className="text-xl font-semibold text-[#0d522c] mb-4 flex items-center gap-2">
                   <FiMapPin className="w-5 h-5" />
-                  Location
+                  Incident Location
                 </h3>
                 <div id="incident-map" className="h-80 rounded-lg overflow-hidden border border-[#0d522c]/20 shadow-lg"></div>
-                {incident.locationDescription && (
-                  <p className="text-sm text-[#0d522c] mt-3 bg-white/50 p-3 rounded-lg border border-[#0d522c]/10">
-                    <strong>Location Description:</strong> {incident.locationDescription}
-                  </p>
-                )}
+                <div className="mt-4 space-y-3">
+                  {incident.locationDescription && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">Location Description</label>
+                      <p className="text-[#0d522c] mt-1 bg-white/50 p-3 rounded-lg border border-[#0d522c]/10">
+                        {incident.locationDescription}
+                      </p>
+                    </div>
+                  )}
+                  {incident.location && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">Coordinates</label>
+                      <p className="text-[#0d522c] font-mono text-sm mt-1">
+                        {formatLocation(incident.location)}
+                      </p>
+                      {getGoogleMapsUrl(incident.location) && (
+                        <a
+                          href={getGoogleMapsUrl(incident.location)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                        >
+                          <FiExternalLink className="w-4 h-4" />
+                          View on Google Maps
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Attached Files */}
@@ -785,36 +839,65 @@ const IncidentDetailModal = ({ incident, isOpen, onClose, onStatusUpdate }) => {
                 )}
               </div>
 
-              {/* Actions */}
-              <div className="bg-gradient-to-br from-[#0d522c]/5 to-[#347752]/5 rounded-xl p-6 border border-[#0d522c]/10">
-                <h3 className="text-xl font-semibold text-[#0d522c] mb-4">Actions</h3>
-                <div className="space-y-4">
-                  <button
-                    onClick={openChat}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                  >
-                    <FiMessageCircle className="w-4 h-4" />
-                    Chat with Reporter
-                  </button>
-                  
-                  <div className="space-y-3">
+              {/* Actions - Only show for non-resolved incidents */}
+              {!isResolved && (
+                <div className="bg-gradient-to-br from-[#0d522c]/5 to-[#347752]/5 rounded-xl p-6 border border-[#0d522c]/10">
+                  <h3 className="text-xl font-semibold text-[#0d522c] mb-4">Actions</h3>
+                  <div className="space-y-4">
                     <button
-                      onClick={() => handleStatusUpdate('in_progress')}
-                      disabled={loading || incident.status === 'in_progress'}
-                      className="w-full px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 font-medium"
+                      onClick={openChat}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
                     >
-                      Start Response
+                      <FiMessageCircle className="w-4 h-4" />
+                      Chat with Reporter
                     </button>
-                    <button
-                      onClick={() => handleStatusUpdate('resolved')}
-                      disabled={loading || incident.status === 'resolved'}
-                      className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 font-medium"
-                    >
-                      Mark Resolved
-                    </button>
+                    
+                    <div className="space-y-3">
+                      <button
+                        onClick={() => handleStatusUpdate('in_progress')}
+                        disabled={loading || incident.status === 'in_progress'}
+                        className="w-full px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 font-medium"
+                      >
+                        Start Response
+                      </button>
+                      <button
+                        onClick={() => handleStatusUpdate('resolved')}
+                        disabled={loading || incident.status === 'resolved'}
+                        className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 font-medium"
+                      >
+                        Mark Resolved
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
+
+              {/* Resolved Incident Summary */}
+              {isResolved && (
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
+                  <h3 className="text-xl font-semibold text-green-800 mb-4 flex items-center gap-2">
+                    <FiCheckCircle className="w-5 h-5" />
+                    Incident Resolution Summary
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="bg-white/70 rounded-lg p-4 border border-green-200">
+                      <p className="text-green-800 text-sm">
+                        This incident has been successfully resolved and is now archived for reference purposes.
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-green-700">Resolution Date</label>
+                      <p className="text-green-800 font-semibold">
+                        {incident.resolvedAt ? formatDateTime(incident.resolvedAt) : 'Not recorded'}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-green-700">Report ID</label>
+                      <p className="text-green-800 font-mono text-sm">#{incident.id}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

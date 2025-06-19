@@ -14,6 +14,7 @@ export default function ReportHistory() {
   const [unreadCounts, setUnreadCounts] = useState({});
   const [filters, setFilters] = useState({
     incidentType: "",
+    
     status: "",
     sortBy: "",
   });
@@ -161,6 +162,21 @@ export default function ReportHistory() {
     }
   };
 
+  const getUrgencyColor = (urgency) => {
+    switch (urgency?.toLowerCase()) {
+      case 'high':
+        return 'bg-red-100 text-red-800';
+      case 'medium':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'low':
+        return 'bg-green-100 text-green-800';
+      case 'critical':
+        return 'bg-red-200 text-red-900';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
   // Helper function to get coordinates from location object
   const getLocationCoordinates = (location) => {
     if (!location) return null;
@@ -189,7 +205,7 @@ export default function ReportHistory() {
     const coordinates = getLocationCoordinates(report.location);
     const description = report.locationDescription || 
                        (report.location && typeof report.location === 'object' && report.location.address) ||
-                       '';
+                       'Location not specified';
     
     return { coordinates, description };
   };
@@ -197,6 +213,9 @@ export default function ReportHistory() {
   const filteredReports = reports
     .filter((report) =>
       filters.incidentType ? (report.type || report.incidentType) === filters.incidentType : true
+    )
+    .filter((report) =>
+      
     )
     .filter((report) =>
       filters.status ? report.status === filters.status : true
@@ -301,79 +320,91 @@ export default function ReportHistory() {
             <p className="text-gray-500">You haven't submitted any incident reports yet.</p>
           </div>
         ) : (
-        <div className="bg-white rounded-xl shadow-md border border-[#0d522c]/10">
-          <table className="table-auto w-full text-[#0D522C] border-collapse">
-            <thead>
-              <tr className="bg-[#0D522C] text-white">
-                <th className="border px-4 py-2">
-                  Report ID
-                  <button
-                    onClick={() =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        sortBy: prev.sortBy === "id" ? "" : "id",
-                      }))
-                    }
-                  >
-                    <img src={DropdownIcon} alt="Sort" className="h-4 w-4 inline ml-2 hover:invert hover:brightness-0" />
-                  </button>
-                </th>
-                <th className="border px-4 py-2">
-                  Incident Type
-                  <DropdownFilter
-                    options={["All", "Fire", "Medical", "Traffic", "Police"]}
-                    selected={filters.incidentType}
-                    onChange={(value) =>
-                      setFilters((prev) => ({ ...prev, incidentType: value }))
-                    }
-                  />
-                </th>
-                <th className="border px-4 py-2">
-                  Reported Time
-                  <button
-                    onClick={() =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        sortBy: prev.sortBy === "reportedTime" ? "" : "reportedTime",
-                      }))
-                    }
-                  >
-                    <img src={DropdownIcon} alt="Sort" className="h-4 w-4 inline ml-2 hover:invert hover:brightness-0" />
-                  </button>
-                </th>
-                <th className="border px-4 py-2">
-                  Location
-                  <button
-                    onClick={() =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        sortBy: prev.sortBy === "location" ? "" : "location",
-                      }))
-                    }
-                  >
-                    <img src={DropdownIcon} alt="Sort" className="h-4 w-4 inline ml-2 hover:invert hover:brightness-0" />
-                  </button>
-                </th>
-                <th className="border px-4 py-2">
-                  Status
-                  <DropdownFilter
+          <div className="bg-white rounded-xl shadow-md border border-[#0d522c]/10">
+            <table className="table-auto w-full text-[#0D522C] border-collapse">
+              <thead>
+                <tr className="bg-[#0D522C] text-white">
+                  <th className="border px-4 py-2">
+                    Report ID
+                    <button
+                      onClick={() =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          sortBy: prev.sortBy === "id" ? "" : "id",
+                        }))
+                      }
+                    >
+                      <img src={DropdownIcon} alt="Sort" className="h-4 w-4 inline ml-2 hover:invert hover:brightness-0" />
+                    </button>
+                  </th>
+                  <th className="border px-4 py-2">
+                    Incident Type
+                    <DropdownFilter
+                      options={["All", "Fire", "Medical", "Traffic", "Police"]}
+                      selected={filters.incidentType}
+                      onChange={(value) =>
+                        setFilters((prev) => ({ ...prev, incidentType: value }))
+                      }
+                    />
+                  </th>
+                  <th className="border px-4 py-2">
+                    Urgency
+                    <DropdownFilter
+                      options={["All", "Low", "Medium", "High"]}
+                      selected={filters.urgency}
+                      onChange={(value) =>
+                        setFilters((prev) => ({ ...prev, urgency: value }))
+                      }
+                    />
+                  </th>
+                  <th className="border px-4 py-2">
+                    Reported Time
+                    <button
+                      onClick={() =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          sortBy: prev.sortBy === "reportedTime" ? "" : "reportedTime",
+                        }))
+                      }
+                    >
+                      <img src={DropdownIcon} alt="Sort" className="h-4 w-4 inline ml-2 hover:invert hover:brightness-0" />
+                    </button>
+                  </th>
+                  <th className="border px-4 py-2">
+                    Location
+                    <button
+                      onClick={() =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          sortBy: prev.sortBy === "location" ? "" : "location",
+                        }))
+                      }
+                    >
+                      <img src={DropdownIcon} alt="Sort" className="h-4 w-4 inline ml-2 hover:invert hover:brightness-0" />
+                    </button>
+                  </th>
+                  <th className="border px-4 py-2">
+                    Status
+                    <DropdownFilter
                       options={["All", "Resolved", "In Progress", "Pending", "Assigned"]}
-                    selected={filters.status}
-                    onChange={(value) =>
-                      setFilters((prev) => ({ ...prev, status: value }))
-                    }
-                  />
-                </th>
+                      selected={filters.status}
+                      onChange={(value) =>
+                        setFilters((prev) => ({ ...prev, status: value }))
+                      }
+                    />
+                  </th>
                   <th className="border px-4 py-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+                </tr>
+              </thead>
+              <tbody>
                 {filteredReports.map((report, index) => {
                   // Debug: Log the actual report data
                   console.log(`ReportHistory: Rendering report ${index}:`, {
                     id: report.id,
                     type: report.type,
                     incidentType: report.incidentType,
+                    urgencyLevel: report.urgencyLevel,
+                    urgency: report.urgency,
                     status: report.status,
                     locationDescription: report.locationDescription,
                     location: report.location,
@@ -384,6 +415,11 @@ export default function ReportHistory() {
                     <tr key={`${report.id}-${index}`} className="hover:bg-gray-50">
                       <td className="border px-4 py-2 font-mono text-sm">{report.id.slice(-8)}</td>
                       <td className="border px-4 py-2">{report.type || report.incidentType || 'Not specified'}</td>
+                      <td className="border px-4 py-2">
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getUrgencyColor(report.urgencyLevel || report.urgency)}`}>
+                          {report.urgencyLevel || report.urgency || 'Not specified'}
+                        </span>
+                      </td>
                       <td className="border px-4 py-2 text-sm">
                         <div className="flex items-center gap-1">
                           <FiClock className="w-3 h-3" />
@@ -394,9 +430,7 @@ export default function ReportHistory() {
                         <div className="flex items-center gap-1">
                           <FiMapPin className="w-3 h-3" />
                           <div className="text-sm">
-                            {formatLocationDisplay(report).description && (
-                              <span>{formatLocationDisplay(report).description}</span>
-                            )}
+                            <span>{formatLocationDisplay(report).description}</span>
                             {formatLocationDisplay(report).coordinates && (
                               <div className="mt-1">
                                 <a
@@ -419,15 +453,15 @@ export default function ReportHistory() {
                           {report.status?.replace('_', ' ').toUpperCase() || 'PENDING'}
                         </span>
                       </td>
-                  <td className="border px-4 py-2 text-center">
+                      <td className="border px-4 py-2 text-center">
                         <div className="flex items-center justify-center gap-2">
                           <button 
                             className="bg-[#438F64] hover:bg-[#55ad7b] text-white px-3 py-1 rounded-md text-sm flex items-center gap-1"
                             title="View Details"
                           >
                             <FiEye className="w-3 h-3" />
-                      View
-                    </button>
+                            View
+                          </button>
                           <Link
                             to={`/chat?incidentId=${report.id}`}
                             className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-md text-sm flex items-center gap-1 relative"
@@ -441,14 +475,45 @@ export default function ReportHistory() {
                               </div>
                             )}
                           </Link>
+                          {report.assignedResponderId && (
+                            <Link
+                              to={`/chat?incidentId=${report.id}`}
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-sm flex items-center gap-1 relative"
+                              title="Chat with Responder"
+                            >
+                              <FiMessageCircle className="w-3 h-3" />
+                              Chat
+                              {unreadCounts[report.id] > 0 && (
+                                <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                                  {unreadCounts[report.id]}
+                                </div>
+                              )}
+                            </Link>
+                          )}
+                          {!report.assignedResponderId && (
+                            <Link
+                              to={`/chat?incidentId=${report.id}`}
+                              className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded-md text-sm flex items-center gap-1"
+                              title="Start Chat (will be visible when assigned)"
+                            >
+                              <FiMessageCircle className="w-3 h-3" />
+                              Start Chat
+                            </Link>
+                          )}
+                          {unreadCounts[report.id] > 0 && !report.assignedResponderId && (
+                            <div className="flex items-center gap-1 text-xs text-red-600">
+                              <FiBell className="w-3 h-3" />
+                              <span>{unreadCounts[report.id]} new</span>
+                            </div>
+                          )}
                         </div>
-                  </td>
-                </tr>
+                      </td>
+                    </tr>
                   );
                 })}
-            </tbody>
-          </table>
-        </div>
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

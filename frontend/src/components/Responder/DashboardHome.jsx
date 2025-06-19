@@ -25,7 +25,14 @@ const DashboardHome = ({ responderData }) => {
     priorityIncidents: 0,
     criticalIncidents: 0,
     responseTimeUnder5Min: 0,
-    responseTimeOver15Min: 0
+    responseTimeOver15Min: 0,
+    // Peer ranking
+    peerRanking: {
+      rank: 0,
+      totalPeers: 0,
+      category: '',
+      performance: ''
+    }
   });
 
   const navigate = useNavigate();
@@ -161,6 +168,9 @@ const DashboardHome = ({ responderData }) => {
       const responseTimeUnder5Min = responseTimes.filter(time => time <= 5).length;
       const responseTimeOver15Min = responseTimes.filter(time => time > 15).length;
 
+      // Calculate peer ranking
+      const peerRanking = await calculatePeerRanking(responderData.specialization, resolvedIncidents, averageResponseTime);
+
       // Get recent incidents
       const recentIncidents = [...allIncidents]
         .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
@@ -206,7 +216,8 @@ const DashboardHome = ({ responderData }) => {
         responseTimeOver15Min,
         totalDistanceTraveled,
         recentIncidentsCount: recentIncidents.length,
-        monthlyStatsCount: monthlyData.length
+        monthlyStatsCount: monthlyData.length,
+        peerRanking
       });
 
       setStats({
@@ -223,7 +234,8 @@ const DashboardHome = ({ responderData }) => {
         priorityIncidents,
         criticalIncidents,
         responseTimeUnder5Min,
-        responseTimeOver15Min
+        responseTimeOver15Min,
+        peerRanking
       });
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
@@ -231,6 +243,124 @@ const DashboardHome = ({ responderData }) => {
       toast.error('Failed to load dashboard statistics');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Calculate peer ranking based on resolved incidents and response time
+  const calculatePeerRanking = async (responderType, resolvedIncidents, averageResponseTime) => {
+    try {
+      // Get all responders of the same type
+      const respondersQuery = query(
+        collection(db, 'responders'),
+        where('responderType', '==', responderType),
+        where('applicationStatus', '==', 'approved')
+      );
+      
+      const respondersSnap = await getDocs(respondersQuery);
+      const responders = respondersSnap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      // Get incidents for all responders of this type
+      const collections = ['incidents', 'anonymous_reports'];
+      let allResponderIncidents = [];
+
+      for (const responder of responders) {
+        for (const collectionName of collections) {
+          try {
+            const incidentsQuery = query(
+              collection(db, collectionName),
+              where('assignedResponderId', '==', responder.id)
+            );
+            
+            const incidentsSnap = await getDocs(incidentsQuery);
+            const incidents = incidentsSnap.docs.map(doc => ({
+              id: doc.id,
+              responderId: responder.id,
+              ...doc.data()
+            }));
+            
+            allResponderIncidents = [...allResponderIncidents, ...incidents];
+          } catch (error) {
+            console.log(`Failed to fetch incidents for responder ${responder.id} from ${collectionName}:`, error);
+          }
+        }
+      }
+
+      // Calculate performance metrics for each responder
+      const responderPerformance = [];
+      
+      for (const responder of responders) {
+        const responderIncidents = allResponderIncidents.filter(inc => inc.responderId === responder.id);
+        const resolved = responderIncidents.filter(inc => inc.status === 'resolved').length;
+        
+        // Calculate average response time for this responder
+        const responseTimes = responderIncidents
+          .filter(inc => inc.status === 'resolved' && inc.startedAt && inc.resolvedAt)
+          .map(inc => {
+            try {
+              const startTime = inc.startedAt?.toDate?.() || new Date(inc.startedAt);
+              const resolvedTime = inc.resolvedAt?.toDate?.() || new Date(inc.resolvedAt);
+              return Math.floor((resolvedTime - startTime) / (1000 * 60));
+            } catch (error) {
+              return null;
+            }
+          })
+          .filter(time => time !== null && time >= 0);
+        
+        const avgResponseTime = responseTimes.length > 0
+          ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length
+          : 0;
+
+        responderPerformance.push({
+          id: responder.id,
+          resolved,
+          avgResponseTime,
+          // Calculate a performance score (higher is better)
+          performanceScore: resolved * 10 - avgResponseTime // More resolved incidents and faster response = higher score
+        });
+      }
+
+      // Sort by performance score (descending)
+      responderPerformance.sort((a, b) => b.performanceScore - a.performanceScore);
+
+      // Find current responder's rank
+      const currentResponderRank = responderPerformance.findIndex(
+        perf => perf.id === (responderData.uid || responderData.userId || responderData.id)
+      );
+
+      const rank = currentResponderRank >= 0 ? currentResponderRank + 1 : responders.length;
+      const totalPeers = responders.length;
+
+      // Determine performance category
+      let performance = '';
+      if (rank === 1) {
+        performance = 'Top Performer';
+      } else if (rank <= Math.ceil(totalPeers * 0.25)) {
+        performance = 'Excellent';
+      } else if (rank <= Math.ceil(totalPeers * 0.5)) {
+        performance = 'Good';
+      } else if (rank <= Math.ceil(totalPeers * 0.75)) {
+        performance = 'Average';
+      } else {
+        performance = 'Needs Improvement';
+      }
+
+      return {
+        rank,
+        totalPeers,
+        category: responderType,
+        performance
+      };
+    } catch (error) {
+      console.error('Error calculating peer ranking:', error);
+      return {
+        rank: 0,
+        totalPeers: 0,
+        category: responderType,
+        performance: 'Calculating...'
+      };
     }
   };
 
@@ -377,14 +507,21 @@ const DashboardHome = ({ responderData }) => {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Distance</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.totalDistanceTraveled}km</p>
-              <p className="text-sm text-orange-600 font-medium">
-                {stats.priorityIncidents + stats.criticalIncidents} priority cases
+              <p className="text-sm font-medium text-gray-600">Peer Ranking</p>
+              <p className="text-2xl font-semibold text-gray-900">
+                #{stats.peerRanking.rank || 'N/A'}
               </p>
+              <p className="text-sm text-blue-600 font-medium">
+                {stats.peerRanking.performance || 'Calculating...'}
+              </p>
+              {stats.peerRanking.totalPeers > 0 && (
+                <p className="text-xs text-gray-500">
+                  of {stats.peerRanking.totalPeers} {stats.peerRanking.category} responders
+                </p>
+              )}
             </div>
-            <div className="p-3 bg-orange-100 rounded-full">
-              <FiTarget className="h-6 w-6 text-orange-600" />
+            <div className="p-3 bg-blue-100 rounded-full">
+              <FiTrendingUp className="h-6 w-6 text-blue-600" />
             </div>
           </div>
         </div>
@@ -447,14 +584,14 @@ const DashboardHome = ({ responderData }) => {
           <div className="space-y-3">
             {stats.unopenedIncidents > 0 && (
               <button className="w-full bg-red-600 text-white py-3 px-4 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center space-x-2"
-                onClick={() => navigate('/responder/incidents')}>
+                onClick={() => navigate('/responder/incidents?filter=unopened')}>
                 <FiBell className="h-4 w-4" />
                 <span>View {stats.unopenedIncidents} Unopened Incident{stats.unopenedIncidents !== 1 ? 's' : ''}</span>
               </button>
             )}
             {stats.criticalIncidents > 0 && (
               <button className="w-full bg-orange-600 text-white py-3 px-4 rounded-lg hover:bg-orange-700 transition-colors flex items-center justify-center space-x-2"
-                onClick={() => navigate('/responder/incidents')}>
+                onClick={() => navigate('/responder/incidents?filter=critical')}>
                 <FiAlertTriangle className="h-4 w-4" />
                 <span>Handle {stats.criticalIncidents} Critical Case{stats.criticalIncidents !== 1 ? 's' : ''}</span>
               </button>

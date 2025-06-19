@@ -24,7 +24,6 @@ const UserSidebar = () => {
   const navigate = useNavigate();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
-  const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
 
   const isActive = (path) => {
@@ -52,23 +51,7 @@ const UserSidebar = () => {
       setUnreadNotificationCount(snapshot.docs.length);
     });
 
-    // For chat notifications, we'll use a simpler approach
-    // Just check if user has any assigned incidents (chat will show unread counts)
-    const incidentsRef = collection(db, 'incidents');
-    const incidentsQuery = query(
-      incidentsRef, 
-      where('userId', '==', currentUser.uid),
-      where('assignedResponderId', '!=', null)
-    );
-    
-    const incidentsUnsubscribe = onSnapshot(incidentsQuery, (snapshot) => {
-      // If user has assigned incidents, they might have chat messages
-      // The actual unread count will be shown in the chat component
-      setUnreadChatCount(snapshot.docs.length > 0 ? 1 : 0);
-    });
-
     return () => {
-      incidentsUnsubscribe();
       notificationsUnsubscribe();
     };
   };
@@ -103,8 +86,7 @@ const UserSidebar = () => {
     { 
       path: '/chat', 
       label: 'Chat with Responder', 
-      icon: <FiMessageCircle className="w-5 h-5" />,
-      badge: unreadChatCount
+      icon: <FiMessageCircle className="w-5 h-5" />
     },
     { 
       path: '/profile', 

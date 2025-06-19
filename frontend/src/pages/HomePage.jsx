@@ -14,17 +14,6 @@ const HomePage = () => {
     navigate('/login', { state: { from: '/report' } });
   };
 
-  const emergencyNumbers = [
-    { service: 'Police', number: '991', color: 'blue' },
-    { service: 'Medical', number: '907', color: 'red' },
-    { service: 'Fire', number: '939', color: 'orange' },
-    { service: 'Traffic', number: '945', color: 'yellow' }
-  ];
-
-  const handleEmergencyCall = (phoneNumber) => {
-    window.location.href = `tel:${phoneNumber}`;
-  };
-
   return (
     <div className="min-h-screen flex flex-col">
       <Navigation />
@@ -63,36 +52,6 @@ const HomePage = () => {
                 Emergency Call
               </Link>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Quick Emergency Numbers Section */}
-      <section className="py-8 bg-gradient-to-r from-red-50 to-orange-50 border-b border-red-100">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-red-800 mb-2">Emergency Numbers</h2>
-            <p className="text-red-700">Quick access to official emergency services</p>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
-            {emergencyNumbers.map((emergency, index) => (
-              <button
-                key={index}
-                onClick={() => handleEmergencyCall(emergency.number)}
-                className={`bg-white p-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105 border-2 border-${emergency.color}-200 hover:border-${emergency.color}-400`}
-              >
-                <div className="text-center">
-                  <div className={`text-2xl mb-2`}>
-                    {emergency.service === 'Police' && '👮'}
-                    {emergency.service === 'Medical' && '🏥'}
-                    {emergency.service === 'Fire' && '🚒'}
-                    {emergency.service === 'Traffic' && '🚗'}
-                  </div>
-                  <h3 className="font-semibold text-gray-800 text-sm mb-1">{emergency.service}</h3>
-                  <p className={`text-lg font-bold text-${emergency.color}-600`}>{emergency.number}</p>
-                </div>
-              </button>
-            ))}
           </div>
         </div>
       </section>

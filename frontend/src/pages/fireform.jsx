@@ -11,6 +11,7 @@ import { routeIncident } from "../services/incidentRouting";
 import { createChatRoom } from "../services/chatService";
 import FileUpload from '../components/Common/FileUpload';
 import { saveIncidentFilesLocally } from '../services/fileStorage';
+import SubmissionModal from '../components/Common/SubmissionModal';
 
 export default function FireIncidentForm() {
   const navigate = useNavigate();
@@ -39,6 +40,11 @@ export default function FireIncidentForm() {
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionModal, setSubmissionModal] = useState({
+    isOpen: false,
+    type: 'success',
+    message: ''
+  });
 
   const validateForm = () => {
     const newErrors = {};
@@ -143,25 +149,40 @@ export default function FireIncidentForm() {
 
       // Show appropriate feedback based on routing result
       if (routingResult.success) {
-        toast.success(routingResult.message);
         console.log('Successfully assigned to:', routingResult.responder.name);
+        setSubmissionModal({
+          isOpen: true,
+          type: 'success',
+          message: `Your fire incident report has been submitted successfully and assigned to ${routingResult.responder.name}. Please check your notifications for updates.`
+        });
       } else {
-        toast.info(routingResult.message);
         console.log('No responder available, incident queued');
+        setSubmissionModal({
+          isOpen: true,
+          type: 'success',
+          message: 'Your fire incident report has been submitted successfully. We are currently finding the best responder for you. Please check your notifications for updates.'
+        });
       }
-      
-      // Wait for 2 seconds to show the message
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Navigate to dashboard
-      navigate('/dashboard');
       
     } catch (error) {
       console.error('Error submitting incident:', error);
-      toast.error('Failed to submit report. Please try again.');
+      setSubmissionModal({
+        isOpen: true,
+        type: 'error',
+        message: 'Failed to submit your fire incident report. Please check your connection and try again.'
+      });
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleModalClose = () => {
+    setSubmissionModal({ isOpen: false, type: 'success', message: '' });
+  };
+
+  const handleGoHome = () => {
+    setSubmissionModal({ isOpen: false, type: 'success', message: '' });
+    navigate('/dashboard');
   };
 
   // Test function to verify form data
@@ -392,6 +413,13 @@ export default function FireIncidentForm() {
           </div>
         </div>
       </div>
+      <SubmissionModal
+        isOpen={submissionModal.isOpen}
+        type={submissionModal.type}
+        message={submissionModal.message}
+        onClose={handleModalClose}
+        onGoHome={handleGoHome}
+      />
     </div>
   );
 }

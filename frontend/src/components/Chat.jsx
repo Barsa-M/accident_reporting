@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { FiSend, FiMessageSquare, FiUser, FiClock, FiAlertTriangle, FiMapPin, FiBell } from 'react-icons/fi';
+import { FiSend, FiMessageSquare, FiUser, FiClock, FiAlertTriangle, FiMapPin, FiBell, FiArrowLeft, FiHome } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 
 const Chat = () => {
   const { currentUser } = useAuth();
@@ -66,11 +66,19 @@ const Chat = () => {
     };
   }, [userIncidents]);
 
-  const fetchUserIncidents = async () => {
+  const fetchUserIncidents = () => {
     try {
-      if (!currentUser) return;
-
+      console.log('User Chat: Current user:', currentUser);
+      console.log('User Chat: Current user UID:', currentUser?.uid);
+      
+      if (!currentUser || !currentUser.uid) {
+        console.log('User Chat: No authenticated user found');
+        setLoading(false);
+        return;
+      }
+      
       console.log('User Chat: Fetching incidents for user:', currentUser.uid);
+      
       const incidentsRef = collection(db, 'incidents');
       const q = query(
         incidentsRef,
@@ -78,28 +86,22 @@ const Chat = () => {
         orderBy('createdAt', 'desc')
       );
 
+      console.log('User Chat: Query created:', q);
+
       const unsubscribe = onSnapshot(q, (snapshot) => {
-        console.log('User Chat: Incidents snapshot received with', snapshot.docs.length, 'incidents');
-        const incidents = snapshot.docs.map(doc => {
+        console.log('User Chat: Snapshot received with', snapshot.docs.length, 'incidents');
+        
+        const incidentsData = snapshot.docs.map(doc => {
           const data = doc.data();
-          console.log('User Chat: Incident data:', { id: doc.id, ...data });
+          console.log('User Chat: Incident data:', { id: doc.id, userId: data.userId, ...data });
           return {
             id: doc.id,
             ...data
           };
         });
-        console.log('User Chat: Processed incidents:', incidents);
-        setUserIncidents(incidents);
+        console.log('User Chat: Processed incidents:', incidentsData);
+        setUserIncidents(incidentsData);
         setLoading(false);
-        
-        // Auto-select incident if URL parameter is provided
-        const incidentId = searchParams.get('incidentId');
-        if (incidentId && incidents.length > 0) {
-          const incident = incidents.find(inc => inc.id === incidentId);
-          if (incident) {
-            setSelectedIncident(incident);
-          }
-        }
       }, (error) => {
         console.error('User Chat: Error fetching incidents:', error);
         setLoading(false);
@@ -305,235 +307,246 @@ const Chat = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0d522c]"></div>
-      </div>
-    );
-  }
-
   return (
-    <div className="max-w-7xl mx-auto p-6">
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-200px)]">
-        {/* User Incidents List */}
-        <div className="lg:col-span-1 bg-white rounded-lg shadow overflow-hidden">
-          <div className="p-4 border-b bg-[#0d522c] text-white">
-            <h2 className="text-lg font-semibold">My Reports</h2>
-            <p className="text-sm opacity-90">{userIncidents.length} reports</p>
-          </div>
-          <div className="divide-y max-h-[calc(100vh-300px)] overflow-y-auto">
-            {userIncidents.length === 0 ? (
-              <div className="p-4 text-center text-gray-500">
-                <FiMessageSquare className="mx-auto h-8 w-8 mb-2" />
-                <p>No reports found</p>
-              </div>
-            ) : (
-              userIncidents.map((incident, index) => (
-                <button
-                  key={`${incident.id}-${index}`}
-                  onClick={() => setSelectedIncident(incident)}
-                  className={`w-full p-4 text-left hover:bg-gray-50 transition-colors relative ${
-                    selectedIncident?.id === incident.id ? 'bg-gray-50 border-l-4 border-[#0d522c]' : ''
-                  } ${unreadCounts[incident.id] > 0 ? 'bg-blue-50 border-l-4 border-blue-500' : ''}`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="font-medium text-gray-900">{incident.type || incident.incidentType}</p>
-                    <div className="flex items-center gap-2">
-                      {unreadCounts[incident.id] > 0 && (
-                        <div className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                          {unreadCounts[incident.id]}
-                        </div>
-                      )}
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(incident.status)}`}>
-                        {incident.status?.replace('_', ' ').toUpperCase()}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="text-sm text-gray-500 truncate mb-2">{incident.description}</p>
-                  <div className="flex items-center text-xs text-gray-400">
-                    <FiClock className="mr-1" />
-                    {formatDateTime(incident.createdAt)}
-                  </div>
-                  {incident.assignedResponderId && (
-                    <div className="mt-1">
-                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                        Assigned
-                      </span>
-                    </div>
-                  )}
-                  {unreadCounts[incident.id] > 0 && (
-                    <div className="mt-1">
-                      <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full flex items-center gap-1">
-                        <FiBell className="w-3 h-3" />
-                        {unreadCounts[incident.id]} new message{unreadCounts[incident.id] !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                  )}
-                </button>
-              ))
-            )}
+    <div className="min-h-screen bg-gray-50">
+      {/* Header with Back to Homepage button */}
+      <div className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center space-x-4">
+              <Link
+                to="/dashboard"
+                className="flex items-center space-x-2 text-[#0d522c] hover:text-[#347752] transition-colors"
+              >
+                <FiArrowLeft className="w-5 h-5" />
+                <span className="font-medium">Back to Dashboard</span>
+              </Link>
+              <div className="h-6 w-px bg-gray-300"></div>
+              <Link
+                to="/"
+                className="flex items-center space-x-2 text-gray-600 hover:text-[#0d522c] transition-colors"
+              >
+                <FiHome className="w-5 h-5" />
+                <span className="font-medium">Homepage</span>
+              </Link>
+            </div>
+            <div className="flex items-center space-x-3">
+              <FiMessageSquare className="w-6 h-6 text-[#0d522c]" />
+              <h1 className="text-xl font-semibold text-[#0d522c]">Chat with Responders</h1>
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Chat Area */}
-        <div className="lg:col-span-3 bg-white rounded-lg shadow overflow-hidden flex flex-col h-[calc(100vh-200px)]">
-          {selectedIncident ? (
-            <>
-              {/* Chat Header - Fixed height */}
-              <div className="p-4 border-b bg-gray-50 flex-shrink-0">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                      <FiAlertTriangle className="mr-2" />
-                      {selectedIncident.type || selectedIncident.incidentType} Report
-                    </h2>
-                    <p className="text-sm text-gray-500">{selectedIncident.description}</p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(selectedIncident.status)}`}>
-                      {selectedIncident.status?.replace('_', ' ').toUpperCase()}
-                    </span>
-                  </div>
-                </div>
-                
-                {/* Responder Info - Scrollable if needed */}
-                {responderInfo && (
-                  <div className="mt-3 p-3 bg-white rounded-lg border max-h-32 overflow-y-auto">
-                    <h3 className="text-sm font-medium text-gray-700 mb-2">Assigned Responder</h3>
-                    <div className="space-y-1">
-                      <div className="flex items-center text-sm text-gray-600">
-                        <FiUser className="mr-2" />
-                        <span>{responderInfo.name}</span>
-                        <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
-                          responderInfo.isAvailable ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                          {responderInfo.isAvailable ? 'Available' : 'Busy'}
-                        </span>
-                      </div>
-                      {responderInfo.specialization && (
-                        <div className="flex items-center text-sm text-gray-600">
-                          <FiMapPin className="mr-2" />
-                          <span>{responderInfo.specialization} Responder</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0d522c]"></div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-140px)]">
+            {/* Incident List - Enhanced */}
+            <div className="lg:col-span-1 bg-white rounded-lg shadow overflow-hidden">
+              <div className="p-4 border-b border-gray-200 bg-[#0d522c] text-white">
+                <h2 className="text-lg font-semibold">Your Reports</h2>
+                <p className="text-sm text-white/80 mt-1">
+                  {userIncidents.length} report{userIncidents.length !== 1 ? 's' : ''}
+                </p>
               </div>
-
-              {/* Messages - Flexible height, scrollable */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
-                {chatLoading ? (
-                  <div className="flex justify-center items-center h-32">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0d522c]"></div>
-                  </div>
-                ) : messages.length === 0 ? (
-                  <div className="text-center text-gray-500 py-8">
+              <div className="overflow-y-auto h-[calc(100%-80px)]">
+                {userIncidents.length === 0 ? (
+                  <div className="p-6 text-center text-gray-500">
                     <FiMessageSquare className="mx-auto h-12 w-12 mb-4" />
-                    <p>No messages yet. Start the conversation!</p>
-                    {!selectedIncident.assignedResponderId && (
-                      <p className="text-sm mt-2">Your report is being reviewed and will be assigned to a responder soon. You can still send messages that will be visible when a responder is assigned.</p>
-                    )}
+                    <p className="text-sm">No reports found</p>
+                    <p className="text-xs mt-1">Submit a report to start chatting</p>
                   </div>
                 ) : (
-                  <>
-                    {messages.map((message, index) => (
-                      <div
-                        key={`${message.id}-${index}`}
-                        className={`flex ${
-                          message.senderId === currentUser.uid ? 'justify-end' : 'justify-start'
-                        }`}
-                      >
-                        <div
-                          className={`max-w-[70%] rounded-lg p-3 ${
-                            message.senderId === currentUser.uid
-                              ? 'bg-[#0d522c] text-white'
-                              : 'bg-gray-100 text-gray-900'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <p className="text-sm font-medium">
-                              {message.senderId === currentUser.uid ? 'You' : message.senderName}
-                            </p>
-                            <p className={`text-xs ${message.senderId === currentUser.uid ? 'text-white/75' : 'text-gray-500'}`}>
-                              {formatDateTime(message.timestamp)}
-                            </p>
-                          </div>
-                          <p className="text-sm">{message.text}</p>
+                  userIncidents.map((incident, index) => (
+                    <button
+                      key={`${incident.id}-${index}`}
+                      onClick={() => setSelectedIncident(incident)}
+                      className={`w-full p-4 text-left hover:bg-gray-50 transition-colors relative border-b border-gray-100 ${
+                        selectedIncident?.id === incident.id ? 'bg-gray-50 border-l-4 border-[#0d522c]' : ''
+                      } ${unreadCounts[incident.id] > 0 ? 'bg-blue-50 border-l-4 border-blue-500' : ''}`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="font-medium text-gray-900">{incident.type || incident.incidentType}</p>
+                        <div className="flex items-center gap-2">
+                          {unreadCounts[incident.id] > 0 && (
+                            <div className="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                              {unreadCounts[incident.id]}
+                            </div>
+                          )}
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(incident.status)}`}>
+                            {incident.status?.replace('_', ' ').toUpperCase()}
+                          </span>
                         </div>
                       </div>
-                    ))}
-                  </>
+                      <p className="text-sm text-gray-500 truncate mb-2">{incident.description}</p>
+                      <div className="flex items-center text-xs text-gray-400">
+                        <FiClock className="mr-1" />
+                        {formatDateTime(incident.createdAt)}
+                      </div>
+                      {incident.assignedResponderId && (
+                        <div className="mt-1">
+                          <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                            Assigned
+                          </span>
+                        </div>
+                      )}
+                      {unreadCounts[incident.id] > 0 && (
+                        <div className="mt-1">
+                          <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full flex items-center gap-1">
+                            <FiBell className="w-3 h-3" />
+                            {unreadCounts[incident.id]} new message{unreadCounts[incident.id] !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      )}
+                    </button>
+                  ))
                 )}
-                <div ref={messagesEndRef} />
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-gray-500">
-              <div className="text-center">
-                <FiMessageSquare className="mx-auto h-12 w-12 mb-4" />
-                <p className="text-lg font-medium">Select a report to start chatting</p>
-                <p className="text-sm">Choose from the list of your reports on the left</p>
               </div>
             </div>
-          )}
 
-          {/* Message Input - Fixed height at bottom */}
-          <form onSubmit={handleSendMessage} className="p-4 border-t bg-gray-50 relative z-10 border-2 border-blue-200 flex-shrink-0" style={{
-            display: 'block !important',
-            visibility: 'visible !important',
-            opacity: '1 !important',
-            position: 'relative !important',
-            zIndex: '9999 !important'
-          }}>
-            {!selectedIncident && (
-              <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-sm text-yellow-800">
-                  ⚠️ <strong>No report selected</strong> - Please select a report from the left panel to send messages.
-                </p>
-              </div>
-            )}
-            {selectedIncident && !selectedIncident.assignedResponderId && (
-              <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-800">
-                  💡 <strong>Tip:</strong> You can send messages now. They will be visible to the responder once your report is assigned.
-                </p>
-              </div>
-            )}
-            <div className="flex space-x-4">
-              <input
-                type="text"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder={selectedIncident ? (selectedIncident.assignedResponderId ? "Type your message..." : "Type your message (will be visible when assigned)...") : "Select a report to send messages..."}
-                disabled={!selectedIncident}
-                className="flex-1 rounded-lg border-2 border-gray-300 focus:border-[#0d522c] focus:ring-[#0d522c] px-4 py-3 disabled:bg-gray-100 disabled:cursor-not-allowed text-lg min-h-[50px]"
-                style={{
-                  backgroundColor: selectedIncident ? '#ffffff' : '#f3f4f6',
-                  borderColor: selectedIncident ? '#d1d5db' : '#9ca3af',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                  display: 'block !important',
-                  visibility: 'visible !important',
-                  opacity: '1 !important'
-                }}
-              />
-              <button
-                type="submit"
-                disabled={!selectedIncident || !newMessage.trim()}
-                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-[#0d522c] hover:bg-[#094023] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0d522c] disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[50px]"
-                style={{
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                  display: 'inline-flex !important',
-                  visibility: 'visible !important',
-                  opacity: '1 !important'
-                }}
-              >
-                <FiSend className="h-6 w-6" />
-              </button>
+            {/* Chat Area - Enhanced */}
+            <div className="lg:col-span-3 bg-white rounded-lg shadow overflow-hidden flex flex-col h-[calc(100vh-140px)]">
+              {selectedIncident ? (
+                <>
+                  {/* Chat Header - Enhanced */}
+                  <div className="p-4 border-b border-gray-200 bg-gray-50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-[#0d522c] rounded-full flex items-center justify-center">
+                          <FiAlertTriangle className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            {selectedIncident.type || selectedIncident.incidentType}
+                          </h3>
+                          <div className="flex items-center space-x-4 text-sm text-gray-500">
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(selectedIncident.status)}`}>
+                              {selectedIncident.status?.replace('_', ' ').toUpperCase()}
+                            </span>
+                            {selectedIncident.assignedResponderId && (
+                              <span className="text-green-600">✓ Assigned to Responder</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {responderInfo && (
+                        <div className="text-right">
+                          <p className="text-sm font-medium text-gray-900">{responderInfo.name}</p>
+                          <p className="text-xs text-gray-500">{responderInfo.specialization}</p>
+                          <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${
+                            responderInfo.isAvailable ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          }`}>
+                            <div className={`w-2 h-2 rounded-full mr-1 ${responderInfo.isAvailable ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                            {responderInfo.isAvailable ? 'Available' : 'Busy'}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Messages - Enhanced */}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0 bg-gray-50">
+                    {chatLoading ? (
+                      <div className="flex justify-center items-center h-32">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0d522c]"></div>
+                      </div>
+                    ) : messages.length === 0 ? (
+                      <div className="text-center text-gray-500 py-8">
+                        <FiMessageSquare className="mx-auto h-12 w-12 mb-4" />
+                        <p className="text-lg font-medium">No messages yet</p>
+                        <p className="text-sm mt-2">Start the conversation!</p>
+                        {!selectedIncident.assignedResponderId && (
+                          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p className="text-sm text-blue-800">
+                              💡 <strong>Tip:</strong> You can send messages now. They will be visible to the responder once your report is assigned.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        {messages.map((message, index) => (
+                          <div
+                            key={`${message.id}-${index}`}
+                            className={`flex ${
+                              message.senderId === currentUser.uid ? 'justify-end' : 'justify-start'
+                            }`}
+                          >
+                            <div
+                              className={`max-w-[70%] rounded-lg p-3 shadow-sm ${
+                                message.senderId === currentUser.uid
+                                  ? 'bg-[#0d522c] text-white'
+                                  : 'bg-white text-gray-900 border border-gray-200'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <p className="text-sm font-medium">
+                                  {message.senderId === currentUser.uid ? 'You' : message.senderName}
+                                </p>
+                                <p className={`text-xs ${message.senderId === currentUser.uid ? 'text-white/75' : 'text-gray-500'}`}>
+                                  {formatDateTime(message.timestamp)}
+                                </p>
+                              </div>
+                              <p className="text-sm leading-relaxed">{message.text}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                    <div ref={messagesEndRef} />
+                  </div>
+                </>
+              ) : (
+                <div className="flex-1 flex items-center justify-center text-gray-500">
+                  <div className="text-center">
+                    <FiMessageSquare className="mx-auto h-12 w-12 mb-4" />
+                    <p className="text-lg font-medium">Select a report to start chatting</p>
+                    <p className="text-sm">Choose from the list of your reports on the left</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Message Input - Enhanced */}
+              <form onSubmit={handleSendMessage} className="p-3 border-t bg-white relative z-10">
+                {!selectedIncident && (
+                  <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-800">
+                      ⚠️ <strong>No report selected</strong> - Please select a report from the left panel to send messages.
+                    </p>
+                  </div>
+                )}
+                {selectedIncident && !selectedIncident.assignedResponderId && (
+                  <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      💡 <strong>Tip:</strong> You can send messages now. They will be visible to the responder once your report is assigned.
+                    </p>
+                  </div>
+                )}
+                <div className="flex space-x-3">
+                  <input
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder={selectedIncident ? (selectedIncident.assignedResponderId ? "Type your message..." : "Type your message (will be visible when assigned)...") : "Select a report to send messages..."}
+                    disabled={!selectedIncident}
+                    className="flex-1 rounded-lg border-2 border-gray-300 focus:border-[#0d522c] focus:ring-[#0d522c] px-4 py-2 disabled:bg-gray-100 disabled:cursor-not-allowed text-base min-h-[44px]"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!selectedIncident || !newMessage.trim()}
+                    className="inline-flex items-center px-5 py-2 border border-transparent text-base font-medium rounded-lg text-white bg-[#0d522c] hover:bg-[#094023] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0d522c] disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[44px]"
+                  >
+                    <FiSend className="h-5 w-5" />
+                  </button>
+                </div>
+              </form>
             </div>
-          </form>
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

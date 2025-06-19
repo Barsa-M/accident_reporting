@@ -14,6 +14,7 @@ const IncidentHistory = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
+  const [reportTypeFilter, setReportTypeFilter] = useState('all');
 
   useEffect(() => {
     if (currentUser) {
@@ -31,11 +32,10 @@ const IncidentHistory = () => {
 
       for (const collectionName of collections) {
         try {
-          // Query for incidents assigned to this responder (including resolved ones)
+          // Query for incidents assigned to this responder (without ordering to avoid composite index)
           const incidentsQuery = query(
             collection(db, collectionName),
-            where('assignedResponderId', '==', currentUser.uid),
-            orderBy('createdAt', 'desc')
+            where('assignedResponderId', '==', currentUser.uid)
           );
           
           const incidentsSnap = await getDocs(incidentsQuery);
@@ -43,13 +43,13 @@ const IncidentHistory = () => {
             id: doc.id,
             ...doc.data(),
             source: collectionName,
-            createdAt: doc.data().createdAt?.toDate?.() || new Date()
+            createdAt: doc.data().createdAt?.toDate?.() || new Date(doc.data().createdAt)
           }));
 
           // Also check for incidents with other assignment field names
           const alternativeQueries = [
-            query(collection(db, collectionName), where('assignedTo', '==', currentUser.uid), orderBy('createdAt', 'desc')),
-            query(collection(db, collectionName), where('responderId', '==', currentUser.uid), orderBy('createdAt', 'desc'))
+            query(collection(db, collectionName), where('assignedTo', '==', currentUser.uid)),
+            query(collection(db, collectionName), where('responderId', '==', currentUser.uid))
           ];
 
           for (const altQuery of alternativeQueries) {
@@ -59,7 +59,7 @@ const IncidentHistory = () => {
                 id: doc.id,
                 ...doc.data(),
                 source: collectionName,
-                createdAt: doc.data().createdAt?.toDate?.() || new Date()
+                createdAt: doc.data().createdAt?.toDate?.() || new Date(doc.data().createdAt)
               }));
               
               // Merge incidents, avoiding duplicates
@@ -74,13 +74,50 @@ const IncidentHistory = () => {
           }
 
           allIncidents = [...allIncidents, ...incidentList];
+          console.log(`Successfully fetched ${incidentList.length} incidents from ${collectionName}`);
         } catch (error) {
-          console.log(`Failed to fetch from ${collectionName}:`, error);
+          console.error(`Failed to fetch from ${collectionName}:`, error);
+          // Continue with other collections even if one fails
         }
       }
 
-      // Sort by creation date (newest first)
+      // Sort by creation date (newest first) after fetching all data
       allIncidents.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      // If no incidents found with the main queries, try a fallback approach
+      if (allIncidents.length === 0) {
+        console.log('No incidents found with main queries, trying fallback approach...');
+        
+        for (const collectionName of collections) {
+          try {
+            // Fallback: Get all incidents and filter client-side
+            const fallbackQuery = query(collection(db, collectionName));
+            const fallbackSnap = await getDocs(fallbackQuery);
+            
+            const fallbackIncidents = fallbackSnap.docs
+              .map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+                source: collectionName,
+                createdAt: doc.data().createdAt?.toDate?.() || new Date(doc.data().createdAt)
+              }))
+              .filter(inc => {
+                // Filter for incidents assigned to this responder
+                return inc.assignedResponderId === currentUser.uid ||
+                       inc.assignedTo === currentUser.uid ||
+                       inc.responderId === currentUser.uid;
+              });
+            
+            allIncidents = [...allIncidents, ...fallbackIncidents];
+            console.log(`Fallback: Found ${fallbackIncidents.length} incidents from ${collectionName}`);
+          } catch (error) {
+            console.error(`Fallback query failed for ${collectionName}:`, error);
+          }
+        }
+        
+        // Sort again after fallback
+        allIncidents.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      }
 
       console.log('Fetched incident history:', allIncidents.length);
       console.log('Sample incidents:', allIncidents.slice(0, 3));
@@ -97,7 +134,10 @@ const IncidentHistory = () => {
         status: inc.status,
         type: inc.type || inc.incidentType,
         createdAt: inc.createdAt,
-        source: inc.source
+        source: inc.source,
+        assignedResponderId: inc.assignedResponderId,
+        assignedTo: inc.assignedTo,
+        responderId: inc.responderId
       })));
       
       // Debug: Show all unique status values
@@ -109,6 +149,15 @@ const IncidentHistory = () => {
         const count = allIncidents.filter(inc => inc.status === status).length;
         console.log(`Status "${status}": ${count} incidents`);
       });
+      
+      // Debug: Check for any incidents with this responder ID
+      const responderIncidents = allIncidents.filter(inc => 
+        inc.assignedResponderId === currentUser.uid ||
+        inc.assignedTo === currentUser.uid ||
+        inc.responderId === currentUser.uid
+      );
+      console.log('Total incidents assigned to this responder:', responderIncidents.length);
+      console.log('Current user UID:', currentUser.uid);
       
       setIncidents(allIncidents);
     } catch (error) {
@@ -198,8 +247,9 @@ const IncidentHistory = () => {
     setSelectedIncident(null);
   };
 
-  // Filter incidents based on search and filters
+  // Filter incidents based on search, status, date, and report type
   const filteredIncidents = incidents.filter(incident => {
+    if (incident.status !== 'resolved') return false;
     const matchesSearch = searchTerm === '' || 
       incident.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       incident.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -208,13 +258,11 @@ const IncidentHistory = () => {
       (incident.type || incident.incidentType)?.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus = statusFilter === 'all' || incident.status === statusFilter;
-    
     let matchesDate = true;
     if (dateFilter !== 'all') {
       const incidentDate = incident.createdAt;
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      
       switch (dateFilter) {
         case 'today':
           matchesDate = incidentDate >= today;
@@ -229,7 +277,9 @@ const IncidentHistory = () => {
           break;
       }
     }
-
+    // Report type filter
+    if (reportTypeFilter === 'verified' && incident.source === 'anonymous_reports') return false;
+    if (reportTypeFilter === 'anonymous' && incident.source !== 'anonymous_reports') return false;
     return matchesSearch && matchesStatus && matchesDate;
   });
 
@@ -305,6 +355,28 @@ const IncidentHistory = () => {
           <button className="px-4 py-2 bg-[#0d522c] text-white rounded-lg hover:bg-[#347752] transition-colors flex items-center justify-center space-x-2">
             <FiDownload className="h-4 w-4" />
             <span>Export</span>
+          </button>
+        </div>
+
+        {/* Report Type Filter */}
+        <div className="flex space-x-2 mb-4">
+          <button
+            className={`px-4 py-2 rounded-lg font-medium border transition-colors ${reportTypeFilter === 'all' ? 'bg-[#0d522c] text-white border-[#0d522c]' : 'bg-white text-[#0d522c] border-gray-300'}`}
+            onClick={() => setReportTypeFilter('all')}
+          >
+            All
+          </button>
+          <button
+            className={`px-4 py-2 rounded-lg font-medium border transition-colors ${reportTypeFilter === 'verified' ? 'bg-[#0d522c] text-white border-[#0d522c]' : 'bg-white text-[#0d522c] border-gray-300'}`}
+            onClick={() => setReportTypeFilter('verified')}
+          >
+            Verified
+          </button>
+          <button
+            className={`px-4 py-2 rounded-lg font-medium border transition-colors ${reportTypeFilter === 'anonymous' ? 'bg-[#0d522c] text-white border-[#0d522c]' : 'bg-white text-[#0d522c] border-gray-300'}`}
+            onClick={() => setReportTypeFilter('anonymous')}
+          >
+            Anonymous
           </button>
         </div>
 
@@ -395,8 +467,11 @@ const IncidentHistory = () => {
                       <div className="flex items-center">
                         <FiUser className="mr-2 h-4 w-4" />
                         <span>
-                          {incident.source === 'anonymous_reports' ? 'Anonymous Report' : 'User Report'}
-                          {incident.isAnonymous && ' (Anonymous)'}
+                          {incident.source === 'anonymous_reports' || incident.isAnonymous ? (
+                            <span className="inline-block px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">Anonymous Report</span>
+                          ) : (
+                            <span className="inline-block px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">Verified Report</span>
+                          )}
                         </span>
                       </div>
                     </div>

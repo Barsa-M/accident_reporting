@@ -491,16 +491,16 @@ const SafetyTips = () => {
               <h1 className="text-3xl font-bold text-gray-800">Safety Tips</h1>
               <p className="text-gray-600 mt-2">Expert safety advice from verified responders</p>
             </div>
-            {isResponder && (
-              <button
+          {isResponder && (
+            <button
                 onClick={() => navigate('/responder/safety-tips')}
                 className="flex items-center space-x-2 px-4 py-2 bg-[#0d522c] text-white rounded-lg hover:bg-[#347752] transition-colors"
-              >
+            >
                 <FiPlus className="w-5 h-5" />
                 <span>Post Tip</span>
-              </button>
-            )}
-          </div>
+            </button>
+          )}
+        </div>
 
           {/* Search and Filters */}
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -514,15 +514,15 @@ const SafetyTips = () => {
                 className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0d522c]"
               />
             </div>
-            
-            <button
+
+              <button
               onClick={() => setShowFilters(!showFilters)}
               className="flex items-center space-x-2 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-            >
+              >
               <FiFilter className="w-5 h-5" />
               <span>Filter</span>
-            </button>
-          </div>
+              </button>
+                  </div>
 
           {/* Category Filters */}
           {showFilters && (
@@ -544,7 +544,7 @@ const SafetyTips = () => {
               </div>
             </div>
           )}
-        </div>
+          </div>
 
         {/* Tips Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
@@ -565,7 +565,7 @@ const SafetyTips = () => {
                       {tip.createdAt ? format(tip.createdAt, 'MMM dd, yyyy') : 'Recently'} • {tip.authorType}
                     </p>
                   </div>
-                </div>
+              </div>
                 
                 <h2 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2 break-words">{tip.title}</h2>
                 <p className="text-gray-600 text-sm leading-relaxed line-clamp-3 break-words">{tip.content}</p>
@@ -605,7 +605,7 @@ const SafetyTips = () => {
                       <FiShare2 className="w-3 h-3 sm:w-4 sm:h-4" />
                       <span className="font-medium">{tip.shares || 0}</span>
                     </button>
-                  </div>
+            </div>
 
                   <button
                     onClick={() => openFlagModal(tip.id, tip.title)}
@@ -615,7 +615,7 @@ const SafetyTips = () => {
                     <FiFlag className="w-3 h-3 sm:w-4 sm:h-4" />
                     <span className="hidden sm:inline">Flag</span>
                   </button>
-                </div>
+            </div>
 
                 {/* Comments Section - Collapsible */}
                 {expandedTips[tip.id] && (
@@ -624,21 +624,21 @@ const SafetyTips = () => {
                     
                     {/* Comment Input */}
                     <div className="mb-3">
-                      <textarea
-                        placeholder="Write a comment..."
+              <textarea
+                placeholder="Write a comment..."
                         value={commentTexts[tip.id] || ''}
                         onChange={(e) => setCommentTexts(prev => ({ ...prev, [tip.id]: e.target.value }))}
                         className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0d522c] resize-none text-sm"
                         rows="2"
                       />
                       <div className="flex justify-end mt-2">
-                        <button
+              <button
                           onClick={() => handleCommentSubmit(tip.id)}
                           disabled={submittingComments[tip.id]}
                           className="px-3 py-1.5 bg-[#0d522c] text-white rounded-lg hover:bg-[#347752] transition-colors disabled:opacity-50 text-sm"
-                        >
+              >
                           {submittingComments[tip.id] ? 'Posting...' : 'Post Comment'}
-                        </button>
+              </button>
                       </div>
                     </div>
 
@@ -718,13 +718,13 @@ const SafetyTips = () => {
                 >
                   Cancel
                 </button>
-                <button
+              <button
                   onClick={handleFlagTip}
                   disabled={flaggingTip || !flagReason.trim()}
                   className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
+              >
                   {flaggingTip ? 'Flagging...' : 'Submit Flag'}
-                </button>
+              </button>
               </div>
             </div>
           </div>
