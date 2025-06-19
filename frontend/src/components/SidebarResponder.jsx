@@ -28,6 +28,7 @@ const SidebarResponder = () => {
     criticalIncidents: 0,
     tipRemovals: 0
   });
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   useEffect(() => {
     if (currentUser) {
@@ -290,7 +291,7 @@ const SidebarResponder = () => {
       {/* Footer Section */}
       <div className="absolute bottom-0 w-full p-4 border-t border-gray-100">
         <button
-          onClick={() => auth.signOut()}
+          onClick={() => setShowLogoutConfirm(true)}
           className="flex items-center space-x-3 px-4 py-3 w-full rounded-lg text-gray-600 hover:bg-gray-50 hover:text-red-600 transition-all duration-200"
         >
           <FiLogOut className="w-5 h-5" />
@@ -300,6 +301,40 @@ const SidebarResponder = () => {
           &copy; {new Date().getFullYear()} SAFE Report
         </p>
       </div>
+
+      {/* Logout Confirmation Dialog */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-center mb-4">
+              <FiAlertCircle className="w-12 h-12 text-red-500" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
+              Confirm Sign Out
+            </h3>
+            <p className="text-gray-600 text-center mb-6">
+              Are you sure you want to sign out? You will need to sign in again to access your account.
+            </p>
+            <div className="flex justify-end space-x-4">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowLogoutConfirm(false);
+                  auth.signOut();
+                }}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

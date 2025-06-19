@@ -294,7 +294,7 @@ const PostSafetyTips = () => {
   const renderMedia = (tip) => {
     if (!tip.files || tip.files.length === 0) return null;
     
-    return (
+        return (
       <div className="mt-4">
         {tip.files.length === 1 ? (
           // Single media item - larger display

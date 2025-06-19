@@ -25,9 +25,9 @@ const ResponderDashboard = () => {
 
   useEffect(() => {
     if (!currentUser) {
-      navigate('/login');
-      return;
-    }
+          navigate('/login');
+          return;
+        }
     fetchResponderData();
   }, [currentUser, navigate]);
 
@@ -41,13 +41,13 @@ const ResponderDashboard = () => {
         setResponderData(data);
         setAvailabilityStatus(data.availabilityStatus || AVAILABILITY_STATUS.AVAILABLE);
         setIsAvailable(data.isAvailable || false);
+        }
+      } catch (error) {
+        console.error('Error fetching responder data:', error);
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Error fetching responder data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
   const handleAvailabilityChange = (newStatus, newIsAvailable) => {
     setAvailabilityStatus(newStatus);
@@ -81,7 +81,7 @@ const ResponderDashboard = () => {
             />
           </div>
         </header>
-        
+
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100">
           <div className="container mx-auto px-6 py-8">
             <Routes>
